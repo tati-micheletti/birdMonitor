@@ -1,0 +1,105 @@
+# ============================================================
+# config.yaml
+# Read by all R and Python scripts in the pipeline
+# ============================================================
+
+# --- Locale ---
+# Required for correct handling of German special characters
+locale_ctype: "de_DE.UTF-8"
+
+# --- Climate (rolling window approach) ---
+# For each target year Y, bioclim is computed from the
+# average of months across years (Y-5) to Y (6 years total).
+# Window length of 6 years matches EBBA2 training period
+# (2012-2017) for consistency between training and prediction.
+#
+# Earliest CHELSA data needed: 2000 (window start for target year 2005)
+climate_target_years: [2005, 2006, 2007, 2008, 2009, 2010,
+                        2011, 2012, 2013, 2014, 2015, 2016,
+                        2017, 2018, 2019, 2020, 2021, 2022,
+                        2023, 2024, 2025]
+climate_window_length: 6    # years per window including lag year
+                             # window for year Y = (Y-5) to Y
+
+# European climatology for EBBA2 training
+europe_years: [2013, 2014, 2015, 2016, 2017]
+europe_lag_year: 2012
+
+# --- Temporal: German occurrence data ---
+
+# Landscape scale (1km — MhB territory dataset)
+# Available: 2005-2025
+landscape_years: [2005, 2006, 2007, 2008, 2009, 2010, 2011,
+                  2012, 2013, 2014, 2015, 2016, 2017, 2018,
+                  2019, 2020, 2021, 2022, 2023, 2024, 2025]
+landscape_download_start: 2004   # lag year for 2005
+
+# Habitat scale (200m — MhB raw point count dataset)
+# Available: 2022-2025
+habitat_years: [2022, 2023, 2024, 2025]
+habitat_download_start: 2021     # lag year for 2022
+
+# Include lag year in bioclim calculations
+include_lag: true
+
+# --- Spatial ---
+target_crs: "EPSG:3035"      # ETRS89-LAEA — EU equal-area standard
+
+europe_bbox: [72, -25, 34, 45]   # European bounding box in WGS84 [N, W, S, E]
+germany_bbox: [56, 5, 47, 16]    # Germany — for German SDMs
+
+
+# Scale-specific resolutions (in metres)
+climate_resolution_m: 50000      # 50 km — for climate SDM (BIO1-19)
+landscape_resolution_m: 1000     # 1 km  — for landscape SDM
+habitat_resolution_m: 200        # 200 m — for habitat SDM
+
+# --- Paths (relative to project root) ---
+raw_dir: "data/raw"
+dda_dir: "data/raw/dda"
+ebba2_dir: "data/raw/ebba2"
+processed_dir: "data/processed"
+
+# Output directories per SDM scale
+climate_output_dir: "outputs/bioclim/europe"
+landscape_output_dir: "outputs/landscape"
+habitat_output_dir: "outputs/habitat"
+
+# --- Land use ---
+# Two datasets with different category schemes:
+#   Schwieder et al. 2024 (CTM v202): 2017-2021 — 25 classes
+#   Tetteh et al. 2025a (CTM v302):   2024       — 25 classes
+#   Tetteh et al. 2025b (CTM v302):   2025       — 25 classes
+#   Tetteh et al. 2026 (HCTM v101):   1990-2023  — 14 classes
+# All collapsed to 14 consistent output categories.
+# NOTE: hedges layer is NA for HCTM years (not mapped)
+# NOTE: grassland collapsed from permanent+cultivated
+# Category inconsistencies flagged to dataset authors (pending)
+landuse_years: [2005, 2006, 2007, 2008, 2009, 2010, 2011,
+                2012, 2013, 2014, 2015, 2016, 2017, 2018,
+                2019, 2020, 2021, 2022, 2023, 2024, 2025]
+
+# --- Land cover ---
+# CORINE Land Cover snapshots (Copernicus Land Monitoring Service)
+# Temporal assignment: nearest preceding snapshot
+# 2006 map: occurrence years 2005-2011
+# 2012 map: occurrence years 2012-2017
+# 2018 map: occurrence years 2018-2025
+landcover_dir: "data/raw/landcover"
+
+# --- Study area (optional) ---
+study_area_path: null
+
+# --- Species ---
+species:
+  - "Vanellus vanellus"
+  - "Milvus milvus"
+  - "Lanius collurio"
+  - "Lullula arborea"
+  - "Alauda arvensis"
+  - "Saxicola rubetra"
+  - "Emberiza calandra"
+  - "Emberiza citrinella"
+  - "Buteo buteo"
+  - "Sturnus vulgaris"
+  - "Perdix perdix"
