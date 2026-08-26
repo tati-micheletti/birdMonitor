@@ -1,0 +1,9 @@
+[submodule "modules/inputs_Monitor"]
+	path = modules/inputs_Monitor
+	url = https://github.com/tati-micheletti/inputs_Monitor.git
+[submodule "modules/models_Monitor"]
+	path = modules/models_Monitor
+	url = https://github.com/tati-micheletti/models_Monitor.git
+[submodule "modules/dataPrep_Monitor"]
+	path = modules/dataPrep_Monitor
+	url = https://github.com/tati-micheletti/dataPrep_Monitor.git
