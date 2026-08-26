@@ -47,3 +47,15 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+.Rprofile
+cache
+inputs
+outputs/test1
+.Rproj.user
+.Rdata
+.secret
+.secrets
+.Restart*
+
+# Data
+/data
