@@ -362,4 +362,4 @@ separate follow-up decision.
 *Some of these have started -- for discussion once the current run's
 models are complete. See also `TODO.md` item 6/7 (unrelated: raster-processing
 performance, EVE cluster) and item 0 (methodology-fidelity gaps already found
-while reading the paper).*
+while reading the paper). Make sure to look at both files.*
