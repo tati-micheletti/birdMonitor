@@ -1,14 +1,20 @@
-#' Standalone entry point for one species x scale model-fitting task
+#' Standalone entry point for one species x scale model-fitting/meta-model task
 #'
 #' Runs OUTSIDE SpaDES entirely -- no simList, no `sim$...`. It loads one
 #' species' already-persisted `inputs_Monitor` output straight from disk and
-#' calls the exact same modelEurope()/modelGerHabitat()/modelGerLandscape()
-#' functions the full pipeline uses, writing to the same shared output
-#' directories. Because those functions already cache per-species
+#' calls the exact same modelEurope()/modelGerHabitat()/modelGerLandscape()/
+#' metaModel() functions the full pipeline uses, writing to the same shared
+#' output directories. Because those functions already cache per-species
 #' (`isValidCachedRDS`) and per-species-per-year (`isValidPredictionRaster`),
 #' any number of these tasks can run concurrently (e.g. as a SLURM job
 #' array) and the results are identical to running the sequential loop --
 #' just faster, since species/scale combinations don't depend on each other.
+#'
+#' `--scale meta` is a separate pipeline STAGE, not a 4th scale alongside
+#' europe/habitat/landscape -- it combines those three scales' fitted
+#' models for a species, so it must only be run after that species'
+#' europe/habitat/landscape tasks have all completed (e.g. a SLURM
+#' `--dependency=afterok:<stage1_job_id>` on the array submitting it).
 #'
 #' Lives here, not in modules/models_Monitor/R/, because SpaDES.core sources
 #' every .R file in a module's R/ directory during simInit() -- this file's
@@ -18,13 +24,14 @@
 #'
 #' Requires `inputs_Monitor`'s `collinearityCheck` event to have already run
 #' for this `runName` (that's what writes the `_inputs.rds`/`_predictors.rds`
-#' files this script reads).
+#' files this script reads), and for `--scale meta`, additionally requires
+#' that species' europe/habitat/landscape tasks to have already completed.
 #'
 #' Usage (local test, one task), from the birdMonitor repo root:
 #'   Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test1
 #' Usage (SLURM array task -- index comes from $SLURM_ARRAY_TASK_ID if
 #' --index is omitted):
-#'   Rscript tools/runClusterTask.R --scale habitat --run-name test1
+#'   Rscript tools/runClusterTask.R --scale meta --run-name test1
 
 ## Avoid oversubscription if the allocated node has more cores than this
 ## task is given -- gbm/dismo don't multithread internally, but the raster
@@ -46,6 +53,7 @@ sharedSpecies <- c("Vanellus vanellus", "Milvus milvus", "Lanius collurio",
 sharedClimateWindowLength <- 6
 sharedClimateTargetYears <- 2005:2025
 sharedLandscapeYears <- 2005:2025  # habitat + landscape + meta prediction years
+sharedHabitatYears <- 2022:2025    # meta-model's own training years (real MhB data)
 
 ## Must match runMe.R's shared*ResolutionM values -- these drive scaleLabel()
 ## folder names throughout inputs/ and outputs/.
@@ -80,8 +88,8 @@ parseArgs <- function(args) {
 
 opt <- parseArgs(commandArgs(trailingOnly = TRUE))
 
-if (is.null(opt$scale) || !opt$scale %in% c("europe", "habitat", "landscape")) {
-  stop("--scale must be one of: europe, habitat, landscape (got: ", opt$scale, ")")
+if (is.null(opt$scale) || !opt$scale %in% c("europe", "habitat", "landscape", "meta")) {
+  stop("--scale must be one of: europe, habitat, landscape, meta (got: ", opt$scale, ")")
 }
 if (is.na(opt$index) || opt$index < 1 || opt$index > length(sharedSpecies)) {
   stop("--index (or $SLURM_ARRAY_TASK_ID) must be an integer between 1 and ",
@@ -102,12 +110,21 @@ moduleRDir <- file.path(opt$repoRoot, "modules", "models_Monitor", "R")
 rFiles <- list.files(moduleRDir, pattern = "\\.R$", full.names = TRUE)
 invisible(lapply(rFiles, source))
 
-scaleLabelFor <- c(europe = scaleLabel(sharedClimateResolutionM),
-                    habitat = scaleLabel(sharedHabitatResolutionM),
-                    landscape = scaleLabel(sharedLandscapeResolutionM))[[opt$scale]]
+scaleLabels <- c(europe = scaleLabel(sharedClimateResolutionM),
+                  habitat = scaleLabel(sharedHabitatResolutionM),
+                  landscape = scaleLabel(sharedLandscapeResolutionM))
+metaLabel <- metamodelLabel(c(europe = sharedClimateResolutionM,
+                               habitat = sharedHabitatResolutionM,
+                               landscape = sharedLandscapeResolutionM))
+
+## `meta` reads habitat-scale model_ready data (metaModel() trains its ridge
+## regression on habitat occurrence + all 3 scales' suitability, exactly
+## like modelGerHabitat() does for the BRT) -- everything else reads its
+## own scale's model_ready data.
+inputsScaleLabel <- if (opt$scale == "meta") scaleLabels[["habitat"]] else scaleLabels[[opt$scale]]
 
 ## ---- Load just this one species' persisted inputs_Monitor output -------
-inputsDir <- file.path(inputRoot, "model_ready", scaleLabelFor)
+inputsDir <- file.path(inputRoot, "model_ready", inputsScaleLabel)
 
 dataFile <- file.path(inputsDir, paste0(spClean, "_inputs.rds"))
 predFile <- file.path(inputsDir, paste0(spClean, "_predictors.rds"))
@@ -122,31 +139,55 @@ inputsData <- setNames(
   species
 )
 
-## ---- Dispatch to the right scale's fitting function ---------------------
-predictorsProcessedDir <- file.path(inputRoot, "predictors", "processed", scaleLabelFor)
+## ---- Dispatch to the right scale's fitting function, or the meta-model ----
+if (opt$scale == "meta") {
+  modelDirs <- list(europe = file.path(outputRoot, scaleLabels[["europe"]]),
+                     landscape = file.path(outputRoot, scaleLabels[["landscape"]]),
+                     habitat = file.path(outputRoot, scaleLabels[["habitat"]]))
+  for (d in modelDirs) {
+    if (!dir.exists(d)) {
+      stop("Missing scale output at ", d, " -- the europe/habitat/landscape ",
+           "tasks for ", species, " must complete before running --scale meta.")
+    }
+  }
 
-result <- switch(
-  opt$scale,
-  europe = modelEurope(
-    inputsData = inputsData,
-    climateTargetYears = sharedClimateTargetYears,
-    climateWindowLength = sharedClimateWindowLength,
-    climateOutputDir = predictorsProcessedDir,
-    outputDir = file.path(outputRoot, scaleLabelFor),
-    initialLR = 0.01),
-  habitat = modelGerHabitat(
-    inputsData = inputsData,
+  refRasterPath <- file.path(inputRoot, "predictors", "processed",
+                              scaleLabels[["habitat"]], "solar_radiation_habitat.tif")
+  refRaster <- terra::rast(refRasterPath)
+
+  result <- metaModel(
+    inputsDataGerHabitat = inputsData,
+    habitatYears = sharedHabitatYears,
     predictionYears = sharedLandscapeYears,
-    habitatOutputDir = predictorsProcessedDir,
-    outputDir = file.path(outputRoot, scaleLabelFor),
-    initialLR = 0.08),
-  landscape = modelGerLandscape(
-    inputsData = inputsData,
-    predictionYears = sharedLandscapeYears,
-    landscapeOutputDir = predictorsProcessedDir,
-    outputDir = file.path(outputRoot, scaleLabelFor),
-    initialLR = 0.08)
-)
+    modelDirs = modelDirs,
+    refRaster = refRaster,
+    outputDir = file.path(outputRoot, metaLabel))
+} else {
+  predictorsProcessedDir <- file.path(inputRoot, "predictors", "processed", inputsScaleLabel)
+
+  result <- switch(
+    opt$scale,
+    europe = modelEurope(
+      inputsData = inputsData,
+      climateTargetYears = sharedClimateTargetYears,
+      climateWindowLength = sharedClimateWindowLength,
+      climateOutputDir = predictorsProcessedDir,
+      outputDir = file.path(outputRoot, inputsScaleLabel),
+      initialLR = 0.01),
+    habitat = modelGerHabitat(
+      inputsData = inputsData,
+      predictionYears = sharedLandscapeYears,
+      habitatOutputDir = predictorsProcessedDir,
+      outputDir = file.path(outputRoot, inputsScaleLabel),
+      initialLR = 0.08),
+    landscape = modelGerLandscape(
+      inputsData = inputsData,
+      predictionYears = sharedLandscapeYears,
+      landscapeOutputDir = predictorsProcessedDir,
+      outputDir = file.path(outputRoot, inputsScaleLabel),
+      initialLR = 0.08)
+  )
+}
 
 message("=== Done: ", opt$scale, " / ", species, " -- AUC = ",
         round(result[[species]]$perf$AUC, 3), " ===")
