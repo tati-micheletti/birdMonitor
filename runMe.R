@@ -60,6 +60,7 @@ sharedClmsTokenJSONPath <- "C:/Users/michelet/.clms/clms_token.json"
         Restart = FALSE,
     runName = runName,
     paths = list(projectPath = "birdMonitor",
+                 inputPath = "inputs",
                  outputPath = file.path("outputs", runName)),
     modules =c(
       "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
@@ -70,9 +71,12 @@ sharedClmsTokenJSONPath <- "C:/Users/michelet/.clms/clms_token.json"
                    reproducible.cacheSaveFormat = "rds",
                    repos = "https://cloud.r-project.org",
                    reproducible.gdalwarp = TRUE,
-                   reproducible.destinationPathShared = file.path(getwd(), "data/"),
                    reproducible.destinationPath = file.path(getwd(), "outputs/"),
                    reproducible.useMemoise = TRUE
+                   # reproducible.destinationPathShared removed -- the old
+                   # "data/" shared-path workaround is superseded by
+                   # inputPath(sim) (set in `paths` above), which is what
+                   # every module now uses for raw/processed inputs.
     ),
     # None of the 3 modules use SpaDES "simulation time" to drive which
     # years get processed -- they're one-shot pipelines whose events all
@@ -109,7 +113,10 @@ sharedClmsTokenJSONPath <- "C:/Users/michelet/.clms/clms_token.json"
       inputs_Monitor = list(
         species = sharedSpecies,
         ebba2TrainingYear = sharedEbba2TrainingYear,
-        climateWindowLength = sharedClimateWindowLength
+        climateWindowLength = sharedClimateWindowLength,
+        climateResolutionM = sharedClimateResolutionM,
+        habitatResolutionM = sharedHabitatResolutionM,
+        landscapeResolutionM = sharedLandscapeResolutionM
         # runSpatialBlocking / runCollinearityCheck / predictorsToUse /
         # kFolds / block-size / collinearity params: left at module
         # defaults (see inputs_Monitor.R) -- override here to A/B
@@ -119,7 +126,10 @@ sharedClmsTokenJSONPath <- "C:/Users/michelet/.clms/clms_token.json"
         climateTargetYears = sharedClimateTargetYears,
         climateWindowLength = sharedClimateWindowLength,
         landscapeYears = sharedLandscapeYears,
-        habitatYears = sharedHabitatYears
+        habitatYears = sharedHabitatYears,
+        climateResolutionM = sharedClimateResolutionM,
+        habitatResolutionM = sharedHabitatResolutionM,
+        landscapeResolutionM = sharedLandscapeResolutionM
         # No species param here -- models_Monitor takes its species list
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /
