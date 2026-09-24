@@ -357,6 +357,26 @@ either be dropped or given a real temporal treatment (e.g., only used for the
 years where genuine data exists, gappy elsewhere, rather than backfilled) as a
 separate follow-up decision.
 
+## 6. Generalize the study-area crop/mask beyond "Germany"
+
+**Current state:** the post-hoc masking tool (`tools/maskToGermany.R`) and the
+planned source-level fix (cropping the working extent in `dataPrep_Monitor`
+before any calculation starts, using a `rasterToMatch`/`studyArea` pattern --
+see the EVE-cluster-parallelization project discussion) are both hardcoded to
+Germany's national boundary.
+
+**Why this needs to be flexible, not hardcoded:** two real future needs
+already identified: (1) running the same pipeline for other European
+countries, which needs a different national boundary and a different
+full-Europe-bbox-relative crop; (2) cropping to sub-national regions
+*within* Germany (individual Bundesländer or smaller), for regional analyses
+that don't need the full national extent. Both need the same crop/mask
+mechanism, just pointed at a different boundary vector -- design the
+`studyArea` input as a parameter (a boundary file path, or a GADM
+country+level+region specification), not a hardcoded "Germany" assumption,
+so the same code serves all three cases (full Germany, another country, a
+sub-national region) without duplication.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
