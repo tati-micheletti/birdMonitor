@@ -40,7 +40,11 @@ parseArgs <- function(args) {
   list(
     boundary = getArg("--boundary"),
     runName  = getArg("--run-name", "test1"),
-    repoRoot = getArg("--repo-root", getwd())
+    repoRoot = getArg("--repo-root", getwd()),
+    species  = getArg("--species")  # optional: e.g. "Vanellus vanellus" -- limits
+                                     # to files whose name contains this species
+                                     # (spaces->underscores), for a quick sample
+                                     # run instead of the full output tree.
   )
 }
 
@@ -54,7 +58,7 @@ if (!is.null(opt$boundary)) {
   cacheDir <- file.path(opt$repoRoot, "inputs", "predictors", "raw", "gadm")
   dir.create(cacheDir, recursive = TRUE, showWarnings = FALSE)
   message("No --boundary given -- downloading GADM level-0 Germany boundary...")
-  germany <- vect(gadm(country = "DEU", level = 0, path = cacheDir))
+  germany <- gadm(country = "DEU", level = 0, path = cacheDir)  # already a SpatVector
 } else {
   stop("No --boundary supplied and the 'geodata' package isn't installed.\n",
        "Either install.packages('geodata') to auto-download, or download\n",
@@ -71,7 +75,14 @@ if (!dir.exists(outputRoot)) {
 }
 
 tifFiles <- list.files(outputRoot, pattern = "\\.tif$", full.names = TRUE, recursive = TRUE)
-message("Found ", length(tifFiles), " raster(s) under ", outputRoot)
+
+if (!is.null(opt$species)) {
+  spClean <- gsub(" ", "_", opt$species)
+  tifFiles <- tifFiles[grepl(spClean, basename(tifFiles), fixed = TRUE)]
+  message("Filtered to species '", opt$species, "' -- ", length(tifFiles), " raster(s)")
+} else {
+  message("Found ", length(tifFiles), " raster(s) under ", outputRoot)
+}
 
 if (length(tifFiles) == 0) {
   message("Nothing to do.")
