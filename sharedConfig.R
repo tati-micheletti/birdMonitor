@@ -12,10 +12,17 @@
 # hand-typed copy, which is exactly the kind of silent-drift risk this
 # file is meant to prevent -- it now sources this file too.
 
+# Canonical species roster -- the single source of truth for which species
+# the whole pipeline runs (nothing downstream should hardcode a species
+# count; always derive it from length(sharedSpecies)/nrow() on data keyed
+# by this list). Updated per the Steering Consortium's revised list:
+# Anthus pratensis (Wiesenpieper) newly added; no species dropped from the
+# prior 11 -- Anthus pratensis has no model outputs yet, so it will show as
+# pending in any report until dataPrep/inputs/models are run for it.
 sharedSpecies <- c("Vanellus vanellus", "Milvus milvus", "Lanius collurio",
                    "Lullula arborea", "Alauda arvensis", "Saxicola rubetra",
                    "Emberiza calandra", "Emberiza citrinella", "Buteo buteo",
-                   "Sturnus vulgaris", "Perdix perdix")
+                   "Sturnus vulgaris", "Perdix perdix", "Anthus pratensis")
 
 sharedTargetCRS <- "EPSG:3035"
 sharedEuropeBbox <- c(72, -25, 34, 45)  # N, W, S, E (WGS84) -- also used as the DEM download extent
