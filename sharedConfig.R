@@ -39,6 +39,17 @@ sharedHabitatYears <- 2022:2025          # the only years real MhB point-count o
 
 sharedLocaleCtype <- "de_DE.UTF-8"
 
+# Canonical regional-index grid resolutions (computeRegionalIndex()) -- the
+# single source of truth for which coarse grid sizes get computed. Nothing
+# downstream (scripts, computeRegionalIndex()'s own signature) should
+# hardcode 10km/20km/50km or any other cell size; they should all read
+# this. Currently 10/20/50km: 10km added as a middle ground between the
+# original 20/50km (whose smoothing looked "mild" at that coarseness);
+# held off on 5km since it starts to approach identifying individual
+# localities, which cuts against the reason these grids exist in the
+# first place (a regional picture without pointing at specific areas).
+sharedRegionalCellSizesM <- c(10000, 20000, 50000)
+
 # Your personal CLMS API token for CORINE Land Cover downloads (see the
 # setup steps at the top of dataPrep_Monitor/python/download_landcover.py).
 # Deliberately kept OUTSIDE any git-tracked folder -- never move this
