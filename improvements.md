@@ -445,6 +445,38 @@ rather than assuming it's wanted just because it's in the source paper.
   algorithm can produce a model for the same species+scale (today's
   `<species>_BRT_habitat.rds`-style naming assumes exactly one algorithm).
 
+## 8. Move the multi-species index/report into its own module
+
+**Status: deferred, explicitly not yet** -- "we need to move the runIndex
+to its own MODULE! But not yet" (2026-09-25). Noted here so it isn't lost,
+not to be started until the current `runIndex.R` script approach has been
+validated (this weekend's local test with the index step included).
+
+**The problem this addresses:** `runIndex.R` (repo root) is a standalone
+script, not a SpaDES module. It manually re-sources every file in
+`modules/models_Monitor/R/` just to get access to `computeAnnualReport()`/
+`computeRegionalIndex()` and their dependencies -- functions that already
+live in a module's `R/` folder but were never wrapped in their own
+`defineModule()`. That means no parameter validation, no self-documentation
+(`?indexReport_Monitor`-style), no participation in SpaDES's own
+caching/output-path conventions, and no natural place in `runMe.R`'s
+`modules =` list alongside `dataPrep_Monitor`/`inputs_Monitor`/`models_Monitor`
+-- it has to be run as a completely separate, manually-invoked step instead
+of a 4th pipeline stage.
+
+**The idea:** a 4th module (e.g. `indexReport_Monitor`) wrapping
+`computeAnnualReport()`/`computeRegionalIndex()` with proper
+`defineParameter()`s (`species`, `baselineYear`, `currentYear`, `allYears`,
+`restrictedYears`, `cellSizesM`, etc.), consuming `models_Monitor`'s
+`metaModel()` output the same way `models_Monitor` consumes
+`inputs_Monitor`'s output -- scheduled as a real step in `runMe.R`'s own
+`modules=`/`loadOrder`, not a separate script run by hand afterward.
+
+**Why not now:** the standalone-script approach needs to actually work
+first. Once `runIndex.R` has been run for real (this weekend's 4-species
+test) and its output format/edge cases are known to be right, wrapping it
+as a proper module is a much lower-risk refactor than doing both at once.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
