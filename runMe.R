@@ -55,12 +55,12 @@ perSpeciesPredictors <- resolvePerSpeciesPredictors(perSpeciesGeneralConfig, per
 #                                                #
 ##################################################
 
-  # Bump this by hand (test1 -> test2 -> ...) whenever a config change
-  # means the previous run's cached outputs shouldn't be reused -- kept
-  # manual rather than auto-stamped, since a real run takes longer than a
-  # day and an automatic scheme would fight a manually-chosen name instead
-  # of helping it.
-  runName <- "test1"
+  # Bump the BASE name by hand (test1 -> test2 -> ...) whenever a config
+  # change means the previous run's cached outputs shouldn't be reused --
+  # a timestamp is then always appended automatically, so every run gets
+  # its own outputs/ folder regardless of whether the base name changed.
+  runNameBase <- "test1"
+  runName <- paste0(runNameBase, "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
 
   out <- SpaDES.project::setupProject(
         Restart = FALSE,
