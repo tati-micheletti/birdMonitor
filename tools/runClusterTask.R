@@ -55,7 +55,12 @@ parseArgs <- function(args) {
     scale    = getArg("--scale"),
     index    = as.integer(getArg("--index", slurmIdx)),
     runName  = getArg("--run-name", "test1"),
-    repoRoot = getArg("--repo-root", getwd())
+    repoRoot = getArg("--repo-root", getwd()),
+    landscapeResolutionM = as.numeric(getArg("--landscape-resolution", NA))
+    # Overrides just THIS species' landscape resolution (see
+    # models_Monitor.R's landscapeResolutionOverrides). NOTE: this alone is
+    # NOT sufficient for a resolution this species' inputs_Monitor
+    # model-ready table wasn't built at -- see this file's header.
   )
 }
 
@@ -111,6 +116,14 @@ inputsData[[inputsKey]] <- setNames(list(oneSpeciesEntry), species)
 ## ---- species, one stage (+ meta, if this task's stage finishes last) ----
 suppressMessages(library(SpaDES.core))
 
+landscapeOverrides <- list()
+if (!is.na(opt$landscapeResolutionM)) {
+  landscapeOverrides[[species]] <- opt$landscapeResolutionM
+  message("Overriding ", species, "'s landscape resolution to ", opt$landscapeResolutionM, "m ",
+          "-- requires that species' inputs_Monitor model-ready table to already be built ",
+          "at that resolution (this script does not build it).")
+}
+
 SpaDES.core::simInitAndSpades(
   times = list(start = 2005, end = 2005),
   modules = "models_Monitor",
@@ -127,7 +140,8 @@ SpaDES.core::simInitAndSpades(
     habitatYears = sharedHabitatYears,
     climateResolutionM = sharedClimateResolutionM,
     habitatResolutionM = sharedHabitatResolutionM,
-    landscapeResolutionM = sharedLandscapeResolutionM
+    landscapeResolutionM = sharedLandscapeResolutionM,
+    landscapeResolutionOverrides = landscapeOverrides
   ))
 )
 
