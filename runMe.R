@@ -18,6 +18,35 @@ if (SpaDES.project::user("michelet")) setwd("C:/Users/michelet/Documents/GitHub/
 # silently disagree on these values.
 source("sharedConfig.R")
 
+################### PER-SPECIES/SCALE CONFIGURATION (optional)
+# See sharedSpeciesConfig.R -- speciesConfig_general.csv/
+# speciesConfig_predictors.csv are optional; when absent, every *Config
+# value below stays NULL and every module falls back to its shared
+# defaults exactly as before these files existed.
+source("sharedSpeciesConfig.R")
+speciesGeneralConfigFile <- "speciesConfig_general.csv"
+speciesPredictorsConfigFile <- "speciesConfig_predictors.csv"
+perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
+  loadSpeciesGeneralConfig(speciesGeneralConfigFile)
+} else NULL
+perSpeciesExtraCandidates <- if (file.exists(speciesPredictorsConfigFile)) {
+  loadSpeciesPredictorExtras(speciesPredictorsConfigFile)
+} else NULL
+# inputs_Monitor only needs the hedges_treatment slice of the general
+# config (resolution_m/thinning_dist_m/brutzeitcode_filter go to
+# dataPrep_Monitor once those are wired -- see sharedSpeciesConfig.R's
+# docstring for what's actually consumed where as of 2026-09-25).
+perSpeciesHedges <- if (!is.null(perSpeciesGeneralConfig)) {
+  lapply(perSpeciesGeneralConfig, function(sp) {
+    # Blank/NA hedges_treatment (always true for the climate row -- hedges
+    # isn't a climate covariate) is dropped here, not just left as NA, so
+    # extractScaleExtras() never hands a scale an invalid non-drop/backfill
+    # value regardless of which scale asks for it.
+    scales <- lapply(sp, function(scaleRow) scaleRow$hedges_treatment)
+    scales[!sapply(scales, is.na)]
+  })
+} else NULL
+
 ##################################################
 #                                                #
 #          Running the bird monitor              #
@@ -86,7 +115,9 @@ source("sharedConfig.R")
         climateWindowLength = sharedClimateWindowLength,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
-        landscapeResolutionM = sharedLandscapeResolutionM
+        landscapeResolutionM = sharedLandscapeResolutionM,
+        perSpeciesHedges = perSpeciesHedges,
+        perSpeciesExtraCandidates = perSpeciesExtraCandidates
         # runSpatialBlocking / runCollinearityCheck / predictorsToUse /
         # kFolds / block-size / collinearity params: left at module
         # defaults (see inputs_Monitor.R) -- override here to A/B
@@ -99,7 +130,8 @@ source("sharedConfig.R")
         habitatYears = sharedHabitatYears,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
-        landscapeResolutionM = sharedLandscapeResolutionM
+        landscapeResolutionM = sharedLandscapeResolutionM,
+        perSpeciesGeneralConfig = perSpeciesGeneralConfig
         # No species param here -- models_Monitor takes its species list
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /
