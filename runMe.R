@@ -33,9 +33,21 @@ speciesPredictorsConfigFile <- "speciesConfig_predictors.csv"
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
   loadSpeciesGeneralConfig(speciesGeneralConfigFile)
 } else NULL
-perSpeciesPredictors <- if (file.exists(speciesPredictorsConfigFile)) {
+perSpeciesPredictorsRaw <- if (file.exists(speciesPredictorsConfigFile)) {
   loadSpeciesPredictorConfig(speciesPredictorsConfigFile)
 } else NULL
+# Applies speciesConfig_general.csv's predictor_mode toggle ("table" = use
+# the predictors file's exact list, "auto" = ignore it and let
+# runCollinearityCheck pick automatically from all covariates, dropping
+# collinear ones the normal way) -- a species+scale marked "auto" here
+# falls through to that automatic behavior regardless of what the
+# predictors file lists for it. NOTE: this toggle is for the CURRENT
+# single-algorithm (BRT) pipeline -- once item 7 (GLM/RF/NN, see
+# improvements.md) exists, an NN model should always use all covariates
+# regardless of this toggle (collinearity doesn't hurt NN training the way
+# it affects e.g. GLM coefficient interpretation), which isn't built yet
+# since there's no NN code path at all to apply it to.
+perSpeciesPredictors <- resolvePerSpeciesPredictors(perSpeciesGeneralConfig, perSpeciesPredictorsRaw)
 
 ##################################################
 #                                                #
@@ -43,16 +55,12 @@ perSpeciesPredictors <- if (file.exists(speciesPredictorsConfigFile)) {
 #                                                #
 ##################################################
 
-  # Date-stamped so a re-run on a different day (e.g. after editing the
-  # config CSVs above) lands in its own outputs/ folder instead of silently
-  # reusing/overwriting a previous run's cached files under the old, fixed
-  # "test1" name. This protects against the ACROSS-DAYS case specifically --
-  # it does NOT protect two different configs both run on the SAME day
-  # (those still need a manual runName bump); a fully robust fix would key
-  # the cache off the config's actual content (reproducible::Cache()'s
-  # argument-hashing, already discussed for per-species resolution --
-  # see improvements.md item 4), deferred rather than done here.
-  runName <- paste0("test1_", format(Sys.Date(), "%Y%m%d"))
+  # Bump this by hand (test1 -> test2 -> ...) whenever a config change
+  # means the previous run's cached outputs shouldn't be reused -- kept
+  # manual rather than auto-stamped, since a real run takes longer than a
+  # day and an automatic scheme would fight a manually-chosen name instead
+  # of helping it.
+  runName <- "test1"
 
   out <- SpaDES.project::setupProject(
         Restart = FALSE,
