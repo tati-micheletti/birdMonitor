@@ -12,24 +12,40 @@
 #'
 #' One row per species per scale -- EXACTLY 3 rows per species
 #' (climate/landscape/habitat). Columns beyond species/scale:
-#' `resolution_m`, `data_source` (informational), `thinning_dist_m`,
-#' `brt_start_lr`, `hedges_treatment` ("drop"/"backfill", blank for
-#' climate rows -- hedges isn't a climate covariate), `brutzeitcode_filter`
-#' (blank = no filter; only meaningful for habitat rows, MhB point counts
-#' carry a Brutzeitcode).
+#' `resolution_m`, `data_source` (a real, validated value -- see below,
+#' NOT yet wired to actual effect), `thinning_dist_m`, `brt_start_lr`,
+#' `brutzeitcode_filter` (blank = no filter; only meaningful for habitat
+#' rows, MhB point counts carry a Brutzeitcode).
+#'
+#' `hedges_treatment` is deliberately NOT a column here -- it's a single
+#' shared value tuned directly in code (inputs_Monitor's `hedgesTreatment`
+#' parameter), not per-species. Per-species hedges inclusion instead goes
+#' through `speciesConfig_predictors.csv` (list "hedges" for whichever
+#' species should get it as a candidate, once the code-level setting is
+#' "backfill" so the column exists at all to list).
+#'
+#' `data_source` is a real, validated value, not free text -- one of
+#' `"EBBA2/CHELSA"` (climate rows only), `"MhB point counts"`, or
+#' `"DDA territories"` (habitat/landscape rows). It records which raw
+#' dataset that species+scale should use -- e.g. Buteo buteo and Sturnus
+#' vulgaris use `"MhB point counts"` at landscape scale instead of the
+#' `"DDA territories"` every other species uses, per the 2026-09-25
+#' improvement notes. Exact string match, case-sensitive, no fuzzy
+#' matching -- a typo is rejected at load time rather than silently
+#' becoming an unrecognized value downstream.
 #'
 #' NOTE on what's actually wired to per-species effect as of 2026-09-25:
-#' `brt_start_lr` (feeds `perSpeciesLR` in models_Monitor) and
-#' `hedges_treatment` (feeds a per-species override in inputs_Monitor) ARE
-#' consumed per-species. `resolution_m` and `thinning_dist_m` are captured
-#' here for future use but NOT yet wired to per-species effect --
-#' `occurrencePrepGerHabitat()`/`GerLandscape()`/`Europe()` still take one
-#' shared thinning distance for every species per run, and per-species
-#' resolution needs the `Cache()`-based redesign described in
-#' `improvements.md` item 4 (a species at a non-default resolution would
-#' need its own covariate rasters, not the shared per-resolution ones every
-#' species currently reads). `brutzeitcode_filter` has no consuming code at
-#' all yet -- no part of the pipeline filters by Brutzeitcode currently.
+#' `brt_start_lr` (feeds `perSpeciesLR` in models_Monitor) IS consumed
+#' per-species. `resolution_m`, `thinning_dist_m`, `brutzeitcode_filter`,
+#' and `data_source` are captured here for a human to read/edit but have
+#' NO consuming code yet: `occurrencePrepGerHabitat()`/`GerLandscape()`/
+#' `Europe()` still take one shared thinning distance for every species
+#' per run; per-species resolution needs the `Cache()`-based redesign in
+#' `improvements.md` item 4; `brutzeitcode_filter` needs new filtering
+#' logic in `occurrencePrepGerHabitat.R`; routing Buteo/Star's landscape
+#' scale through MhB point-count data instead of DDA territories needs a
+#' new code path in `occurrencePrepGerLandscape.R` (today it always loads
+#' DDA territories for every species, regardless of this column).
 #'
 #' @param path Character. Path to the general-config CSV.
 #' @return Nested list `config[[species]][[scale]]`, each a named list of
@@ -38,8 +54,7 @@ loadSpeciesGeneralConfig <- function(path) {
   df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
 
   requiredCols <- c("species", "scale", "resolution_m", "data_source",
-                     "thinning_dist_m", "brt_start_lr", "hedges_treatment",
-                     "brutzeitcode_filter")
+                     "thinning_dist_m", "brt_start_lr", "brutzeitcode_filter")
   missingCols <- setdiff(requiredCols, names(df))
   if (length(missingCols) > 0) {
     stop("speciesConfig_general.csv is missing column(s): ", paste(missingCols, collapse = ", "))
@@ -51,6 +66,14 @@ loadSpeciesGeneralConfig <- function(path) {
     stop("speciesConfig_general.csv has invalid scale value(s): ",
          paste(badScales, collapse = ", "), " -- must be one of: ",
          paste(validScales, collapse = ", "))
+  }
+
+  validDataSources <- c("EBBA2/CHELSA", "MhB point counts", "DDA territories")
+  badSources <- setdiff(unique(df$data_source[nzchar(df$data_source)]), validDataSources)
+  if (length(badSources) > 0) {
+    stop("speciesConfig_general.csv has invalid data_source value(s): ",
+         paste(badSources, collapse = ", "), " -- must be one of: ",
+         paste(validDataSources, collapse = ", "))
   }
 
   rowCounts <- table(df$species)
@@ -78,7 +101,7 @@ loadSpeciesGeneralConfig <- function(path) {
     for (col in numericCols) {
       row[[col]] <- suppressWarnings(as.numeric(blankToNA(row[[col]])))
     }
-    for (col in c("data_source", "hedges_treatment", "brutzeitcode_filter")) {
+    for (col in c("data_source", "brutzeitcode_filter")) {
       row[[col]] <- blankToNA(row[[col]])
     }
     config[[sp]][[sc]] <- row
@@ -86,27 +109,32 @@ loadSpeciesGeneralConfig <- function(path) {
   config
 }
 
-#' Load the per-species extra-candidate-predictors table (additive)
+#' Load the per-species predictor-set table (full override, not additive)
 #'
-#' Each row is ONE extra predictor for ONE species, placed in whichever
-#' scale column(s) it applies to (blank elsewhere on that row). This
-#' EXTENDS a scale's default candidate pool
-#' (`covariatePredictorColumns()`/`bioclimPredictorColumns()`) for that
-#' species specifically -- it does not replace it, and the extended pool
-#' still goes through the normal collinearity selection
-#' (`select07Blockcv()`) afterward, same as every other candidate. A
-#' species with no rows here simply uses each scale's unmodified default
-#' pool. This is deliberately additive, not a full override: `predictorsToUse`
-#' (the existing NULL/"all"/vector override, still available) is a much
-#' blunter instrument that bypasses collinearity selection entirely --
-#' this table is for "make sure this specific covariate is even considered
-#' for this species," not "dictate the final model."
+#' Each row is ONE predictor for ONE species, placed in whichever scale
+#' column(s) it applies to for that species (blank elsewhere on that row,
+#' and blank/absent entirely if that species doesn't use it at any scale).
+#' Meant to list ALL candidate predictors a species should consider at each
+#' scale -- e.g. every one of `covariatePredictorColumns()`'s ~20 land use/
+#' cover/DEM names under `habitat`/`landscape`, every one of
+#' `bioclimPredictorColumns()`'s 19 bioclim names under `climate` -- so a
+#' predictor can be toggled off for a species simply by deleting/blanking
+#' its row for that species+scale (or the whole row, if it applies nowhere
+#' for that species), letting you compare "with vs. without" directly.
+#'
+#' This is a FULL override once a species is listed here, same all-or-
+#' nothing semantics as the existing `predictorsToUse` parameter (NOT
+#' additive on top of collinearity selection) -- see
+#' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
+#' `predictorsToUse` argument, which this feeds per-species. A species
+#' absent from this file entirely falls through to that scale's normal
+#' `runCollinearityCheck`/global `predictorsToUse` default instead.
 #'
 #' @param path Character. Path to the predictors CSV.
-#' @return Nested list `extras[[species]][[scale]]`, each a character vector
-#'   of extra predictor names for that species+scale. A species/scale
+#' @return Nested list `config[[species]][[scale]]`, each a character vector
+#'   of predictor names that species uses at that scale. A species/scale
 #'   combination with no rows is simply absent from the list.
-loadSpeciesPredictorExtras <- function(path) {
+loadSpeciesPredictorConfig <- function(path) {
   df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
 
   requiredCols <- c("species", "climate", "landscape", "habitat")

@@ -1,37 +1,37 @@
-species,scale,resolution_m,data_source,thinning_dist_m,brt_start_lr,hedges_treatment,brutzeitcode_filter
-Vanellus vanellus,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Vanellus vanellus,landscape,1000,DDA territories,2000,0.08,drop,
-Vanellus vanellus,habitat,200,MhB point counts,400,0.08,drop,
-Milvus milvus,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Milvus milvus,landscape,1000,DDA territories,2000,0.08,drop,
-Milvus milvus,habitat,200,MhB point counts,400,0.08,drop,
-Lanius collurio,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Lanius collurio,landscape,1000,DDA territories,2000,0.08,drop,
-Lanius collurio,habitat,200,MhB point counts,400,0.08,drop,
-Lullula arborea,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Lullula arborea,landscape,1000,DDA territories,2000,0.08,drop,
-Lullula arborea,habitat,200,MhB point counts,400,0.08,drop,
-Alauda arvensis,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Alauda arvensis,landscape,1000,DDA territories,2000,0.08,drop,
-Alauda arvensis,habitat,200,MhB point counts,400,0.08,drop,
-Saxicola rubetra,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Saxicola rubetra,landscape,1000,DDA territories,2000,0.08,drop,
-Saxicola rubetra,habitat,200,MhB point counts,400,0.08,drop,
-Emberiza calandra,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Emberiza calandra,landscape,1000,DDA territories,2000,0.08,drop,
-Emberiza calandra,habitat,200,MhB point counts,400,0.08,drop,
-Emberiza citrinella,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Emberiza citrinella,landscape,1000,DDA territories,2000,0.08,drop,
-Emberiza citrinella,habitat,200,MhB point counts,400,0.08,drop,
-Buteo buteo,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Buteo buteo,landscape,1000,DDA territories,2000,0.08,drop,
-Buteo buteo,habitat,200,MhB point counts,400,0.08,drop,
-Sturnus vulgaris,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Sturnus vulgaris,landscape,1000,DDA territories,2000,0.08,drop,
-Sturnus vulgaris,habitat,200,MhB point counts,400,0.08,drop,
-Perdix perdix,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Perdix perdix,landscape,1000,DDA territories,2000,0.08,drop,
-Perdix perdix,habitat,200,MhB point counts,400,0.08,drop,
-Anthus pratensis,climate,50000,EBBA2/CHELSA,100000,0.01,,
-Anthus pratensis,landscape,1000,DDA territories,2000,0.08,drop,
-Anthus pratensis,habitat,200,MhB point counts,400,0.08,drop,
+"species","scale","resolution_m","data_source","thinning_dist_m","brt_start_lr","brutzeitcode_filter"
+"Vanellus vanellus","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Vanellus vanellus","landscape",1000,"DDA territories",2000,0.08,""
+"Vanellus vanellus","habitat",200,"MhB point counts",400,0.08,""
+"Milvus milvus","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Milvus milvus","landscape",1000,"DDA territories",2000,0.08,""
+"Milvus milvus","habitat",200,"MhB point counts",400,0.08,""
+"Lanius collurio","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Lanius collurio","landscape",1000,"DDA territories",2000,0.08,""
+"Lanius collurio","habitat",200,"MhB point counts",400,0.08,""
+"Lullula arborea","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Lullula arborea","landscape",1000,"DDA territories",2000,0.08,""
+"Lullula arborea","habitat",200,"MhB point counts",400,0.08,""
+"Alauda arvensis","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Alauda arvensis","landscape",1000,"DDA territories",2000,0.08,""
+"Alauda arvensis","habitat",200,"MhB point counts",400,0.08,""
+"Saxicola rubetra","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Saxicola rubetra","landscape",1000,"DDA territories",2000,0.08,""
+"Saxicola rubetra","habitat",200,"MhB point counts",400,0.08,""
+"Emberiza calandra","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Emberiza calandra","landscape",1000,"DDA territories",2000,0.08,""
+"Emberiza calandra","habitat",200,"MhB point counts",400,0.08,""
+"Emberiza citrinella","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Emberiza citrinella","landscape",1000,"DDA territories",2000,0.08,""
+"Emberiza citrinella","habitat",200,"MhB point counts",400,0.08,""
+"Buteo buteo","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Buteo buteo","landscape",1000,"MhB point counts",2000,0.08,""
+"Buteo buteo","habitat",200,"MhB point counts",400,0.08,"C"
+"Sturnus vulgaris","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Sturnus vulgaris","landscape",1000,"MhB point counts",2000,0.08,""
+"Sturnus vulgaris","habitat",200,"MhB point counts",400,0.08,""
+"Perdix perdix","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Perdix perdix","landscape",1000,"DDA territories",2000,0.08,""
+"Perdix perdix","habitat",200,"MhB point counts",400,0.08,""
+"Anthus pratensis","climate",50000,"EBBA2/CHELSA",1e+05,0.01,""
+"Anthus pratensis","landscape",1000,"DDA territories",2000,0.08,""
+"Anthus pratensis","habitat",200,"MhB point counts",400,0.08,""

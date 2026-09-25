@@ -20,31 +20,21 @@ source("sharedConfig.R")
 
 ################### PER-SPECIES/SCALE CONFIGURATION (optional)
 # See sharedSpeciesConfig.R -- speciesConfig_general.csv/
-# speciesConfig_predictors.csv are optional; when absent, every *Config
-# value below stays NULL and every module falls back to its shared
-# defaults exactly as before these files existed.
+# speciesConfig_predictors.csv are optional; when absent, both *Config
+# values below stay NULL and every module falls back to its shared
+# defaults exactly as before these files existed. hedges_treatment is
+# NOT read from the general config -- it's a single shared value tuned
+# directly in code (inputs_Monitor's hedgesTreatment parameter below);
+# per-species hedges inclusion instead goes through the predictors file
+# (list "hedges" for whichever species should get it as a candidate).
 source("sharedSpeciesConfig.R")
 speciesGeneralConfigFile <- "speciesConfig_general.csv"
 speciesPredictorsConfigFile <- "speciesConfig_predictors.csv"
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
   loadSpeciesGeneralConfig(speciesGeneralConfigFile)
 } else NULL
-perSpeciesExtraCandidates <- if (file.exists(speciesPredictorsConfigFile)) {
-  loadSpeciesPredictorExtras(speciesPredictorsConfigFile)
-} else NULL
-# inputs_Monitor only needs the hedges_treatment slice of the general
-# config (resolution_m/thinning_dist_m/brutzeitcode_filter go to
-# dataPrep_Monitor once those are wired -- see sharedSpeciesConfig.R's
-# docstring for what's actually consumed where as of 2026-09-25).
-perSpeciesHedges <- if (!is.null(perSpeciesGeneralConfig)) {
-  lapply(perSpeciesGeneralConfig, function(sp) {
-    # Blank/NA hedges_treatment (always true for the climate row -- hedges
-    # isn't a climate covariate) is dropped here, not just left as NA, so
-    # extractScaleExtras() never hands a scale an invalid non-drop/backfill
-    # value regardless of which scale asks for it.
-    scales <- lapply(sp, function(scaleRow) scaleRow$hedges_treatment)
-    scales[!sapply(scales, is.na)]
-  })
+perSpeciesPredictors <- if (file.exists(speciesPredictorsConfigFile)) {
+  loadSpeciesPredictorConfig(speciesPredictorsConfigFile)
 } else NULL
 
 ##################################################
@@ -53,7 +43,16 @@ perSpeciesHedges <- if (!is.null(perSpeciesGeneralConfig)) {
 #                                                #
 ##################################################
 
-  runName <- "test1"
+  # Date-stamped so a re-run on a different day (e.g. after editing the
+  # config CSVs above) lands in its own outputs/ folder instead of silently
+  # reusing/overwriting a previous run's cached files under the old, fixed
+  # "test1" name. This protects against the ACROSS-DAYS case specifically --
+  # it does NOT protect two different configs both run on the SAME day
+  # (those still need a manual runName bump); a fully robust fix would key
+  # the cache off the config's actual content (reproducible::Cache()'s
+  # argument-hashing, already discussed for per-species resolution --
+  # see improvements.md item 4), deferred rather than done here.
+  runName <- paste0("test1_", format(Sys.Date(), "%Y%m%d"))
 
   out <- SpaDES.project::setupProject(
         Restart = FALSE,
@@ -116,8 +115,7 @@ perSpeciesHedges <- if (!is.null(perSpeciesGeneralConfig)) {
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        perSpeciesHedges = perSpeciesHedges,
-        perSpeciesExtraCandidates = perSpeciesExtraCandidates
+        perSpeciesPredictors = perSpeciesPredictors
         # runSpatialBlocking / runCollinearityCheck / predictorsToUse /
         # kFolds / block-size / collinearity params: left at module
         # defaults (see inputs_Monitor.R) -- override here to A/B
