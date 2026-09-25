@@ -20,34 +20,50 @@ source("sharedConfig.R")
 
 ################### PER-SPECIES/SCALE CONFIGURATION (optional)
 # See sharedSpeciesConfig.R -- speciesConfig_general.csv/
-# speciesConfig_predictors.csv are optional; when absent, both *Config
-# values below stay NULL and every module falls back to its shared
-# defaults exactly as before these files existed. hedges_treatment is
-# NOT read from the general config -- it's a single shared value tuned
-# directly in code (inputs_Monitor's hedgesTreatment parameter below);
-# per-species hedges inclusion instead goes through the predictors file
-# (list "hedges" for whichever species should get it as a candidate).
+# speciesConfig_predictors.csv are optional; when absent, every value
+# below stays NULL and every module falls back to its shared defaults
+# exactly as before these files existed. hedges_treatment is NOT read
+# from the general config -- it's a single shared value tuned directly
+# in code (inputs_Monitor's hedgesTreatment parameter below); per-species
+# hedges inclusion instead goes through predictor_mode="table" + listing
+# "hedges" in the predictors file for whichever species should get it.
 source("sharedSpeciesConfig.R")
 speciesGeneralConfigFile <- "speciesConfig_general.csv"
 speciesPredictorsConfigFile <- "speciesConfig_predictors.csv"
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
   loadSpeciesGeneralConfig(speciesGeneralConfigFile)
 } else NULL
-perSpeciesPredictorsRaw <- if (file.exists(speciesPredictorsConfigFile)) {
+speciesPredictorTable <- if (file.exists(speciesPredictorsConfigFile)) {
   loadSpeciesPredictorConfig(speciesPredictorsConfigFile)
 } else NULL
-# Applies speciesConfig_general.csv's predictor_mode toggle ("table" = use
-# the predictors file's exact list, "auto" = ignore it and let
-# runCollinearityCheck pick automatically from all covariates, dropping
-# collinear ones the normal way) -- a species+scale marked "auto" here
-# falls through to that automatic behavior regardless of what the
-# predictors file lists for it. NOTE: this toggle is for the CURRENT
-# single-algorithm (BRT) pipeline -- once item 7 (GLM/RF/NN, see
-# improvements.md) exists, an NN model should always use all covariates
-# regardless of this toggle (collinearity doesn't hurt NN training the way
-# it affects e.g. GLM coefficient interpretation), which isn't built yet
-# since there's no NN code path at all to apply it to.
-perSpeciesPredictors <- resolvePerSpeciesPredictors(perSpeciesGeneralConfig, perSpeciesPredictorsRaw)
+
+# predictorsToUse: per species+scale, one of "table" (use
+# speciesPredictorTable's exact list), "all" (every covariate, unfiltered),
+# or "auto" (real collinearity selection, dropping super-collinear
+# covariates the normal way) -- see collinearityCheckGerHabitat()/
+# GerLandscape()/Europe()'s predictorsToUse argument, which this feeds
+# directly (mode resolution happens INSIDE those functions now, not here).
+# NOTE: this toggle is for the CURRENT single-algorithm (BRT) pipeline --
+# once item 7 (GLM/RF/NN, see improvements.md) exists, an NN model should
+# probably always use "all" regardless of this toggle (collinearity
+# matters less for NN training than for e.g. GLM coefficients), which
+# isn't built yet since there's no NN code path at all to apply it to.
+predictorsToUse <- extractPredictorMode(perSpeciesGeneralConfig)
+
+# Per-species thinning distance (dataPrep_Monitor) and ATLAS_CODE/
+# "Brutzeitcode" filter (habitat scale only) -- both reshaped from
+# speciesConfig_general.csv's thinning_dist_m/brutzeitcode_filter columns.
+perSpeciesThinDist <- if (!is.null(perSpeciesGeneralConfig)) {
+  lapply(perSpeciesGeneralConfig, function(sp) {
+    scales <- lapply(sp, function(scaleRow) scaleRow$thinning_dist_m)
+    scales[!sapply(scales, is.na)]
+  })
+} else NULL
+brutzeitcodeFilter <- if (!is.null(perSpeciesGeneralConfig)) {
+  filt <- lapply(perSpeciesGeneralConfig, function(sp) sp$habitat$brutzeitcode_filter)
+  filt <- filt[!sapply(filt, is.na)]
+  if (length(filt) == 0) NULL else filt
+} else NULL
 
 ##################################################
 #                                                #
@@ -108,13 +124,16 @@ perSpeciesPredictors <- resolvePerSpeciesPredictors(perSpeciesGeneralConfig, per
         landscapeYears = sharedLandscapeYears,
         species = sharedSpecies,
         localeCtype = sharedLocaleCtype,
-        clmsTokenJSONPath = sharedClmsTokenJSONPath
+        clmsTokenJSONPath = sharedClmsTokenJSONPath,
+        perSpeciesThinDist = perSpeciesThinDist,
+        brutzeitcodeFilter = brutzeitcodeFilter
         # ebba2CSVSubpath / ebba2ShpSubpath / mhbObsSubpath /
         # probeflaechenShpSubpath / ddaTerritoriesXlsxSubpath /
-        # ddaVisitsXlsxSubpath / rerun* : left at module defaults (see
-        # dataPrep_Monitor.R) -- raw survey data must already be placed
-        # at those default dataPath(sim)/raw/... locations, or override
-        # the *Subpath params here to point elsewhere.
+        # ddaVisitsXlsxSubpath / rerun* / thinDist*M (shared defaults, used
+        # for any species without its own entry above): left at module
+        # defaults (see dataPrep_Monitor.R) -- raw survey data must already
+        # be placed at those default dataPath(sim)/raw/... locations, or
+        # override the *Subpath params here to point elsewhere.
       ),
       inputs_Monitor = list(
         species = sharedSpecies,
@@ -123,11 +142,10 @@ perSpeciesPredictors <- resolvePerSpeciesPredictors(perSpeciesGeneralConfig, per
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        perSpeciesPredictors = perSpeciesPredictors
-        # runSpatialBlocking / runCollinearityCheck / predictorsToUse /
-        # kFolds / block-size / collinearity params: left at module
-        # defaults (see inputs_Monitor.R) -- override here to A/B
-        # spatial-blocking or collinearity-filtering strategies.
+        predictorsToUse = predictorsToUse,
+        speciesPredictorTable = speciesPredictorTable
+        # runSpatialBlocking / kFolds / block-size / collinearity params:
+        # left at module defaults (see inputs_Monitor.R).
       ),
       models_Monitor = list(
         climateTargetYears = sharedClimateTargetYears,

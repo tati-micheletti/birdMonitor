@@ -21,8 +21,8 @@
 #' habitat rows -- the raw MhB CSV's actual column is `ATLAS_CODE`, e.g.
 #' "C11a"/"C12" for confirmed breeding, NOT literally "Brutzeitcode"; a
 #' filter value here is matched as a PREFIX, e.g. "C" keeps every code
-#' starting with C), `predictor_mode` (wired -- see
-#' `resolvePerSpeciesPredictors()` below; blank defaults to `"table"`).
+#' starting with C), `predictor_mode` (wired -- one of `"table"`/`"all"`/
+#' `"auto"`, see `extractPredictorMode()` below; blank defaults to `"table"`).
 #'
 #' `hedges_treatment` is deliberately NOT a column here -- it's a single
 #' shared value tuned directly in code (inputs_Monitor's `hedgesTreatment`
@@ -81,7 +81,7 @@ loadSpeciesGeneralConfig <- function(path) {
          paste(validScales, collapse = ", "))
   }
 
-  validPredictorModes <- c("table", "auto")
+  validPredictorModes <- c("table", "all", "auto")
   badModes <- setdiff(unique(df$predictor_mode[nzchar(df$predictor_mode)]), validPredictorModes)
   if (length(badModes) > 0) {
     stop("speciesConfig_general.csv has invalid predictor_mode value(s): ",
@@ -144,13 +144,11 @@ loadSpeciesGeneralConfig <- function(path) {
 #' its row for that species+scale (or the whole row, if it applies nowhere
 #' for that species), letting you compare "with vs. without" directly.
 #'
-#' This is a FULL override once a species is listed here, same all-or-
-#' nothing semantics as the existing `predictorsToUse` parameter (NOT
-#' additive on top of collinearity selection) -- see
+#' Only consulted for a species+scale whose `predictor_mode` (see
+#' `loadSpeciesGeneralConfig()`) is `"table"` -- passed as
 #' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
-#' `predictorsToUse` argument, which this feeds per-species. A species
-#' absent from this file entirely falls through to that scale's normal
-#' `runCollinearityCheck`/global `predictorsToUse` default instead.
+#' `speciesPredictorTable` argument. A species absent from this file, or
+#' whose `predictor_mode` is `"all"`/`"auto"` instead, never looks here.
 #'
 #' @param path Character. Path to the predictors CSV.
 #' @return Nested list `config[[species]][[scale]]`, each a character vector
@@ -178,37 +176,20 @@ loadSpeciesPredictorConfig <- function(path) {
   extras
 }
 
-#' Combine the general config's predictor_mode toggle with the predictor
-#' table, producing the final per-species-per-scale predictorsToUse input
+#' Pull the predictor_mode column out of the general config, per species+scale
 #'
-#' `speciesConfig_general.csv`'s `predictor_mode` column decides, per
-#' species+scale, whether to use `speciesConfig_predictors.csv`'s exact list
-#' (`"table"`, the default) or ignore it entirely and let
-#' `runCollinearityCheck` pick automatically from ALL available covariates,
-#' dropping super-collinear ones the normal way (`"auto"`). This function
-#' applies that toggle: a species+scale marked `"auto"` is DROPPED from the
-#' result regardless of what `speciesConfig_predictors.csv` lists for it, so
-#' it falls through to `collinearityCheckGerHabitat()`/`GerLandscape()`/
-#' `Europe()`'s normal `runCollinearityCheck` behavior -- exactly the same
-#' path an unlisted species already takes.
+#' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
+#' `predictorsToUse` argument takes exactly this shape (species -> scale ->
+#' `"table"`/`"all"`/`"auto"`) directly -- this just reshapes
+#' `loadSpeciesGeneralConfig()`'s richer per-scale settings down to the one
+#' field those functions actually need for mode selection, so
+#' `inputs_Monitor`'s `predictorsToUse` parameter can be fed
+#' `speciesConfig_general.csv`'s `predictor_mode` column straightforwardly.
 #'
-#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`.
-#' @param predictorConfig Return value of `loadSpeciesPredictorConfig()`.
-#' @return Nested list `config[[species]][[scale]]`, filtered to only
-#'   `"table"`-mode species+scale combinations -- pass this (not
-#'   `predictorConfig` directly) as inputs_Monitor's `perSpeciesPredictors`.
-resolvePerSpeciesPredictors <- function(generalConfig, predictorConfig) {
-  if (is.null(generalConfig) || is.null(predictorConfig)) return(predictorConfig)
-
-  result <- list()
-  for (sp in names(predictorConfig)) {
-    for (sc in names(predictorConfig[[sp]])) {
-      mode <- generalConfig[[sp]][[sc]]$predictor_mode
-      if (is.null(mode) || identical(mode, "table")) {
-        result[[sp]][[sc]] <- predictorConfig[[sp]][[sc]]
-      }
-      # "auto": deliberately omitted -- falls through to runCollinearityCheck.
-    }
-  }
-  result
+#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
+#' @return Nested list `config[[species]][[scale]]` -> mode string, or NULL
+#'   if `generalConfig` is NULL.
+extractPredictorMode <- function(generalConfig) {
+  if (is.null(generalConfig)) return(NULL)
+  lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$predictor_mode))
 }
