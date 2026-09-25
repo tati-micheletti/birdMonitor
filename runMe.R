@@ -65,6 +65,15 @@ brutzeitcodeFilter <- if (!is.null(perSpeciesGeneralConfig)) {
   if (length(filt) == 0) NULL else filt
 } else NULL
 
+# Landscape-scale data source per species (DDA territories by default; MhB
+# point counts for Buteo buteo/Sturnus vulgaris -- see DECISIONS.md's
+# "Buteo/Sturnus landscape data source" entry).
+perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
+  src <- lapply(perSpeciesGeneralConfig, function(sp) sp$landscape$data_source)
+  src <- src[!sapply(src, is.na)]
+  if (length(src) == 0) NULL else src
+} else NULL
+
 ##################################################
 #                                                #
 #          Running the bird monitor              #
@@ -126,7 +135,8 @@ brutzeitcodeFilter <- if (!is.null(perSpeciesGeneralConfig)) {
         localeCtype = sharedLocaleCtype,
         clmsTokenJSONPath = sharedClmsTokenJSONPath,
         perSpeciesThinDist = perSpeciesThinDist,
-        brutzeitcodeFilter = brutzeitcodeFilter
+        brutzeitcodeFilter = brutzeitcodeFilter,
+        perSpeciesDataSource = perSpeciesDataSource
         # ebba2CSVSubpath / ebba2ShpSubpath / mhbObsSubpath /
         # probeflaechenShpSubpath / ddaTerritoriesXlsxSubpath /
         # ddaVisitsXlsxSubpath / rerun* / thinDist*M (shared defaults, used
