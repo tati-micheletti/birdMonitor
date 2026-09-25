@@ -377,6 +377,74 @@ country+level+region specification), not a hardcoded "Germany" assumption,
 so the same code serves all three cases (full Germany, another country, a
 sub-national region) without duplication.
 
+## 7. Alternative model families (GLM/RF/NN) alongside BRT, per Wiedenroth (Levin) et al.'s meta-model paper
+
+**Status: explicitly deferred (2026-09-25) -- scope only, no implementation yet.**
+Approved for a later, separate branch once items 1-6 above (and the current
+run) are settled: *"Correct. New branch for these... But we will work on it
+later."*
+
+**The problem this addresses:** every scale (`modelEurope`/`modelGerHabitat`/
+`modelGerLandscape`) currently fits exactly one algorithm, BRT
+(`optimizeBRT()` / `dismo::gbm.step()`), hardcoded as the only option. There's
+no way to compare BRT against another algorithm, or to combine several, without
+duplicating an entire `modelX()` function per algorithm.
+
+**What the source paper (Levin Wiedenroth et al., "A meta-model approach for
+multi-scale species distribution models", preprint DOI
+10.3897/arphapreprints.e205471) actually does -- read in full 2026-09-25, this
+is NOT just "swap in a different algorithm":**
+
+1. At **each** single scale (climate/landscape/habitat), they fit **four**
+   algorithms independently: GLM, GAM, random forest (RF), and BRT -- then
+   average the four predictions (arithmetic mean) into one per-scale
+   *ensemble* prediction. Same 5-fold spatial block CV as we already use.
+2. They then combine the **three scales'** ensemble predictions into a
+   cross-scale **meta-model** via *stacked generalization* (Wolpert 1992): a
+   ridge-regression meta-learner (logistic, L2-penalized) trained on the three
+   scales' downscaled predictions as its only inputs, at 200x200m resolution.
+   Scale importance = reduction in explained deviance when that scale's
+   prediction is excluded from the meta-model.
+3. The paper explicitly notes the two-step structure (ensemble algorithms per
+   scale, *then* ensemble scales) is a deliberate choice for interpretability,
+   not the only option -- "the ensembling of algorithms and scales could also
+   happen simultaneously within the meta-model" (their own discussion).
+
+**What was actually requested here, which is narrower than the full paper:**
+"we need to add the implementation of the other models as well (glm, RF, NN as
+per Levin)... one model per function and we will need to make sure we can loop
+through all models (which should be defined as a parameter of which models to
+run)... I also want to add a NN in there!" -- i.e., **item (1) above** (algorithm
+diversity *within* a scale), refactored so each algorithm lives in its own
+function (`fitGLM()`/`fitRF()`/`fitBRT()`/`fitNN()`, mirroring `optimizeBRT()`'s
+existing shape) and a `modelsToRun` parameter loops through whichever subset is
+requested per scale, rather than the current single hardcoded call to
+`optimizeBRT()`. NN is an addition beyond Levin's own four algorithms, not
+covered by the paper -- needs its own design (framework/architecture choice;
+`nnet`/`keras`/`torch` all plausible, unevaluated as of this writing).
+
+**What was NOT explicitly requested, flagged here for a separate decision
+later:** **item (2) above**, the cross-scale ridge-regression meta-model /
+stacked generalization step. This is the paper's actual headline contribution,
+and it's architecturally bigger than swapping in new algorithms -- it changes
+how the three scales' predictions get combined into a final prediction, which
+today happens via the completely different multi-species/geometric-mean index
+logic (`computeCombinedIndex()`/`computeGriddedCombinedIndex()`). Worth
+discussing explicitly once the per-scale algorithm-diversity piece exists,
+rather than assuming it's wanted just because it's in the source paper.
+
+**Design notes for the eventual branch:**
+- One function per algorithm (`fitGLM.R`, `fitGAM.R`, `fitRF.R`, `fitBRT.R`
+  wrapping the existing `optimizeBRT()`, `fitNN.R`), each returning a common
+  shape so `blockCVPredictBRT()`/`evalSDM()`-equivalent evaluation code can
+  stay algorithm-agnostic rather than special-casing each one.
+- A `modelsToRun` parameter (character vector, e.g. `c("glm", "rf", "brt")`)
+  per scale, defaulting to `"brt"` alone so existing runs/behavior are
+  unaffected until this is deliberately turned on.
+- Needs its own `Cache()`/output-file-naming scheme once more than one
+  algorithm can produce a model for the same species+scale (today's
+  `<species>_BRT_habitat.rds`-style naming assumes exactly one algorithm).
+
 ---
 
 *Some of these have started -- for discussion once the current run's
