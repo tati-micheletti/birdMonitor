@@ -84,7 +84,7 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
   # change means the previous run's cached outputs shouldn't be reused --
   # a timestamp is then always appended automatically, so every run gets
   # its own outputs/ folder regardless of whether the base name changed.
-  runNameBase <- "test1"
+  runNameBase <- "test2"
   runName <- paste0(runNameBase, "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
 
   out <- SpaDES.project::setupProject(
@@ -131,7 +131,9 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
         landuseYears = sharedLandscapeYears,
         habitatYears = sharedHabitatYears,
         landscapeYears = sharedLandscapeYears,
-        species = sharedSpecies,
+        # species = sharedSpecies,
+        species = c("Vanellus vanellus", "Alauda arvensis",
+                    "Anthus pratensis", "Saxicola rubetra"),
         localeCtype = sharedLocaleCtype,
         clmsTokenJSONPath = sharedClmsTokenJSONPath,
         perSpeciesThinDist = perSpeciesThinDist,
