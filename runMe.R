@@ -136,7 +136,8 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
         clmsTokenJSONPath = sharedClmsTokenJSONPath,
         perSpeciesThinDist = perSpeciesThinDist,
         brutzeitcodeFilter = brutzeitcodeFilter,
-        perSpeciesDataSource = perSpeciesDataSource
+        perSpeciesDataSource = perSpeciesDataSource,
+        germanNames = sharedGermanNames
         # ebba2CSVSubpath / ebba2ShpSubpath / mhbObsSubpath /
         # probeflaechenShpSubpath / ddaTerritoriesXlsxSubpath /
         # ddaVisitsXlsxSubpath / rerun* / thinDist*M (shared defaults, used

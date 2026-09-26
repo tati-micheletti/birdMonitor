@@ -12,17 +12,24 @@
 # hand-typed copy, which is exactly the kind of silent-drift risk this
 # file is meant to prevent -- it now sources this file too.
 
-# Canonical species roster -- the single source of truth for which species
-# the whole pipeline runs (nothing downstream should hardcode a species
-# count; always derive it from length(sharedSpecies)/nrow() on data keyed
-# by this list). Updated per the Steering Consortium's revised list:
-# Anthus pratensis (Wiesenpieper) newly added; no species dropped from the
-# prior 11 -- Anthus pratensis has no model outputs yet, so it will show as
-# pending in any report until dataPrep/inputs/models are run for it.
-sharedSpecies <- c("Vanellus vanellus", "Milvus milvus", "Lanius collurio",
-                   "Lullula arborea", "Alauda arvensis", "Saxicola rubetra",
-                   "Emberiza calandra", "Emberiza citrinella", "Buteo buteo",
-                   "Sturnus vulgaris", "Perdix perdix", "Anthus pratensis")
+# Canonical species roster + Latin<->German name lookup -- see
+# speciesCanonical.csv (repo root) and sharedSpeciesCanonical.R for the full
+# rationale. ONE source of truth for both "which species does the pipeline
+# run" (sharedSpecies, below) and "what's this species' German name"
+# (sharedGermanNames, below -- needed because the raw DDA territories data
+# has no Latin-name column at all, only German). Previously these were two
+# separate, manually-synced things (a hardcoded vector here, plus a
+# completely separate speciesLookup() data.frame in dataPrep_Monitor) with
+# no validation tying them together -- exactly why adding Anthus pratensis
+# here on 2026-09-24 didn't also update the other file, silently producing
+# 0 presences at habitat/landscape scale until caught live in a test run.
+# Milvus milvus is flagged excluded (include column blank) as of
+# 2026-09-26, finally implementing the 2026-09-24 Confluence decision to
+# drop it from scope (see project_birdmonitor_confluence_decisions memory).
+source("sharedSpeciesCanonical.R")
+speciesCanonical <- loadSpeciesCanonical("speciesCanonical.csv")
+sharedSpecies <- canonicalIncludedSpecies(speciesCanonical)
+sharedGermanNames <- canonicalGermanNames(speciesCanonical, sharedSpecies)
 
 sharedTargetCRS <- "EPSG:3035"
 sharedEuropeBbox <- c(72, -25, 34, 45)  # N, W, S, E (WGS84) -- also used as the DEM download extent
