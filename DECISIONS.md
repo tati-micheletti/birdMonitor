@@ -335,6 +335,126 @@ for the next species in the same run.
 
 ---
 
+## 2026-09-26 — Solar radiation dropped as a predictor, for every species
+
+**What:** `solar_radiation` removed entirely: no longer a candidate
+predictor (`covariatePredictorColumns()`), no longer listed for any species
+in `speciesConfig_predictors.csv`, and no longer loaded/stacked into the
+covariate rasters at all (`loadCovariates()`/`loadHabitatCovariates()`,
+both dataPrep_Monitor and models_Monitor copies). The underlying DEM
+derivative file itself is left alone (still computed/written upstream) --
+only its use as a model covariate is removed, since nothing else in the
+pipeline depends on it.
+
+**Why:** flagged as "under reconsideration for removal across all species
+-- may not be well-scaled, possibly capturing noise from other unmodeled
+factors" in the 2026-09-24 DDA-UFZ meeting notes. User confirmed this as a
+final decision on 2026-09-26 ("For all species: remove the solar
+radiation").
+
+**Status:** Implemented and verified: `speciesConfig_predictors.csv` and
+`covariatePredictorColumns()` confirmed to have zero remaining
+`solar_radiation` references; the three `collinearityCheck*()` functions
+never offer it as a candidate regardless of mode (table/all/auto).
+
+**Where:** `covariatePredictorColumns()` (inputs_Monitor),
+`speciesConfig_predictors.csv`, `loadCovariates()`/`loadHabitatCovariates()`
+(both dataPrep_Monitor and models_Monitor copies -- kept byte-identical,
+checked via `tools/check_duplicated_functions.R`). Branch
+`feature/reconcile-with-v2-flexible-config`.
+
+---
+
+## 2026-09-26 — Spatial coordinates (x/y) added as predictors, for every species
+
+**What:** Every species, at every scale (climate/landscape/habitat), now
+always gets the location's own projected coordinates -- `x`/`y`, in
+whatever CRS the pipeline's shared `targetCRS` is (a metric, equal-area
+projection; NOT raw GPS latitude/longitude) -- added as two extra
+predictors on top of whatever `predictorsToUse` mode (table/all/auto)
+resolves. Precedent set by the meta-model regularly showing "unexplained
+regional clustering not captured by current environmental covariates
+alone" for at least one species (Grauammer/Emberiza calandra); generalized
+to every species on the user's instruction rather than singled out for one.
+
+**Terminology note (user asked directly):** this is NOT a formal
+statistical "random effect" -- that term specifically means a
+hierarchical/mixed-model variance component (GLMM/GAMM machinery), which
+`dismo::gbm.step()` (BRT, the model class this whole pipeline uses) has no
+concept of at all. What's actually implemented is a **spatial trend-surface
+predictor**: the raw coordinates themselves become ordinary splitting
+variables the tree can use, which is the standard/pragmatic way to let a
+BRT (or any non-hierarchical model) absorb residual spatial pattern. A true
+random-effects/spatial-hierarchical model would require switching model
+class entirely (tracked separately, `improvements.md` item 7 -- GLM/RF/NN
+alternatives). Related but distinct question the user also asked --
+whether this "captures functional diversity (or ... a species being more
+adapted to its own region)": **not the right term** -- functional
+diversity is a community-ecology concept (trait diversity across species
+within an assemblage), unrelated here. What a trend-surface term actually
+absorbs is generic **residual spatial autocorrelation**: any region-level
+pattern in occurrence not explained by the measured environmental
+covariates, whatever its real cause (unmeasured local factors, dispersal
+limitation, historical biogeography, etc.) -- it doesn't identify *why* a
+region differs, just that it does.
+
+**Status:** Implemented and verified end-to-end with a real (not mocked)
+`dismo::gbm.step()` call: trained with `x`/`y` among its predictors on
+synthetic presence/absence data, then predicted onto a synthetic raster via
+`predictBRTToRaster()` -- confirmed valid probability output (no "missing
+predictor" errors), even though the raster covariate stack has no literal
+`x`/`y` layers (they're derived from the raster's own cell coordinates via
+`as.data.frame(..., xy = TRUE)`, matching exactly how the training data's
+own `x`/`y` columns were originally extracted). Verified for all three
+`predictorsToUse` modes (table/all/auto). NOT yet observed on a real model
+run -- effect on Grauammer's (or any other species') spatial discrimination
+is still to be seen.
+
+**Where:** `collinearityCheckEurope()`/`GerHabitat()`/`GerLandscape()`
+(inputs_Monitor) -- append `c("x", "y")` to `predSel` after mode
+resolution, unconditionally. `predictBRTToRaster()` (models_Monitor) --
+now excludes `x`/`y` from the raster layer subset and relies on
+`as.data.frame(xy = TRUE)` to supply them instead.
+`modelGerHabitat()`/`modelGerLandscape()`'s missing-predictor raster checks
+updated to not flag `x`/`y` as missing (they're never real layers by
+design). `modelEurope()` needed no change (no such check existed there).
+Branch `feature/reconcile-with-v2-flexible-config`.
+
+---
+
+## 2026-09-26 — 2026-09-25 DDA results-meeting follow-up items: final disposition
+
+Consolidating the 5 concrete asks from the 2026-09-25 results-review
+meeting (`project_birdmonitor_model_results_20260925` memory) against what
+actually got implemented:
+
+- Mäusebussard (Buteo buteo): restrict habitat training to confirmed-
+  breeding ("C") codes -- **done** (see the Brutzeitcode-filter entry
+  above).
+- Mäusebussard: slightly increase landscape scale -- **dropped from scope**
+  per user instruction 2026-09-26 ("probably remove... won't help"). Not
+  implemented; per-species `resolution_m` remains a separate, still-open
+  item (`improvements.md` item 4) for unrelated reasons.
+- Star (Sturnus vulgaris): point-count data only, not combined with
+  territories -- **done** (see the MhB-landscape-routing entry above).
+- Neuntöter (Lanius collurio) / Goldammer (Emberiza citrinella): add hedges
+  -- **done** (both listed in `speciesConfig_predictors.csv`'s table-mode
+  predictor lists).
+- Neuntöter / Goldammer: add edge density and/or field size -- **not done,
+  deferred**. These data layers don't exist in the codebase at all yet;
+  Lisa will build them (per user, week of 2026-09-28). No code path
+  currently consumes them -- once the layers exist, they'd be added to
+  `covariatePredictorColumns()` and the relevant species' rows in
+  `speciesConfig_predictors.csv`, same pattern as `hedges`.
+- Grauammer (Emberiza calandra): add a spatial term -- **done, but
+  generalized to every species** rather than singled out for Grauammer
+  alone (see the spatial-coordinate-predictor entry above).
+
+**Where:** n/a (documentation-only entry, consolidating status already
+described above). Branch `feature/reconcile-with-v2-flexible-config`.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **Minimum 10 presences before attempting to fit a model at all**
