@@ -477,6 +477,40 @@ first. Once `runIndex.R` has been run for real (this weekend's 4-species
 test) and its output format/edge cases are known to be right, wrapping it
 as a proper module is a much lower-risk refactor than doing both at once.
 
+## 9. Programmatic EBBA2 download/refresh mechanism
+
+**The problem this addresses:** unlike DEM/landcover/landuse (each with a
+Python download script under `modules/dataPrep_Monitor/python/`), EBBA2
+occurrence data (`ebba2_data_occurrence_50km.csv`) is a manually-supplied
+static file with no download mechanism at all -- the same manual-supply
+status as DDA territories data. Confirmed directly (2026-09-26): the file on
+disk is dated 2026-07-17, more than two months before Anthus pratensis was
+added to the species roster (2026-09-24), so it simply doesn't contain that
+species at all -- not a code bug, but a stale input that will recur for
+every future species addition unless this becomes a repeatable, trackable
+process instead of "whoever has EBBA2 access re-exports it by hand."
+
+**Why this is NOT the same situation as DDA:** DDA has no public data
+source at all -- it's proprietary to DDA, genuinely manual-only forever.
+EBBA2 does have real public access options:
+- Free, open-access 50km occurrence data directly from
+  [ebba2.info/data-request](https://ebba2.info/data-request/) (per EBCC's
+  own data-access policy -- some data is open, some requires request
+  approval).
+- The same EBCC Atlas of European Breeding Birds dataset mirrored on
+  [GBIF](https://www.gbif.org/dataset/c779b049-28f3-4daf-bbf4-0a40830819b6),
+  which has a real, standard REST API (the `rgbif` R package is the usual
+  client) -- genuinely programmatic, unlike a manual data-request form.
+
+**Why not built yet:** the GBIF-mirrored dataset is very likely raw point
+occurrence records, not pre-aggregated to the specific 50x50km EBBA2 grid
+system (`ebba2_grid50x50_v1.shp`) this pipeline's occurrence-prep code
+expects -- matching that format would need real reprocessing/regridding
+logic, not just a drop-in file swap. This needs scoping (confirm the actual
+GBIF dataset structure, decide whether `rgbif` or ebba2.info's own request
+form is the right path, design the regridding step) before implementing,
+same reasoning as every other item in this file.
+
 ---
 
 *Some of these have started -- for discussion once the current run's

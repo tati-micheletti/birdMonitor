@@ -228,12 +228,119 @@ rows, `"DDA territories"` for every other species. Branch
 
 ---
 
+## 2026-09-26 — Canonical species table: one source for roster + name lookup
+
+**What:** `speciesCanonical.csv` (repo root) is now the ONLY source for (1)
+which species the pipeline runs (`include` column) and (2) the Latin↔German
+name mapping the raw MhB/DDA files need (`german_name` column). It also
+carries `english_name` (reference only, no code depends on it) and
+`euring_code` (pulled directly from the real DDA territories data, for
+future cross-referencing against any source keyed by EURING rather than
+name). Replaces two previously separate, manually-synced things:
+`sharedConfig.R`'s old hardcoded `sharedSpecies` vector, and
+`dataPrep_Monitor`'s old `speciesLookup()` data.frame.
+
+**Why:** live incident during this session's first local test run. Anthus
+pratensis showed `Too few presences (0)` at habitat scale for every year
+2022-2025, despite the raw MhB CSV genuinely having 2295 real records for
+it (verified directly). Root cause: `speciesLookup()` was never updated
+when Anthus pratensis was added to `sharedSpecies` (2026-09-24, commit
+`2108c38`) -- it's a completely separate file, and nothing checked the two
+stayed in sync. `occurrencePrepGerHabitat()`/`GerLandscape()` filtered the
+raw data by German name via this stale lookup, silently matching zero rows
+for the missing species instead of erroring. User's own diagnosis: *"We
+need ONE canonical source! And we need only ONE way to check."*
+
+**Also fixed as part of the same change:** `occurrencePrepGerHabitat()` no
+longer uses any name lookup at all -- the raw MhB CSV already carries both
+`SPECIES_NAME_GERMAN` and `SPECIES_NAME_SCIENTIFIC` natively, so it now
+filters directly on the scientific name, removing one entire class of
+future name-mismatch bug for that data source. Landscape scale still needs
+`germanNames` (now an explicit, required function argument instead of an
+internal lookup call) since the raw DDA data has no Latin-name column at
+all, only German.
+
+**Milvus milvus** is flagged excluded (`include` column blank) in this same
+file, finally implementing the 2026-09-24 Confluence decision to drop it
+from scope (see `project_birdmonitor_confluence_decisions` memory) --
+previously decided but never actually reflected in code until this change.
+
+**Status:** Verified against real data on multiple fronts: `loadSpeciesCanonical()`
+correctly rejects a species missing a German name (the exact bug class this
+prevents); the real MhB CSV confirms Anthus pratensis now resolves to real
+presence counts (576/551/577/591 across 2022-2025) via the direct
+scientific-name filter; EURING codes matched exactly against the real DDA
+file, not guessed.
+
+**Where:** `speciesCanonical.csv`, `sharedSpeciesCanonical.R` (repo root),
+threaded through `sharedConfig.R` -> `runMe.R` -> `dataPrep_Monitor.R` ->
+`occurrencePrepGerLandscape()`'s `germanNames` argument. Branch
+`feature/reconcile-with-v2-flexible-config`.
+
+---
+
+## 2026-09-26 — EBBA2 climate-scale data gap: stale extract, not absent data
+
+**What:** Anthus pratensis showed 0 presences at Europe/climate scale too,
+but for a DIFFERENT reason than the habitat/landscape lookup bug above --
+directly confirmed the raw `ebba2_data_occurrence_50km.csv` genuinely has
+no row for this species under any name/spelling (checked all 11 distinct
+species names in the file, no partial match on "pratensis" or "Anthus"
+either). The file on disk is dated 2026-07-17; the species was added to
+the roster on 2026-09-24, two months later. Lisa's own earlier success
+modeling this species doesn't contradict this -- she must have had a more
+current EBBA2 extract.
+
+**Status:** Confirmed genuine external data gap, NOT a code bug (unlike
+the habitat/landscape lookup issue above). No code fix possible until a
+refreshed EBBA2 extract covering all 12 canonical species is obtained --
+see `improvements.md` item 9 for the scoped follow-up (a real,
+programmatic EBBA2 refresh mechanism is possible in principle, unlike DDA,
+but needs its own design work, not a quick fix).
+
+**Where:** `occurrencePrepEurope()` now has the same minimum-10-presences
+guard `occurrencePrepGerHabitat()`/`GerLandscape()` already had, so a
+future data gap like this one fails cleanly at data-prep time with a clear
+message, instead of silently building an all-absence table that only
+surfaces later as an `optimizeBRT()` failure. Branch
+`feature/reconcile-with-v2-flexible-config`.
+
+---
+
+## 2026-09-26 — An unfittable BRT skips its species, does not crash the run
+
+**What:** When `optimizeBRT()` cannot converge (learning-rate search hits
+its floor/ceiling/iteration cap -- see the EBBA2/canonical-species entries
+above for the real incident that triggered this), it now returns `NULL`
+with a `warning()`, and
+`modelEurope()`/`modelGerHabitat()`/`modelGerLandscape()` all check for
+that and skip to the next species with their own warning, rather than
+erroring.
+
+**Why:** user correction -- a hard `stop()` here would propagate up and
+crash the entire multi-species run over one bad species, which is strictly
+worse than silently producing no output for just that species. None of the
+three model functions previously checked `optimizeBRT()`'s return value at
+all, so this required fixing both the function and all three call sites
+together, not just one.
+
+**Status:** Verified for real: `optimizeBRT()` returns `NULL` (not an
+error) when a mocked `gbm.step()` always fails; `modelEurope()` skips a
+zero-variance-response species cleanly and still produces a correct result
+for the next species in the same run.
+
+**Where:** `optimizeBRT()`, `modelEurope()`/`modelGerHabitat()`/
+`modelGerLandscape()` (models_Monitor). Branch
+`feature/reconcile-with-v2-flexible-config`.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **Minimum 10 presences before attempting to fit a model at all**
-  (`occurrencePrepGerHabitat()`/`GerLandscape()`, `nPres < 10` -> skip
-  species/year entirely). **Checked directly against Wiedenroth et al.'s own
-  published reference code** (GitHub: UP-macroecology/Wiedenroth_multi-scale-SDM_2026,
+  (`occurrencePrepGerHabitat()`/`GerLandscape()`/`Europe()`, `nPres < 10` ->
+  skip species/year entirely). **Checked directly against Wiedenroth et al.'s
+  own published reference code** (GitHub: UP-macroecology/Wiedenroth_multi-scale-SDM_2026,
   `03a_occurrence-prep_200m.R` and `05a_occurrence-prep_1km.R`) **and this
   check does NOT exist in the original methodology at all** -- confirmed by
   direct inspection of both files, no such threshold anywhere. It must have
@@ -246,6 +353,10 @@ rows, `"DDA territories"` for every other species. Branch
   collinearity selection, since fewer than 10 of the rarer class would leave
   that formula unable to justify even one predictor -- but this is our own
   reasoning connecting two numbers, not something either source states.
+  Note: verified this floor is currently INERT for the real 2022-2025 MhB
+  data across the entire 12-species roster (lowest real count: Perdix
+  perdix, 41 in 2022) -- it never actually fires with real data as of
+  2026-09-26.
 - **Buteo/Star landscape routing's real-world effect on model quality** --
   see the entry above; implemented and unit-tested, not yet validated
   against a real model run.
