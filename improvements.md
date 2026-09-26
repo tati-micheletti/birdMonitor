@@ -492,24 +492,33 @@ process instead of "whoever has EBBA2 access re-exports it by hand."
 
 **Why this is NOT the same situation as DDA:** DDA has no public data
 source at all -- it's proprietary to DDA, genuinely manual-only forever.
-EBBA2 does have real public access options:
-- Free, open-access 50km occurrence data directly from
-  [ebba2.info/data-request](https://ebba2.info/data-request/) (per EBCC's
-  own data-access policy -- some data is open, some requires request
-  approval).
-- The same EBCC Atlas of European Breeding Birds dataset mirrored on
-  [GBIF](https://www.gbif.org/dataset/c779b049-28f3-4daf-bbf4-0a40830819b6),
-  which has a real, standard REST API (the `rgbif` R package is the usual
-  client) -- genuinely programmatic, unlike a manual data-request form.
+EBBA2 has one real public access option: free, open-access 50km occurrence
+data directly from [ebba2.info/data-request](https://ebba2.info/data-request/)
+(per EBCC's own data-access policy -- some data is open, some requires
+request approval). This is a request/approval process, not confirmed to be
+a scriptable API -- "programmatic" here likely means "a repeatable request
+process we do deliberately," not "a script that just runs."
 
-**Why not built yet:** the GBIF-mirrored dataset is very likely raw point
-occurrence records, not pre-aggregated to the specific 50x50km EBBA2 grid
-system (`ebba2_grid50x50_v1.shp`) this pipeline's occurrence-prep code
-expects -- matching that format would need real reprocessing/regridding
-logic, not just a drop-in file swap. This needs scoping (confirm the actual
-GBIF dataset structure, decide whether `rgbif` or ebba2.info's own request
-form is the right path, design the regridding step) before implementing,
-same reasoning as every other item in this file.
+**GBIF is a dead end for this, checked directly and ruled out (2026-09-26):**
+the GBIF dataset that looks like an EBBA match
+([c779b049-...](https://www.gbif.org/dataset/c779b049-28f3-4daf-bbf4-0a40830819b6))
+is actually **EBBA1**, the original 1997 atlas (fieldwork 1972-1995) -- a
+completely different, ~30-years-older survey, not a mirror or different
+format of EBBA2. Confirmed further via the EBCC's own GBIF organization
+record: `numPublishedDatasets: 1` -- they have published exactly one
+dataset to GBIF, and it's that same 1997 atlas. **EBBA2 itself is not on
+GBIF at all.** Do not revisit `rgbif` for this -- there is nothing there to
+fetch. ebba2.info's own request portal is the only real path.
+
+**Why not built yet:** even via ebba2.info, this needs scoping (confirm
+whether their data-access process can be made a routine, repeatable
+request rather than a one-off manual ask; if the returned format needs any
+reprocessing to match `ebba2_grid50x50_v1.shp`'s exact grid) before
+building anything, same reasoning as every other item in this file.
+Meanwhile: Anthus pratensis's missing climate-scale data is a low-cost gap
+for any given run in practice -- climate contributes 0-1.1% to every
+species' meta-model regardless (see the model-results memory/DECISIONS.md),
+so this does not block running the pipeline while unresolved.
 
 ---
 
