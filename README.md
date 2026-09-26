@@ -1,7 +1,7 @@
 # birdMonitor
 
 Code to run the models for the UFZ bird monitor. This README covers how to
-actually run the pipeline — locally and (once ready) on the EVE cluster —
+actually run the pipeline — locally and on the EVE cluster —
 which parameters/tables to check before a run, and what each output is.
 
 For **why** things are built the way they are, see:
