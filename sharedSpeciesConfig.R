@@ -41,11 +41,22 @@
 #' matching -- a typo is rejected at load time rather than silently
 #' becoming an unrecognized value downstream.
 #'
+#' `spatial_term` ("X" or blank, wired -- feeds `spatialTermConfig` in
+#' inputs_Monitor via `extractSpatialTermSpecies()`): whether that
+#' species+scale gets projected x/y coordinates added as an extra BRT
+#' predictor (a spatial trend-surface term -- NOT a formal random effect,
+#' see DECISIONS.md's 2026-09-26 entries). Deliberately scoped to
+#' individual species+scale rather than applied blanket-wide, since it can
+#' just as easily hurt a model (overfitting to historical geography,
+#' reduced transportability to future climate-scale predictions, diluted
+#' variable-importance interpretation) as help it -- see DECISIONS.md.
+#'
 #' NOTE on what's actually wired to per-species effect as of 2026-09-25:
-#' `brt_start_lr`, `thinning_dist_m`, `brutzeitcode_filter`, and
-#' `predictor_mode` all reach real code now (see each parameter's own
-#' docstring for exactly where). Two columns are STILL captured here for a
-#' human to read/edit but have NO consuming code yet, because both need a
+#' `brt_start_lr`, `thinning_dist_m`, `brutzeitcode_filter`,
+#' `predictor_mode`, and `spatial_term` all reach real code now (see each
+#' parameter's own docstring for exactly where). Two columns are STILL
+#' captured here for a human to read/edit but have NO consuming code yet,
+#' because both need a
 #' genuinely new code path, not just a parameter: (1) `resolution_m` --
 #' per-species covariate resolution needs the `Cache()`-based redesign in
 #' `improvements.md` item 4 (today's shared-per-resolution covariate
@@ -67,7 +78,7 @@ loadSpeciesGeneralConfig <- function(path) {
 
   requiredCols <- c("species", "scale", "resolution_m", "data_source",
                      "thinning_dist_m", "brt_start_lr", "brutzeitcode_filter",
-                     "predictor_mode")
+                     "predictor_mode", "spatial_term")
   missingCols <- setdiff(requiredCols, names(df))
   if (length(missingCols) > 0) {
     stop("speciesConfig_general.csv is missing column(s): ", paste(missingCols, collapse = ", "))
@@ -95,6 +106,12 @@ loadSpeciesGeneralConfig <- function(path) {
     stop("speciesConfig_general.csv has invalid data_source value(s): ",
          paste(badSources, collapse = ", "), " -- must be one of: ",
          paste(validDataSources, collapse = ", "))
+  }
+
+  badSpatialTerm <- unique(df$spatial_term[!df$spatial_term %in% c("", "X")])
+  if (length(badSpatialTerm) > 0) {
+    stop("speciesConfig_general.csv's spatial_term column has invalid value(s): ",
+         paste(badSpatialTerm, collapse = ", "), " -- must be \"X\" or blank.")
   }
 
   rowCounts <- table(df$species)
@@ -126,6 +143,7 @@ loadSpeciesGeneralConfig <- function(path) {
       row[[col]] <- blankToNA(row[[col]])
     }
     row$predictor_mode <- if (!nzchar(row$predictor_mode)) "table" else row$predictor_mode
+    row$spatial_term <- identical(row$spatial_term, "X")
     config[[sp]][[sc]] <- row
   }
   config
@@ -192,4 +210,20 @@ loadSpeciesPredictorConfig <- function(path) {
 extractPredictorMode <- function(generalConfig) {
   if (is.null(generalConfig)) return(NULL)
   lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$predictor_mode))
+}
+
+#' Pull the spatial_term column out of the general config, per species+scale
+#'
+#' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
+#' `spatialTermSpecies` argument takes exactly this shape (species -> scale
+#' -> TRUE/FALSE) directly, same pattern as `extractPredictorMode()` above --
+#' see that function's docstring for why this reshaping happens here rather
+#' than in each collinearityCheck*() function itself.
+#'
+#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
+#' @return Nested list `config[[species]][[scale]]` -> TRUE/FALSE, or NULL
+#'   if `generalConfig` is NULL.
+extractSpatialTermSpecies <- function(generalConfig) {
+  if (is.null(generalConfig)) return(NULL)
+  lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$spatial_term))
 }
