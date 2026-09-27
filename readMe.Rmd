@@ -1,0 +1,283 @@
+---
+title: "Species Distribution Modeling (SDM) Pipeline Guide"
+subtitle: "Configuration, Execution via `runMe.R`, and Parameter Reference"
+author: "T. Micheletti & L. Hildebrand"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  eval = FALSE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+This pipeline runs a multi-scale species distribution modeling (SDM) framework built on SpaDES and Boosted Regression Trees (`dismo::gbm.step`). It standardizes predictions across three geographic and operational scales:
+
+1. **European Climate Scale** (~50 km, CHELSA bioclimatic predictors, EBBA2 occurrence data).
+2. **German Landscape Scale** (~1000 m, Thünen land-use/cover covariates, DDA / MhB data).
+3. **German Habitat Scale** (~200 m, fine-scale Thünen habitat covariates, MhB point counts).
+
+The pipeline is driven **exclusively** by three root configuration CSV files, eliminating hardcoded model settings in module scripts.
+
+---
+
+# Phase 1: The Three Root Config Files
+
+All run-level options must be set in the 3 CSV files in the project root directory.
+
+```text
+project_root/
+├── speciesCanonical.csv          # Species inclusion and canonical naming
+├── speciesConfig_general.csv     # Per-species scales, resolutions, modes, & BRT settings
+└── speciesConfig_predictors.csv  # Exact candidate predictors for "table" mode
+```
+
+## `speciesCanonical.csv`
+
+Governs **which species run** and maps canonical scientific and vernacular names.
+
+| Column | Description | Example / Values |
+|:---|:---|:---|
+| `latin_name` | Scientific name matching raw occurrence records | `"Lanius collurio"`, `"Vanellus vanellus"` |
+| `german_name` | Canonical German vernacular name | `"Neuntöter"`, `"Kiebitz"` |
+| `english_name` | Canonical English vernacular name | `"Red-backed Shrike"`, `"Northern Lapwing"` |
+| `euring_code` | Official EURING bird identifier code | `15150` |
+| `include` | **Master Run Switch:** Set `"X"` to run; leave blank `""` to omit | `"X"` or `""` |
+
+> **Rule:** Only species with `include == "X"` are loaded into `sharedSpecies`. Do not hardcode species subsets in `runMe.R`.
+
+---
+
+## `speciesConfig_general.csv`
+
+Governs **per-species and per-scale operational parameters**. Each species contains up to 3 rows corresponding to its modeling scales (`climate`, `landscape`, `habitat`).
+
+| Column | Description | Valid Values & Options |
+|:---|:---|:---|
+| `species` | Scientific name matching `speciesCanonical.csv` | `"Lanius collurio"` |
+| `scale` | Operational modeling tier | `"climate"`, `"landscape"`, `"habitat"` |
+| `resolution_m` | Raster cell resolution in meters | `50000` (climate), `1000` (landscape), `200` (habitat) |
+| `data_source` | Survey data source | `"EBBA2/CHELSA"`, `"DDA territories"`, `"MhB point counts"` |
+| `thinning_dist_m` | Minimum spatial thinning distance in meters | `0` (none), `500`, `1000` |
+| `brt_start_lr` | Starting learning rate for BRT step optimization | `0.01` (coarse/broad), `0.05`, `0.08` (fine-scale) |
+| `brutzeitcode_filter` | Optional breeding code filter threshold | `"C"`, `"B"`, or blank |
+| `predictor_mode` | **Predictor resolution mechanism:**<br>• `"table"`: Use exact list from `speciesConfig_predictors.csv`<br>• `"all"`: Use all valid environmental layers<br>• `"auto"`: Run block-CV collinearity selection (`select07Blockcv`) | `"table"`, `"all"`, `"auto"` |
+| `spatial_term` | Opt-in spatial coordinates: appends projected `x` and `y` to the candidate tree splits | `"X"` (enable) or blank `""` (disable) |
+
+---
+
+## `speciesConfig_predictors.csv`
+
+Consulted whenever `predictor_mode == "table"`. It lists the candidate predictors per species across scales.
+
+```csv
+species,climate,landscape,habitat
+"Lanius collurio","","hedges, grassland, fallow","hedges, grassland, built_up"
+"Vanellus vanellus","","grassland, summer_cereals","grassland, root_crops"
+```
+
+### The Hedges Rule
+- If a species should use hedges, write `hedges` in the `landscape` or `habitat` column.
+- The pipeline automatically loads the backfilled Thünen hedge layer.
+- If `hedges` is omitted from the cell, the species will not use it.
+- **Typo Protection:** If a requested predictor name is misspelled (e.g., `"hedge"` instead of `"hedges"`), the pipeline halts immediately with an explicit error indicating the missing column name.
+
+---
+
+# Phase 2: Configuring `runMe.R`
+
+`runMe.R` serves as the master driver script for the SpaDES simulation.
+
+## 1. Dynamic Config Ingestion
+
+Ensure the top of `runMe.R` loads parameters dynamically from the CSV files:
+
+```{r}
+source("sharedConfig.R")
+source("sharedSpeciesCanonical.R")
+source("sharedSpeciesConfig.R")
+
+# 1. Load active species list from speciesCanonical.csv
+speciesCanonical <- loadSpeciesCanonical("speciesCanonical.csv")
+sharedSpecies    <- canonicalIncludedSpecies(speciesCanonical)
+
+# 2. Ingest operational and predictor tables
+perSpeciesGeneralConfig <- loadPerSpeciesGeneralConfig("speciesConfig_general.csv")
+speciesPredictorTable   <- loadSpeciesPredictorConfig("speciesConfig_predictors.csv")
+
+# 3. Extract per-species flags
+predictorsToUse   <- extractPredictorMode(perSpeciesGeneralConfig)
+spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
+```
+
+## 2. Setting Module Parameters (`params`)
+
+```{r}
+params <- list(
+  # -------------------------------------------------------------
+  # Module 1: Data Preparation
+  # -------------------------------------------------------------
+  dataPrep_Monitor = list(
+    species    = sharedSpecies,                      # Dynamic species list
+    years      = 2017:2023,                          # Survey monitoring years
+    dataDir    = file.path(sharedPath, "data"),      # Path to input rasters
+    scratchDir = file.path(sharedPath, "scratch")    # Fast SSD scratch directory
+  ),
+
+  # -------------------------------------------------------------
+  # Module 2: Collinearity & Model-Ready Inputs
+  # -------------------------------------------------------------
+  inputs_Monitor = list(
+    species               = sharedSpecies,
+    predictorsToUse       = predictorsToUse,         # "table", "all", or "auto"
+    speciesPredictorTable = speciesPredictorTable,   # Explicit lists per species
+    spatialTermConfig     = spatialTermConfig,       # TRUE/FALSE spatial term flags
+    
+    # Scale resolutions (in meters)
+    climateResolutionM    = 50000,
+    landscapeResolutionM  = 1000,
+    habitatResolutionM    = 200,
+    
+    # Collinearity parameters (used when predictor_mode == "auto")
+    threshold             = 0.7,                     # Spearman |r| pruning threshold
+    univar                = "gam",                   # Univariate model in select07Blockcv
+    
+    # Spatial cross-validation blocking
+    runSpatialBlocking    = FALSE,                   # Set TRUE to calculate spatial folds
+    kFolds                = 5                        # Number of spatial CV folds
+  ),
+
+  # -------------------------------------------------------------
+  # Module 3: Model Fitting (BRT)
+  # -------------------------------------------------------------
+  models_Monitor = list(
+    species                 = sharedSpecies,
+    perSpeciesGeneralConfig = perSpeciesGeneralConfig, # Slices brt_start_lr per species
+    treeComplexity          = 3,                       # Interaction depth
+    bagFraction             = 0.75,                    # Subsampling fraction
+    maxTrees                = 10000,                   # Maximum tree iterations
+    tolerance               = "fixed"                  # Convergence criterion
+  ),
+
+  # -------------------------------------------------------------
+  # Module 4: Evaluation & Prediction
+  # -------------------------------------------------------------
+  evaluation_Monitor = list(
+    species         = sharedSpecies,
+    metrics         = c("AUC", "TSS", "Deviance"),
+    savePredictions = TRUE,
+    outputDir       = file.path(sharedPath, "outputs")
+  )
+)
+```
+
+---
+
+# Phase 3: Launching the Workflow
+
+## Interactive Execution (RStudio / R GUI)
+
+```{r}
+# 1. Verify working directory is project root
+getwd()
+
+# 2. Source the driver script
+source("runMe.R")
+```
+
+## Batch / High-Performance Computing (CLI)
+
+For headless nodes or cluster environments, run in background with logging:
+
+```bash
+cd /path/to/SDM_Monitoring
+nohup Rscript runMe.R > runMe_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+```
+
+Monitor run output:
+```bash
+tail -f runMe_*.log
+```
+
+---
+
+# Phase 4: Workflow Execution Architecture
+
+```text
+[speciesCanonical.csv]          ──> sharedSpecies
+[speciesConfig_general.csv]     ──> predictor_mode, spatial_term, brt_start_lr
+[speciesConfig_predictors.csv]  ──> candidate predictor table
+         │
+         ▼
+ 1. dataPrep_Monitor
+    ├── Crop / cache CHELSA climate rasters (50 km)
+    ├── Load / backfill Thünen land-use & hedges layers (1000 m & 200 m)
+    └── Pool presence/absence occurrences per species
+         │
+         ▼
+ 2. inputs_Monitor
+    ├── Write diagnostic Spearman correlation plots (.png)
+    ├── Resolve predictors:
+    │     • "table" ──> Validate & select from speciesConfig_predictors.csv
+    │     • "all"   ──> Select all environmental candidate columns
+    │     • "auto"  ──> Prune via select07Blockcv()
+    ├── Append "x" and "y" if spatial_term == "X"
+    └── Emit model-ready data frames:
+          ID + occurrence + foldID + predictors
+         │
+         ▼
+ 3. models_Monitor
+    ├── Retrieve brt_start_lr from perSpeciesGeneralConfig
+    ├── Fit Boosted Regression Trees (dismo::gbm.step)
+    └── Optimize tree depth & learning rate
+         │
+         ▼
+ 4. evaluation_Monitor
+    ├── Calculate CV metrics (AUC, TSS, deviance explained)
+    └── Export spatial prediction rasters (.tif)
+```
+
+---
+
+# Phase 5: Outputs and Diagnostic Validation
+
+## 1. Correlation Plots
+Generated in the directory defined by `corrplotDir` (e.g. `outputs/corrplots/`):
+- `[Species]_EU.png`: European climate covariate collinearity matrix.
+- `[Species]_landscape_pooled.png`: German landscape scale correlation matrix.
+- `[Species]_habitat_pooled.png`: German habitat scale correlation matrix.
+
+## 2. Terminal Log Verification
+During execution, verify module output in the console:
+
+```text
+  -- Lanius_collurio --------------------------
+Pooled records: 1842 (312 pres / 1530 abs)
+Predictors used (5): grassland hedges built_up x y
+```
+
+- If `x` and `y` are listed, `spatial_term` was successfully applied.
+- If `hedges` is listed, it was successfully validated and included.
+
+## 3. Typo Interception (No Silent Drops)
+If a predictor is misspelled in `speciesConfig_predictors.csv` (e.g. `"hedge"` instead of `"hedges"`), execution halts immediately:
+
+```text
+[PREDICTOR ERROR] Species 'Lanius collurio' [HABITAT scale]:
+Requested predictor(s) "hedge" from speciesConfig_predictors.csv were NOT found in occurrence dataset!
+Available data columns are: grassland, winter_cereals, maize, hedges, trees, water, elevation, slope
+```
+
+**Resolution:** Correct the name in `speciesConfig_predictors.csv` and re-run.
