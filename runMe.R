@@ -74,6 +74,14 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
   if (length(src) == 0) NULL else src
 } else NULL
 
+# Per-species+scale opt-in for the x/y spatial trend-surface predictor --
+# see DECISIONS.md's 2026-09-26 entries (deliberately opt-in, not
+# blanket-applied: currently only Emberiza calandra, following up on its
+# "unexplained regional clustering" finding from the 2026-09-25 results
+# meeting; other species were NOT observed to need it and it carries real
+# risk of overfitting/reduced transportability if applied where unneeded).
+spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
+
 ##################################################
 #                                                #
 #          Running the bird monitor              #
@@ -131,9 +139,7 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
         landuseYears = sharedLandscapeYears,
         habitatYears = sharedHabitatYears,
         landscapeYears = sharedLandscapeYears,
-        # species = sharedSpecies,
-        species = c("Vanellus vanellus", "Alauda arvensis",
-                    "Anthus pratensis", "Saxicola rubetra"),
+        species = sharedSpecies,
         localeCtype = sharedLocaleCtype,
         clmsTokenJSONPath = sharedClmsTokenJSONPath,
         perSpeciesThinDist = perSpeciesThinDist,
@@ -156,7 +162,8 @@ perSpeciesDataSource <- if (!is.null(perSpeciesGeneralConfig)) {
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
         predictorsToUse = predictorsToUse,
-        speciesPredictorTable = speciesPredictorTable
+        speciesPredictorTable = speciesPredictorTable,
+        spatialTermConfig = spatialTermConfig
         # runSpatialBlocking / kFolds / block-size / collinearity params:
         # left at module defaults (see inputs_Monitor.R).
       ),
