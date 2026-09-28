@@ -691,6 +691,61 @@ replacing deleted `resolveSpeciesResolution.R`/`extractScaleStartingLR.R`);
 
 ---
 
+## 2026-09-28 — Each scale's fitting-year window is dictated by its own survey, not shared; extrapolation risk differs by scale accordingly
+
+**What:** The three scale-level BRTs are each calibrated against a
+different real occurrence survey with a different real temporal
+footprint -- not a modeler choice: Europe/climate is a single fixed EBBA2
+atlas vintage (anchored to `ebba2TrainingYear`, currently 2017); German
+landscape (1km) is DDA territory counts, collected annually 2005-2025;
+German habitat (200m) is MhB point counts, which only exist 2022-2025.
+Each scale's model is then asked to predict across the SAME full German
+modeling period (`landscapeYears`, currently 2005-2025) regardless of how
+far that range sits from its own training window -- so each scale's
+predictions carry a different, scale-specific amount of built-in
+extrapolation:
+- **Habitat**: trained on 4 years (2022-2025), predicts 21 years --
+  everything outside 2022-2025 is an extrapolation of increasing risk the
+  further from that window (e.g. 2005 is a 17-year hindcast).
+- **Landscape**: trained on the full 2005-2025 range already, so its own
+  predictions across that same range carry almost no extrapolation risk.
+- **Climate**: trained on one atlas-period snapshot, predicted onto 21
+  separate rolling bioclim windows -- extrapolating in a different sense
+  (climatology drift across rolling windows, not survey-year drift).
+
+The ridge meta-model separately extrapolates its OWN fitted weights across
+2005-2021 (already documented in `metaModel()`'s own docstring: "2005-2021
+are hindcasts, assuming stable scale weighting over time") -- this entry
+adds the fact that its three INPUT features (the scale-level suitability
+predictions it combines) are themselves extrapolations of very different
+magnitudes, compounding on top of the meta-model's own hindcast
+assumption, not a separate, independent source of uncertainty.
+
+**Why:** Raised as a direct question -- "shouldn't all training years for
+all 3 scales be the same?" Answer: no, and they can't be without
+discarding real data (throwing away 20 years of real DDA counts) or
+fabricating data that doesn't exist (MhB pre-2022). The scales are
+independently-fit base models in a stacking/ensemble design; the
+meta-model's own training window is correctly anchored to `habitatYears`
+specifically (the only years with a real ground-truth response to
+regress against), not to some shared "all scales' fitting years" concept
+that doesn't exist. What DOES need to be visible to anyone interpreting
+results is that "habitat suitability in 2005" and "landscape suitability
+in 2005" rest on very different amounts of extrapolation, even though
+both feed the same meta-model prediction for that year.
+
+**Status:** Documented assumption/limitation, not a bug -- no code change.
+Worth surfacing in any results write-up or figure caption that presents
+hindcast years (pre-2022) alongside habitat-informed years, so a reader
+doesn't implicitly assume uniform confidence across the full 2005-2025
+series.
+
+**Where:** Conceptually applies to `modelEurope()`/`modelGerHabitat()`/
+`modelGerLandscape()`/`metaModel()` (models_Monitor). No specific file
+changes from this entry.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
