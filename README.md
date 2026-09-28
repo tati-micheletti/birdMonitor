@@ -86,7 +86,7 @@ landscape/habitat):
 
 | column | wired to real effect? | what it does |
 |---|---|---|
-| `resolution_m` | **Yes** | per-species resolution override (e.g. Milvus milvus's coarser landscape window) — `models_Monitor` resolves each species' own model/prediction directory from this; `inputs_Monitor` groups spatial blocking by it. `dataPrep_Monitor`'s own per-resolution raster GENERATION is still pending (see `TODO.md`) — until then, an override still requires that resolution's covariates to already exist on disk |
+| `resolution_m` | **Yes** | per-species resolution override (e.g. Milvus milvus's coarser landscape window) — `dataPrep_Monitor` generates each scale's distinct resolutions and re-keys occurrence extraction by it; `inputs_Monitor` groups spatial blocking by it; `models_Monitor` resolves each species' own model/prediction directory from it |
 | `data_source` | **Yes** (landscape rows only) | `"DDA territories"` (default) or `"MhB point counts"` — routes that species' landscape-scale occurrence construction through a different raw source entirely, see `DECISIONS.md` |
 | `thinning_dist_m` | **Yes** | per-species spatial thinning distance override |
 | `brutzeitcode_filter` | **Yes** (habitat rows only) | ATLAS_CODE prefix filter (e.g. `"C"` = confirmed-breeding only), on top of the existing global filter |

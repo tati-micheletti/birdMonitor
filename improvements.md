@@ -231,20 +231,22 @@ allocation instead of local `Sys.meminfo()`.
 
 **Status update 2026-09-28 (see `DECISIONS.md`'s "Simplify to CSV-driven
 config" entry for the full write-up):** the "pass a per-species resolution
-config" design requested below is now partially implemented.
-`speciesConfig_general.csv`'s `resolution_m` column is consumed by
-`models_Monitor` (each species reads/writes its own `scale_X` folder) and
-by `inputs_Monitor` (spatial blocking groups species by resolved
-resolution). **Still NOT done:** `dataPrep_Monitor`'s actual per-resolution
-covariate GENERATION -- the "cost implication" paragraph below (re-deriving
-covariates per distinct resolution rather than once per scale) is designed
-but not yet built; an override still requires that resolution's covariates
-to already exist on disk. The `Cache()` migration this section anticipated
+config" design requested below is now fully implemented.
+`speciesConfig_general.csv`'s `resolution_m` column is consumed end to
+end: `dataPrep_Monitor` generates each scale's distinct resolutions
+exactly once (the "cost implication" paragraph below is handled -- a
+resolution shared by multiple species is computed once, not once per
+species) and re-keys occurrence extraction by each species' own resolved
+resolution; `inputs_Monitor` groups spatial blocking the same way;
+`models_Monitor` reads/writes each species' own `scale_X` folder for
+models and predictions. The `Cache()` migration this section anticipated
 ("this is exactly the moment to bring in `reproducible::Cache()`") is also
-now done, generically, across all 3 modules (see the 2026-09-28 cache
-entry in `DECISIONS.md`) -- though not yet specifically exercised by a
-real multi-resolution `dataPrep_Monitor` run, since that generation step
-doesn't exist yet.
+done, generically, across all 3 modules (see the 2026-09-28 cache entry in
+`DECISIONS.md`). Remaining: the literature-informed/data-driven-grid-search
+resolution VALUES themselves (the table below) haven't been applied to any
+species yet -- `resolution_m` is still every species' current shared
+default in the CSV today; this section's mechanism is ready, the actual
+per-species numbers are the next step.
 
 **Confirmed not a birdMonitor bug -- this is a real, independently reproduced
 scientific finding.** Lisa Hildebrand's own notes ("Notes & decisions on 1st

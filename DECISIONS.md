@@ -602,12 +602,20 @@ no-op in a normal batched `runMe.R` run):
    `resolveSpeciesResolution()` are deleted; `tools/runClusterTask.R`
    builds and forwards the same `resolutionConfig` instead of its old
    `--landscape-resolution` flag.
-   **Not yet done:** `dataPrep_Monitor`'s actual per-resolution raster
-   GENERATION (looping over each scale's distinct resolution set) -- an
-   override still requires that resolution's covariates to already exist
-   on disk. `runMe.R` already computes the distinct-resolution sets needed
-   per scale; wiring `dataPrep_Monitor.R`'s `doEvent` to loop over them is
-   the next step (see `TODO.md`).
+   `dataPrep_Monitor`'s per-resolution raster GENERATION is also done:
+   `computeLanduse()`/`computeLandcover()`/`processDEM()` (+ their
+   `prepare*` wrappers) now accept a vector of distinct resolutions per
+   scale, generating each exactly once (not once per species); their
+   existing "independent per-scale-entry cache check" (a resolution
+   already valid is skipped even when another needs recomputing)
+   generalizes cleanly from exactly 2 entries to however many are needed.
+   `occurrencePrepGerHabitat()`/`GerLandscape()` re-key their covariate
+   lookups by each species' own resolved resolution the same way --
+   habitat scale additionally groups species by resolution and reruns its
+   reference-grid/cell-extraction pass once per group (genuinely
+   resolution-dependent); landscape scale only needed its covariate-stack
+   lookup re-keyed (presence/absence construction there never touches a
+   resolution-specific grid).
 2. **`brt_start_lr` removed from the CSV entirely.** A BRT's starting
    learning rate is a one-time, technical/algorithmic bootstrap value, not
    an ecological per-species decision -- and the existing converged-LR-
@@ -663,7 +671,14 @@ synthetic near-collinear predictor pair -- confirmed `FALSE` keeps the
 table's list as-is and `TRUE` prunes it; confirmed a species missing from
 `speciesConfig_predictors.csv` now hard-errors. `inputs_Monitor`'s
 resolution-based spatial-blocking grouping verified with a synthetic
-mixed default/override species vector.
+mixed default/override species vector. `dataPrep_Monitor`'s raster
+generation verified with real synthetic categorical/DEM rasters at two
+distinct resolutions per scale for `computeLanduse()`/`computeLandcover()`/
+`processDEM()`; occurrence-prep verified with real synthetic MhB/DDA
+data + Probeflaechen shapefile at two distinct resolutions, confirming
+correct per-group reference-grid routing (habitat) and per-species
+covariate-stack routing (landscape), each producing valid model-ready
+output.
 
 **Where:** All 4 repos, branch `feature/reconcile-with-v2-flexible-config`
 (root: `feature/config-data-folder`). `sharedSpeciesConfig.R`,
