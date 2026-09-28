@@ -104,7 +104,13 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     runName = runName,
     paths = list(projectPath = "birdMonitor",
                  inputPath = "inputs",
-                 outputPath = file.path("outputs", runName)),
+                 outputPath = file.path("outputs", runName),
+                 # Persistent, NOT timestamped like outputPath -- reproducible::Cache()
+                 # calls throughout all 3 modules use this so a config change for one
+                 # species only triggers recompute for that species, across separate
+                 # runMe.R invocations (not just within one run). See DECISIONS.md,
+                 # 2026-09-28.
+                 cachePath = "cache"),
     modules =c(
       "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
       "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling

@@ -484,8 +484,95 @@ described above). Branch `feature/reconcile-with-v2-flexible-config`.
 
 ---
 
+## 2026-09-28 — Real per-species cache invalidation via reproducible::Cache()
+
+**What:** Every "cache" check across all 3 modules (`isValidRDSFile()`,
+`isValidCachedRDS()`, `isValidPredictionRaster()`) was pure file-existence
+memoization -- "does this exact path already have a non-empty file?" -- with
+zero awareness of whether the inputs that produced it had changed. Replaced
+throughout with real `reproducible::Cache()` calls, scoped per species(-year),
+in all 9 places this pattern occurred:
+- dataPrep_Monitor: `occurrencePrepGerLandscape()`/`GerHabitat()`/`Europe()`
+  (per-species(-year) occurrence-table building).
+- inputs_Monitor: `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`
+  (per-species predictor resolution + table assembly -- this one had NO
+  caching at all before, not even the naive file-existence kind).
+- models_Monitor: `modelEurope()`/`GerHabitat()`/`GerLandscape()`, each split
+  into a cached BRT fit step, a cached block-CV eval step, and a cached
+  per-year `predictBRTToRaster()` prediction step.
+
+Each conversion follows the same pattern: the actual per-unit computation is
+extracted into a small helper taking only the arguments that determine
+correctness for that species (its own data subset, resolved config values,
+etc.) -- NOT the whole multi-species pooled table, which would cross-
+invalidate every species whenever any other species' data changed. `Cache()`
+wraps that helper; the result is then written, unconditionally, to the same
+known output path every other part of the pipeline already expects (a cheap
+mirror write, whether `Cache()` hit or missed) -- so no downstream file
+layout changed.
+
+**Why:** user request, following a real live case: Buteo buteo's landscape
+`brutzeitcode_filter` or a hedges entry in `speciesConfig_predictors.csv`
+(Neuntöter/Goldammer) changing should only trigger recompute for that one
+species, not force a manual guess about which cached files are now stale (or
+a full rerun of everything).
+
+**Cache location:** a new, persistent `cache/` folder (`runMe.R`'s
+`setupProject(paths = list(..., cachePath = "cache"))`), sibling to `inputs/`
+and `outputs/<runName>/` -- NOT nested inside the per-run timestamped output
+folder. This matters: `outputs/<runName>/` gets a fresh timestamp every
+`runMe.R` invocation, so models_Monitor's old file-existence check never
+actually found a cross-run hit before this change (it only helped within a
+single crashed-and-resumed run). The new persistent `cache/` is shared across
+every future run regardless of `runNameBase`; each run's own
+`outputs/<runName>/` still gets a full copy of every result (instant on a
+cache hit), so a run folder stays self-contained and browsable.
+
+`predictBRTToRaster()` changed shape as part of this: it now RETURNS the
+prediction raster instead of writing it to a fixed path (a Cache()-returned
+value has no path of its own) -- its terra-two-layer-stacking-bug workaround
+moved to a new `combineTwoLayerRaster()` helper (`writeTwoLayerRaster()` now
+just calls it and writes the result, unchanged for its other caller,
+`predictRidgeToRaster()`, which was not touched).
+
+**Status:** Verified end-to-end at every one of the 9 conversion points with
+real computation (real `dismo::gbm.step()` fits, real `reproducible::Cache()`
+-- nothing mocked): a config change for one species correctly changes that
+species' result (recomputed) while an unrelated species stays a cache hit,
+first call onward, at every stage from raw occurrence data through to the
+final prediction raster.
+
+**Side finding (not a caching bug, a pre-existing property of the modeling
+code):** `evalSDM()`/`blockCVPredictBRT()` are not perfectly deterministic
+re-run to re-run -- no fixed seed, so re-computing them fresh for an
+unchanged model can give a slightly different threshold/AUC each time. This
+surfaced as a brief one-time transition effect in testing: the very first
+re-run after a model's fit becomes a cache hit, its eval/predict steps
+recompute once more (since a freshly-computed model object and the same
+model reloaded from the cache don't digest identically) before settling into
+full cache hits on every subsequent identical re-run. The actually-
+deterministic part of a prediction (`mean_prob`) was confirmed to reproduce
+exactly throughout; only the stochastic threshold-dependent `binary` layer
+showed the transition. Not fixed as part of this change (out of scope --
+`evalSDM()`/`blockCVPredictBRT()` predate this session); flagged here so it
+isn't mistaken for a caching regression later.
+
+**Where:** All 9 files listed above, plus `runMe.R` (`cachePath` in
+`paths`), and each module's own `doEvent`/`.R` file threading `cachePath(sim)`
+through. `reproducible` added as a required package in all 3 modules. Branch
+`feature/reconcile-with-v2-flexible-config` (root: `feature/config-data-folder`,
+per the 2026-09-28 branch-discipline change -- see below).
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
+- **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
+  either on an unchanged model can give a slightly different AUC/TSS/
+  threshold each time (see the reproducible::Cache() entry above for how
+  this surfaced). Worth a real fix (e.g. `set.seed()` inside, or an explicit
+  seed argument) at some point for fully reproducible performance metrics,
+  but out of scope for the caching work that found it.
 - **Minimum 10 presences before attempting to fit a model at all**
   (`occurrencePrepGerHabitat()`/`GerLandscape()`/`Europe()`, `nPres < 10` ->
   skip species/year entirely). **Checked directly against Wiedenroth et al.'s
