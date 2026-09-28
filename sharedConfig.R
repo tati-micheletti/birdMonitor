@@ -13,7 +13,7 @@
 # file is meant to prevent -- it now sources this file too.
 
 # Canonical species roster + Latin<->German name lookup -- see
-# speciesCanonical.csv (repo root) and sharedSpeciesCanonical.R for the full
+# data/speciesCanonical.csv and sharedSpeciesCanonical.R for the full
 # rationale. ONE source of truth for both "which species does the pipeline
 # run" (sharedSpecies, below) and "what's this species' German name"
 # (sharedGermanNames, below -- needed because the raw DDA territories data
@@ -27,7 +27,7 @@
 # 2026-09-26, finally implementing the 2026-09-24 Confluence decision to
 # drop it from scope (see project_birdmonitor_confluence_decisions memory).
 source("sharedSpeciesCanonical.R")
-speciesCanonical <- loadSpeciesCanonical("speciesCanonical.csv")
+speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
 sharedSpecies <- canonicalIncludedSpecies(speciesCanonical)
 sharedGermanNames <- canonicalGermanNames(speciesCanonical, sharedSpecies)
 

@@ -29,19 +29,20 @@ This pipeline runs a multi-scale species distribution modeling (SDM) framework b
 2. **German Landscape Scale** (~1000 m, Thünen land-use/cover covariates, DDA / MhB data).
 3. **German Habitat Scale** (~200 m, fine-scale Thünen habitat covariates, MhB point counts).
 
-The pipeline is driven **exclusively** by three root configuration CSV files, eliminating hardcoded model settings in module scripts.
+The pipeline is driven **exclusively** by three configuration CSV files (under `data/`), eliminating hardcoded model settings in module scripts.
 
 ---
 
-# Phase 1: The Three Root Config Files
+# Phase 1: The Three Config Files
 
-All run-level options must be set in the 3 CSV files in the project root directory.
+All run-level options must be set in the 3 CSV files under `data/` (moved out of the project root 2026-09-28).
 
 ```text
 project_root/
-├── speciesCanonical.csv          # Species inclusion and canonical naming
-├── speciesConfig_general.csv     # Per-species scales, resolutions, modes, & BRT settings
-└── speciesConfig_predictors.csv  # Exact candidate predictors for "table" mode
+└── data/
+    ├── speciesCanonical.csv          # Species inclusion and canonical naming
+    ├── speciesConfig_general.csv     # Per-species scales, resolutions, modes, & BRT settings
+    └── speciesConfig_predictors.csv  # Exact candidate predictors for "table" mode
 ```
 
 ## `speciesCanonical.csv`
@@ -109,13 +110,13 @@ source("sharedConfig.R")
 source("sharedSpeciesCanonical.R")
 source("sharedSpeciesConfig.R")
 
-# 1. Load active species list from speciesCanonical.csv
-speciesCanonical <- loadSpeciesCanonical("speciesCanonical.csv")
+# 1. Load active species list from data/speciesCanonical.csv
+speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
 sharedSpecies    <- canonicalIncludedSpecies(speciesCanonical)
 
 # 2. Ingest operational and predictor tables
-perSpeciesGeneralConfig <- loadPerSpeciesGeneralConfig("speciesConfig_general.csv")
-speciesPredictorTable   <- loadSpeciesPredictorConfig("speciesConfig_predictors.csv")
+perSpeciesGeneralConfig <- loadSpeciesGeneralConfig("data/speciesConfig_general.csv")
+speciesPredictorTable   <- loadSpeciesPredictorConfig("data/speciesConfig_predictors.csv")
 
 # 3. Extract per-species flags
 predictorsToUse   <- extractPredictorMode(perSpeciesGeneralConfig)

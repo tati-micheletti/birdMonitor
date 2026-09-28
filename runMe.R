@@ -19,17 +19,16 @@ if (SpaDES.project::user("michelet")) setwd("C:/Users/michelet/Documents/GitHub/
 source("sharedConfig.R")
 
 ################### PER-SPECIES/SCALE CONFIGURATION (optional)
-# See sharedSpeciesConfig.R -- speciesConfig_general.csv/
-# speciesConfig_predictors.csv are optional; when absent, every value
+# See sharedSpeciesConfig.R -- data/speciesConfig_general.csv/
+# data/speciesConfig_predictors.csv are optional; when absent, every value
 # below stays NULL and every module falls back to its shared defaults
-# exactly as before these files existed. hedges_treatment is NOT read
-# from the general config -- it's a single shared value tuned directly
-# in code (inputs_Monitor's hedgesTreatment parameter below); per-species
-# hedges inclusion instead goes through predictor_mode="table" + listing
-# "hedges" in the predictors file for whichever species should get it.
+# exactly as before these files existed. hedges is included by default now
+# (see covariatePredictorColumns()); per-species exclusion goes through
+# predictor_mode="table" + simply leaving "hedges" out of that species'
+# row in the predictors file.
 source("sharedSpeciesConfig.R")
-speciesGeneralConfigFile <- "speciesConfig_general.csv"
-speciesPredictorsConfigFile <- "speciesConfig_predictors.csv"
+speciesGeneralConfigFile <- "data/speciesConfig_general.csv"
+speciesPredictorsConfigFile <- "data/speciesConfig_predictors.csv"
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
   loadSpeciesGeneralConfig(speciesGeneralConfigFile)
 } else NULL

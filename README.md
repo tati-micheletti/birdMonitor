@@ -86,7 +86,8 @@ land under `outputs/<runName>/`.
 
 ### Config tables to check before a run
 
-Both live at the repo root, loaded once by `runMe.R` via `sharedSpeciesConfig.R`.
+Both live under `data/` (not the repo root — moved there 2026-09-28), loaded
+once by `runMe.R` via `sharedSpeciesConfig.R`.
 Missing either file is fine — every module falls back to its own shared
 defaults exactly as if these didn't exist.
 
