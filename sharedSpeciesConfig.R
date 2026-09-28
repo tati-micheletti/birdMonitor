@@ -129,7 +129,7 @@ loadSpeciesGeneralConfig <- function(path) {
   }
 
   numericCols <- c("resolution_m", "thinning_dist_m", "brt_start_lr")
-  blankToNA <- function(x) if (!nzchar(x)) NA_character_ else x
+  blankToNA <- function(x) if (!nzchar(trimws(x))) NA_character_ else x
 
   config <- list()
   for (i in seq_len(nrow(df))) {
@@ -137,7 +137,23 @@ loadSpeciesGeneralConfig <- function(path) {
     sc <- df$scale[i]
     row <- as.list(df[i, setdiff(names(df), c("species", "scale"))])
     for (col in numericCols) {
-      row[[col]] <- suppressWarnings(as.numeric(blankToNA(row[[col]])))
+      raw <- blankToNA(row[[col]])
+      # Strip thousands-separator commas and surrounding whitespace before
+      # parsing (e.g. " 100,000 ") -- as.numeric() doesn't understand comma
+      # separators at all and silently returns NA for them, which would
+      # otherwise silently fall back to that scale's shared default
+      # thinning distance instead of erroring -- exactly the kind of silent
+      # config/code mismatch that caused the original speciesLookup() bug
+      # (see DECISIONS.md). Loud failure here instead: if the ORIGINAL
+      # value was non-blank but still fails to parse as a number after
+      # stripping commas, that's a real typo, not a legitimate blank.
+      cleaned <- if (is.na(raw)) NA_character_ else gsub(",", "", trimws(raw))
+      parsed <- suppressWarnings(as.numeric(cleaned))
+      if (!is.na(raw) && is.na(parsed)) {
+        stop("speciesConfig_general.csv: ", sp, " (", sc, ") has a non-numeric ",
+             "value in column '", col, "': \"", raw, "\"")
+      }
+      row[[col]] <- parsed
     }
     for (col in c("data_source", "brutzeitcode_filter")) {
       row[[col]] <- blankToNA(row[[col]])
