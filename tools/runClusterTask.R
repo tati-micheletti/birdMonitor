@@ -142,9 +142,8 @@ SpaDES.core::simInitAndSpades(
   params = list(models_Monitor = list(
     runScale = opt$scale,
     runSpecies = species,
-    climateTargetYears = sharedClimateTargetYears,
+    predictionYears = predictionYears,
     climateWindowLength = sharedClimateWindowLength,
-    landscapeYears = sharedLandscapeYears,
     habitatYears = sharedHabitatYears,
     climateResolutionM = sharedClimateResolutionM,
     habitatResolutionM = sharedHabitatResolutionM,

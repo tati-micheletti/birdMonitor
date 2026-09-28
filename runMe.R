@@ -18,6 +18,19 @@ if (SpaDES.project::user("michelet")) setwd("C:/Users/michelet/Documents/GitHub/
 # silently disagree on these values.
 source("sharedConfig.R")
 
+################### FITTING-YEARS / PREDICTION-YEARS DEPENDENCIES
+# See sharedYearsConfig.R -- computes what dataPrep_Monitor's landuseYears
+# actually needs to cover (every scale's fitting years, the shared
+# predictionYears, and whatever hedges-backfill reference years that
+# union implies) so restricting predictionYears alone never breaks
+# backfill or shrinks any scale's training data. See DECISIONS.md's
+# 2026-09-28 "Decouple fitting years from prediction years" entry.
+source("sharedYearsConfig.R")
+warnIfOutsideRealDataRange(sharedHabitatYears, 2022:2025, "sharedHabitatYears")
+warnIfOutsideRealDataRange(sharedLandscapeYears, 2005:2025, "sharedLandscapeYears")
+landuseYearsNeeded <- sort(unique(c(sharedHabitatYears, sharedLandscapeYears, predictionYears)))
+landuseYearsNeeded <- sort(unique(c(landuseYearsNeeded, computeHedgesBackfillYears(landuseYearsNeeded))))
+
 ################### PER-SPECIES/SCALE CONFIGURATION (optional)
 # See sharedSpeciesConfig.R -- data/speciesConfig_general.csv/
 # data/speciesConfig_predictors.csv are optional; when absent, every value
@@ -137,7 +150,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     # years get processed -- they're one-shot pipelines whose events all
     # schedule at time(sim) and never self-reschedule. Which years
     # actually get computed is controlled entirely by the
-    # climateTargetYears/landscapeYears/habitatYears params below.
+    # predictionYears/landuseYears/landscapeYears/habitatYears params below.
     # start = end = 2005 just satisfies simInit's requirement for a time
     # range; it has no other effect on the pipeline.
     times = list(start = 2005,
@@ -149,10 +162,10 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        climateTargetYears = sharedClimateTargetYears,
+        climateTargetYears = predictionYears,
         climateWindowLength = sharedClimateWindowLength,
         ebba2TrainingYear = sharedEbba2TrainingYear,
-        landuseYears = sharedLandscapeYears,
+        landuseYears = landuseYearsNeeded,
         habitatYears = sharedHabitatYears,
         landscapeYears = sharedLandscapeYears,
         species = sharedSpecies,
@@ -191,9 +204,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         # left at module defaults (see inputs_Monitor.R).
       ),
       models_Monitor = list(
-        climateTargetYears = sharedClimateTargetYears,
+        predictionYears = predictionYears,
         climateWindowLength = sharedClimateWindowLength,
-        landscapeYears = sharedLandscapeYears,
         habitatYears = sharedHabitatYears,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,

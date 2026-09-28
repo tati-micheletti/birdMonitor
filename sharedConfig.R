@@ -37,12 +37,29 @@ sharedClimateResolutionM <- 50000
 sharedHabitatResolutionM <- 200
 sharedLandscapeResolutionM <- 1000
 
-sharedClimateTargetYears <- 2005:2025
+# Years to generate PREDICTION rasters for -- climate/habitat/landscape
+# scales and the meta-model all predict onto this same range. Independent
+# of each scale's own FITTING years below (see sharedYearsConfig.R/
+# DECISIONS.md's 2026-09-28 "Decouple fitting years from prediction years"
+# entry) -- restricting this alone (e.g. to a handful of test years) never
+# shrinks any scale's training data, and dataPrep_Monitor automatically
+# generates whatever extra years fitting/backfill structurally need on top
+# of it (see runMe.R's landuseYearsNeeded). Deliberately no `shared` prefix
+# -- unlike the other sharedX values, it's used as-is everywhere, never
+# transformed before being passed into a module's params.
+predictionYears <- 2005:2025
+
 sharedClimateWindowLength <- 6
 sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2 training climatology
 
-sharedLandscapeYears <- 2005:2025        # also used as the habitat/landscape/meta PREDICTION range
-sharedHabitatYears <- 2022:2025          # the only years real MhB point-count occurrence data exists
+# Landscape-scale FITTING years only (DDA territory data's real
+# availability) -- no longer also the prediction range, see
+# `predictionYears` above.
+sharedLandscapeYears <- 2005:2025
+sharedHabitatYears <- 2022:2025          # the only years real MhB point-count occurrence data exists --
+                                          # both habitat's fitting-year constraint AND metaModel's training
+                                          # window (the same underlying data-availability fact, not two
+                                          # separate parameters -- see DECISIONS.md's 2026-09-28 entry)
 
 sharedLocaleCtype <- "de_DE.UTF-8"
 
