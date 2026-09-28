@@ -229,6 +229,23 @@ allocation instead of local `Sys.meminfo()`.
 
 ## 4. Per-species scale sizing (habitat/landscape/climate resolution)
 
+**Status update 2026-09-28 (see `DECISIONS.md`'s "Simplify to CSV-driven
+config" entry for the full write-up):** the "pass a per-species resolution
+config" design requested below is now partially implemented.
+`speciesConfig_general.csv`'s `resolution_m` column is consumed by
+`models_Monitor` (each species reads/writes its own `scale_X` folder) and
+by `inputs_Monitor` (spatial blocking groups species by resolved
+resolution). **Still NOT done:** `dataPrep_Monitor`'s actual per-resolution
+covariate GENERATION -- the "cost implication" paragraph below (re-deriving
+covariates per distinct resolution rather than once per scale) is designed
+but not yet built; an override still requires that resolution's covariates
+to already exist on disk. The `Cache()` migration this section anticipated
+("this is exactly the moment to bring in `reproducible::Cache()`") is also
+now done, generically, across all 3 modules (see the 2026-09-28 cache
+entry in `DECISIONS.md`) -- though not yet specifically exercised by a
+real multi-resolution `dataPrep_Monitor` run, since that generation step
+doesn't exist yet.
+
 **Confirmed not a birdMonitor bug -- this is a real, independently reproduced
 scientific finding.** Lisa Hildebrand's own notes ("Notes & decisions on 1st
 round of models.md", non-SpaDES BRT-only run on her own machine) show

@@ -7,29 +7,38 @@
 # while predictors is a variable number of rows per species (one per extra
 # predictor being added for that species), so cramming both into one wide
 # table conflates two different things with two different shapes.
+#
+# Governing principle (2026-09-28): these CSVs hold "ecological" decisions
+# -- predictors, data origin/source, scales/resolution, which species are
+# included, per-species evidence filters, the spatial-term opt-in.
+# "Technical" decisions about how the optimizer/algorithm itself behaves
+# (a BRT's one-time cold-start learning rate, which predictor-selection
+# algorithm to run) live as simple module-level constants instead -- see
+# DECISIONS.md's 2026-09-28 entry for the full rationale (`brt_start_lr`
+# and `predictor_mode` were both removed from this file's columns for
+# exactly this reason).
 
 #' Load the per-species, per-scale general config table
 #'
 #' One row per species per scale -- EXACTLY 3 rows per species
 #' (climate/landscape/habitat). Columns beyond species/scale:
-#' `resolution_m`, `data_source` (a real, validated value -- see below,
-#' NOT yet wired to actual effect), `thinning_dist_m` (wired -- feeds
-#' `perSpeciesThinDist` in dataPrep_Monitor), `brt_start_lr` (wired -- feeds
-#' `perSpeciesLR` in models_Monitor), `brutzeitcode_filter` (wired -- feeds
-#' `brutzeitcodeFilter` in dataPrep_Monitor; blank = no filter beyond
-#' `occurrencePrepGerHabitat()`'s existing global one; only meaningful for
-#' habitat rows -- the raw MhB CSV's actual column is `ATLAS_CODE`, e.g.
+#' `resolution_m` (wired -- see `extractResolutionConfig()` below),
+#' `data_source` (a real, validated value -- see below; wired, feeds
+#' `perSpeciesDataSource` in dataPrep_Monitor), `thinning_dist_m` (wired --
+#' feeds `perSpeciesThinDist` in dataPrep_Monitor), `brutzeitcode_filter`
+#' (wired -- feeds `brutzeitcodeFilter` in dataPrep_Monitor; blank = no
+#' filter beyond the scale's existing global one; meaningful at habitat
+#' scale for any species, and at landscape scale only for MhB-routed
+#' species -- the raw MhB CSV's actual column is `ATLAS_CODE`, e.g.
 #' "C11a"/"C12" for confirmed breeding, NOT literally "Brutzeitcode"; a
 #' filter value here is matched as a PREFIX, e.g. "C" keeps every code
-#' starting with C), `predictor_mode` (wired -- one of `"table"`/`"all"`/
-#' `"auto"`, see `extractPredictorMode()` below; blank defaults to `"table"`).
+#' starting with C), `spatial_term` (wired -- see below).
 #'
-#' `hedges_treatment` is deliberately NOT a column here -- it's a single
-#' shared value tuned directly in code (inputs_Monitor's `hedgesTreatment`
-#' parameter), not per-species. Per-species hedges inclusion instead goes
-#' through `speciesConfig_predictors.csv` (list "hedges" for whichever
-#' species should get it as a candidate, once the code-level setting is
-#' "backfill" so the column exists at all to list).
+#' `hedges_treatment` is deliberately NOT a column here -- it's already
+#' unconditionally included as a candidate predictor in code
+#' (`covariatePredictorColumns()`); per-species hedges inclusion goes
+#' entirely through `speciesConfig_predictors.csv` (list "hedges" for
+#' whichever species should get it).
 #'
 #' `data_source` is a real, validated value, not free text -- one of
 #' `"EBBA2/CHELSA"` (climate rows only), `"MhB point counts"`, or
@@ -41,34 +50,16 @@
 #' matching -- a typo is rejected at load time rather than silently
 #' becoming an unrecognized value downstream.
 #'
-#' `spatial_term` ("X" or blank, wired -- feeds `spatialTermConfig` in
-#' inputs_Monitor via `extractSpatialTermSpecies()`): whether that
-#' species+scale gets projected x/y coordinates added as an extra BRT
-#' predictor (a spatial trend-surface term -- NOT a formal random effect,
-#' see DECISIONS.md's 2026-09-26 entries). Deliberately scoped to
-#' individual species+scale rather than applied blanket-wide, since it can
-#' just as easily hurt a model (overfitting to historical geography,
-#' reduced transportability to future climate-scale predictions, diluted
-#' variable-importance interpretation) as help it -- see DECISIONS.md.
-#'
-#' NOTE on what's actually wired to per-species effect as of 2026-09-25:
-#' `brt_start_lr`, `thinning_dist_m`, `brutzeitcode_filter`,
-#' `predictor_mode`, and `spatial_term` all reach real code now (see each
-#' parameter's own docstring for exactly where). Two columns are STILL
-#' captured here for a human to read/edit but have NO consuming code yet,
-#' because both need a
-#' genuinely new code path, not just a parameter: (1) `resolution_m` --
-#' per-species covariate resolution needs the `Cache()`-based redesign in
-#' `improvements.md` item 4 (today's shared-per-resolution covariate
-#' directories would collide across species at different resolutions);
-#' (2) `data_source` for Buteo buteo/Sturnus vulgaris's landscape rows --
-#' routing them through MhB point-count data instead of DDA territories
-#' needs a new construction path in `occurrencePrepGerLandscape.R` (today
-#' it always loads DDA territories for every species, regardless of this
-#' column) -- this is a real methodological choice (how to define
-#' presence/absence from point-count data at 1km resolution), not just
-#' plumbing, so it's deliberately not guessed at without confirming the
-#' exact method first.
+#' `spatial_term` ("X" or blank): whether that species+scale gets
+#' projected x/y coordinates added as an extra BRT predictor (a spatial
+#' trend-surface term -- NOT a formal random effect, see DECISIONS.md's
+#' 2026-09-26 entries). Deliberately scoped to individual species+scale
+#' rather than applied blanket-wide, since it can just as easily hurt a
+#' model (overfitting to historical geography, reduced transportability
+#' to future climate-scale predictions, diluted variable-importance
+#' interpretation) as help it -- see DECISIONS.md. Blank is a deliberate,
+#' valid "no spatial term" decision for most species, not a gap -- no
+#' validation flags it.
 #'
 #' @param path Character. Path to the general-config CSV.
 #' @return Nested list `config[[species]][[scale]]`, each a named list of
@@ -77,8 +68,7 @@ loadSpeciesGeneralConfig <- function(path) {
   df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
 
   requiredCols <- c("species", "scale", "resolution_m", "data_source",
-                     "thinning_dist_m", "brt_start_lr", "brutzeitcode_filter",
-                     "predictor_mode", "spatial_term")
+                     "thinning_dist_m", "brutzeitcode_filter", "spatial_term")
   missingCols <- setdiff(requiredCols, names(df))
   if (length(missingCols) > 0) {
     stop("speciesConfig_general.csv is missing column(s): ", paste(missingCols, collapse = ", "))
@@ -90,14 +80,6 @@ loadSpeciesGeneralConfig <- function(path) {
     stop("speciesConfig_general.csv has invalid scale value(s): ",
          paste(badScales, collapse = ", "), " -- must be one of: ",
          paste(validScales, collapse = ", "))
-  }
-
-  validPredictorModes <- c("table", "all", "auto")
-  badModes <- setdiff(unique(df$predictor_mode[nzchar(df$predictor_mode)]), validPredictorModes)
-  if (length(badModes) > 0) {
-    stop("speciesConfig_general.csv has invalid predictor_mode value(s): ",
-         paste(badModes, collapse = ", "), " -- must be one of: ",
-         paste(validPredictorModes, collapse = ", "), " (or blank, defaulting to \"table\")")
   }
 
   validDataSources <- c("EBBA2/CHELSA", "MhB point counts", "DDA territories")
@@ -128,7 +110,7 @@ loadSpeciesGeneralConfig <- function(path) {
          paste(dupRows, collapse = "; "))
   }
 
-  numericCols <- c("resolution_m", "thinning_dist_m", "brt_start_lr")
+  numericCols <- c("resolution_m", "thinning_dist_m")
   blankToNA <- function(x) if (!nzchar(trimws(x))) NA_character_ else x
 
   config <- list()
@@ -158,7 +140,6 @@ loadSpeciesGeneralConfig <- function(path) {
     for (col in c("data_source", "brutzeitcode_filter")) {
       row[[col]] <- blankToNA(row[[col]])
     }
-    row$predictor_mode <- if (!nzchar(row$predictor_mode)) "table" else row$predictor_mode
     row$spatial_term <- identical(row$spatial_term, "X")
     config[[sp]][[sc]] <- row
   }
@@ -178,11 +159,10 @@ loadSpeciesGeneralConfig <- function(path) {
 #' its row for that species+scale (or the whole row, if it applies nowhere
 #' for that species), letting you compare "with vs. without" directly.
 #'
-#' Only consulted for a species+scale whose `predictor_mode` (see
-#' `loadSpeciesGeneralConfig()`) is `"table"` -- passed as
+#' This is the ONLY source of a species' candidate predictors -- passed as
 #' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
-#' `speciesPredictorTable` argument. A species absent from this file, or
-#' whose `predictor_mode` is `"all"`/`"auto"` instead, never looks here.
+#' `speciesPredictorTable` argument. A species absent from this file is a
+#' hard error at collinearityCheck time, not a silent fallback.
 #'
 #' @param path Character. Path to the predictors CSV.
 #' @return Nested list `config[[species]][[scale]]`, each a character vector
@@ -210,31 +190,13 @@ loadSpeciesPredictorConfig <- function(path) {
   extras
 }
 
-#' Pull the predictor_mode column out of the general config, per species+scale
-#'
-#' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
-#' `predictorsToUse` argument takes exactly this shape (species -> scale ->
-#' `"table"`/`"all"`/`"auto"`) directly -- this just reshapes
-#' `loadSpeciesGeneralConfig()`'s richer per-scale settings down to the one
-#' field those functions actually need for mode selection, so
-#' `inputs_Monitor`'s `predictorsToUse` parameter can be fed
-#' `speciesConfig_general.csv`'s `predictor_mode` column straightforwardly.
-#'
-#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
-#' @return Nested list `config[[species]][[scale]]` -> mode string, or NULL
-#'   if `generalConfig` is NULL.
-extractPredictorMode <- function(generalConfig) {
-  if (is.null(generalConfig)) return(NULL)
-  lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$predictor_mode))
-}
-
 #' Pull the spatial_term column out of the general config, per species+scale
 #'
 #' `collinearityCheckGerHabitat()`/`GerLandscape()`/`Europe()`'s
 #' `spatialTermSpecies` argument takes exactly this shape (species -> scale
-#' -> TRUE/FALSE) directly, same pattern as `extractPredictorMode()` above --
-#' see that function's docstring for why this reshaping happens here rather
-#' than in each collinearityCheck*() function itself.
+#' -> TRUE/FALSE) directly -- this just reshapes `loadSpeciesGeneralConfig()`'s
+#' richer per-scale settings down to the one field those functions actually
+#' need.
 #'
 #' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
 #' @return Nested list `config[[species]][[scale]]` -> TRUE/FALSE, or NULL
@@ -242,4 +204,16 @@ extractPredictorMode <- function(generalConfig) {
 extractSpatialTermSpecies <- function(generalConfig) {
   if (is.null(generalConfig)) return(NULL)
   lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$spatial_term))
+}
+
+#' Pull the resolution_m column out of the general config, per species+scale
+#'
+#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
+#' @return Nested list `config[[species]][[scale]]` -> numeric resolution
+#'   (metres), or NA if that species+scale left it blank (falls back to
+#'   that scale's shared default resolution -- see `runMe.R`'s
+#'   `distinctResolutions()`). NULL if `generalConfig` is NULL.
+extractResolutionConfig <- function(generalConfig) {
+  if (is.null(generalConfig)) return(NULL)
+  lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$resolution_m))
 }

@@ -24,8 +24,9 @@ source("sharedConfig.R")
 # below stays NULL and every module falls back to its shared defaults
 # exactly as before these files existed. hedges is included by default now
 # (see covariatePredictorColumns()); per-species exclusion goes through
-# predictor_mode="table" + simply leaving "hedges" out of that species'
-# row in the predictors file.
+# simply leaving "hedges" out of that species' row in the predictors file
+# (speciesConfig_predictors.csv is the ONLY source of a species'
+# predictors -- see DECISIONS.md's 2026-09-28 entry).
 source("sharedSpeciesConfig.R")
 speciesGeneralConfigFile <- "data/speciesConfig_general.csv"
 speciesPredictorsConfigFile <- "data/speciesConfig_predictors.csv"
@@ -36,18 +37,23 @@ speciesPredictorTable <- if (file.exists(speciesPredictorsConfigFile)) {
   loadSpeciesPredictorConfig(speciesPredictorsConfigFile)
 } else NULL
 
-# predictorsToUse: per species+scale, one of "table" (use
-# speciesPredictorTable's exact list), "all" (every covariate, unfiltered),
-# or "auto" (real collinearity selection, dropping super-collinear
-# covariates the normal way) -- see collinearityCheckGerHabitat()/
-# GerLandscape()/Europe()'s predictorsToUse argument, which this feeds
-# directly (mode resolution happens INSIDE those functions now, not here).
-# NOTE: this toggle is for the CURRENT single-algorithm (BRT) pipeline --
-# once item 7 (GLM/RF/NN, see improvements.md) exists, an NN model should
-# probably always use "all" regardless of this toggle (collinearity
-# matters less for NN training than for e.g. GLM coefficients), which
-# isn't built yet since there's no NN code path at all to apply it to.
-predictorsToUse <- extractPredictorMode(perSpeciesGeneralConfig)
+# Per-species+scale resolution override (default: NA everywhere until you
+# actually need a species at a non-default resolution, e.g. Milvus milvus
+# at 15km landscape) -- see DECISIONS.md's 2026-09-28 entry. Distinct
+# resolutions actually needed per scale are computed below and used by
+# dataPrep_Monitor to generate each one exactly once (not once per species).
+resolutionConfig <- extractResolutionConfig(perSpeciesGeneralConfig)
+distinctResolutions <- function(scale, sharedDefault) {
+  if (is.null(resolutionConfig)) return(sharedDefault)
+  vals <- sapply(sharedSpecies, function(sp) {
+    v <- resolutionConfig[[sp]][[scale]]
+    if (is.null(v) || is.na(v)) sharedDefault else v
+  })
+  sort(unique(vals))
+}
+distinctClimateResolutions <- distinctResolutions("climate", sharedClimateResolutionM)
+distinctHabitatResolutions <- distinctResolutions("habitat", sharedHabitatResolutionM)
+distinctLandscapeResolutions <- distinctResolutions("landscape", sharedLandscapeResolutionM)
 
 # Per-species thinning distance (dataPrep_Monitor) and ATLAS_CODE/
 # "Brutzeitcode" filter (habitat scale for any species; landscape scale for
@@ -155,7 +161,11 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         perSpeciesThinDist = perSpeciesThinDist,
         brutzeitcodeFilter = brutzeitcodeFilter,
         perSpeciesDataSource = perSpeciesDataSource,
-        germanNames = sharedGermanNames
+        germanNames = sharedGermanNames,
+        resolutionConfig = resolutionConfig,
+        distinctClimateResolutions = distinctClimateResolutions,
+        distinctHabitatResolutions = distinctHabitatResolutions,
+        distinctLandscapeResolutions = distinctLandscapeResolutions
         # ebba2CSVSubpath / ebba2ShpSubpath / mhbObsSubpath /
         # probeflaechenShpSubpath / ddaTerritoriesXlsxSubpath /
         # ddaVisitsXlsxSubpath / rerun* / thinDist*M (shared defaults, used
@@ -171,9 +181,12 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        predictorsToUse = predictorsToUse,
         speciesPredictorTable = speciesPredictorTable,
-        spatialTermConfig = spatialTermConfig
+        spatialTermConfig = spatialTermConfig,
+        resolutionConfig = resolutionConfig
+        # dropCollinearPredictors: left at module default (FALSE, see
+        # inputs_Monitor.R) -- a technical/algorithmic toggle, not
+        # per-species/CSV-driven.
         # runSpatialBlocking / kFolds / block-size / collinearity params:
         # left at module defaults (see inputs_Monitor.R).
       ),
@@ -185,7 +198,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        perSpeciesGeneralConfig = perSpeciesGeneralConfig
+        resolutionConfig = resolutionConfig
         # No species param here -- models_Monitor takes its species list
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /

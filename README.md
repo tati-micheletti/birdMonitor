@@ -65,24 +65,14 @@ land under `outputs/<runName>/`.
   always appended automatically (`test1_20260927_091500`), so every run
   gets its own `outputs/` folder regardless — see `DECISIONS.md` if you
   want the history of why it's built this way.
-- **Species subset, for a test run** — do NOT edit `sharedConfig.R`'s
-  `sharedSpecies` for a one-off test; that file is the single source of
-  truth the CLUSTER path reads too, and it's easy to forget to revert it.
-  Instead, temporarily override `species` directly in `runMe.R`'s
-  `params$dataPrep_Monitor` and `params$inputs_Monitor` lists, e.g.:
-  ```r
-  testSpecies <- c("Vanellus vanellus", "Alauda arvensis",
-                    "Anthus pratensis", "Saxicola rubetra")
-  # then in params$dataPrep_Monitor and params$inputs_Monitor, replace
-  # `species = sharedSpecies` with `species = testSpecies`
-  ```
-  `models_Monitor` needs no change — it takes its species list from
-  whatever `inputs_Monitor` actually produced, not a separate parameter.
-- **`hedgesTreatment`** (`inputs_Monitor` params, currently defaults to
-  `"drop"` in the module itself, not overridden in `runMe.R`) — a single
-  code-level toggle, not per-species. Must be `"backfill"` for ANY species
-  to be able to list `"hedges"` as a candidate in
-  `speciesConfig_predictors.csv` at all (see `DECISIONS.md`).
+- **Species subset, for a test run** — do NOT hand-type a species vector
+  anywhere in `runMe.R`; `sharedSpecies` (from `sharedConfig.R`) is the
+  single source of truth every module and the cluster path both read, and
+  a hand-typed copy is easy to forget to revert. Instead, temporarily mark
+  just the species you want to test `"X"` in `data/speciesCanonical.csv`'s
+  `include` column (and the rest not-included) — `sharedSpecies` is built
+  from that column, so every module and the cluster path see the same
+  restricted roster automatically, with nothing else to remember to revert.
 
 ### Config tables to check before a run
 
@@ -96,19 +86,20 @@ landscape/habitat):
 
 | column | wired to real effect? | what it does |
 |---|---|---|
-| `resolution_m` | **No** | captured for a human to read; per-species covariate resolution needs the `Cache()` redesign in `improvements.md` item 4 |
+| `resolution_m` | **Yes** | per-species resolution override (e.g. Milvus milvus's coarser landscape window) — `models_Monitor` resolves each species' own model/prediction directory from this; `inputs_Monitor` groups spatial blocking by it. `dataPrep_Monitor`'s own per-resolution raster GENERATION is still pending (see `TODO.md`) — until then, an override still requires that resolution's covariates to already exist on disk |
 | `data_source` | **Yes** (landscape rows only) | `"DDA territories"` (default) or `"MhB point counts"` — routes that species' landscape-scale occurrence construction through a different raw source entirely, see `DECISIONS.md` |
 | `thinning_dist_m` | **Yes** | per-species spatial thinning distance override |
-| `brt_start_lr` | **Yes** | per-species BRT starting learning rate |
 | `brutzeitcode_filter` | **Yes** (habitat rows only) | ATLAS_CODE prefix filter (e.g. `"C"` = confirmed-breeding only), on top of the existing global filter |
-| `predictor_mode` | **Yes** | `"table"` / `"all"` / `"auto"` — see below |
 
 **`speciesConfig_predictors.csv`** — many rows per species, one per
-predictor, columns `species`/`climate`/`landscape`/`habitat`. Only consulted
-for a species+scale whose `predictor_mode` is `"table"`. Lists every
-candidate predictor for every species by design, so you can toggle one off
-just by blanking its cell for that species+scale — see `DECISIONS.md`'s
-"Predictor selection" entry for the full `"table"`/`"all"`/`"auto"` design.
+predictor, columns `species`/`climate`/`landscape`/`habitat`. The ONLY
+source of a species' candidate predictors — every species must be listed
+here (a species missing here is a hard error, not a silent fallback).
+Toggle a predictor off just by blanking its cell for that species+scale.
+Independently, `inputs_Monitor`'s `dropCollinearPredictors` parameter
+(module-level, default `FALSE`) controls whether that per-species list is
+further pruned for collinearity via `select07Blockcv()` — see
+`DECISIONS.md`'s 2026-09-28 entry.
 
 ### Output layout
 
@@ -180,11 +171,7 @@ Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test1
 # placeholders -- genuinely unknown until submitted for real)
 ```
 
-**Known gap: `runClusterTask.R` does not yet forward
-`speciesConfig_general.csv`'s per-species settings** (`brt_start_lr`,
-`thinning_dist_m`, etc.) to `models_Monitor` — it only sets
-`runScale`/`runSpecies`/the shared year/resolution values. A species with a
-tuned starting learning rate in the CSV would silently get the plain shared
-default on the cluster instead. This needs fixing before the CSVs' values
-are relied on for a real cluster run — flag this before next week if it
-hasn't been addressed yet.
+`runClusterTask.R` builds its own `resolutionConfig` from
+`speciesConfig_general.csv` (same as `runMe.R`) and forwards it to
+`models_Monitor`, so a cluster task's per-species resolution can never
+silently disagree with a full run's.

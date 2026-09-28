@@ -90,6 +90,13 @@ column exists and is wired, ready for real values once tuning starts).
 
 ## 2026-09-25 — Predictor selection: per-species/scale mode (table / all / auto)
 
+**SUPERSEDED 2026-09-28 -- see "Simplify to CSV-driven config" entry below.**
+`predictor_mode` (and `"all"`/`"auto"` as alternative predictor SOURCES) is
+removed entirely; `speciesConfig_predictors.csv` is now the only source of a
+species' candidate predictors, full stop. `select07Blockcv()`'s collinearity
+pruning survives as an independent `dropCollinearPredictors` toggle applied
+ON TOP of the table, not a mode. Kept below for history only.
+
 **What:** Each species+scale independently chooses one of three predictor
 resolution strategies (`speciesConfig_general.csv`'s `predictor_mode`
 column): `"table"` (use the exact, manually curated list in
@@ -122,6 +129,14 @@ Branch `feature/reconcile-with-v2-flexible-config`.
 ---
 
 ## 2026-09-25 — BRT learning rate: per-species starting point, persisted across refits
+
+**PARTIALLY SUPERSEDED 2026-09-28 -- see "Simplify to CSV-driven config"
+entry below.** The per-species CSV override (`brt_start_lr` column) is
+removed -- a starting learning rate is now a module-level constant only
+(`europeInitialLR`/`habitatInitialLR`/`landscapeInitialLR`). The
+converged-LR-PERSISTENCE mechanism described below (priority 2:
+`resolveStartingLR()`/`persistConvergedLR()`, reusing a prior run's actual
+converged value) is unrelated and unchanged.
 
 **What:** Each species' BRT learning-rate optimization (`optimizeBRT()`'s
 halving/doubling search) starts from, in priority order: (1) an explicit
@@ -562,6 +577,102 @@ isn't mistaken for a caching regression later.
 through. `reproducible` added as a required package in all 3 modules. Branch
 `feature/reconcile-with-v2-flexible-config` (root: `feature/config-data-folder`,
 per the 2026-09-28 branch-discipline change -- see below).
+
+---
+
+## 2026-09-28 — Simplify to CSV-driven config; consume `resolution_m`; deprecate several mechanisms
+
+**What:** A cluster of related simplifications, triggered by asking "is
+`speciesConfig_general.csv`'s `resolution_m` column actually consumed
+anywhere?" (answer: no -- the only per-species-resolution mechanism,
+`landscapeResolutionOverrides`/`resolveSpeciesResolution()` in
+`models_Monitor`, only ever took effect via `tools/runClusterTask.R`'s
+`--landscape-resolution` CLI flag, never from the CSV, and was always a
+no-op in a normal batched `runMe.R` run):
+
+1. **`resolution_m` is now consumed.** `models_Monitor` resolves each
+   species' own habitat/landscape resolution from a new `resolutionConfig`
+   parameter (species -> scale -> resolution (m), via
+   `extractResolutionConfig()` in `sharedSpeciesConfig.R`) and reads/writes
+   that species' covariates and model outputs from its own `scale_X`
+   folder -- a per-species override now genuinely works in a batched
+   multi-species run, not just a single-species cluster task.
+   `inputs_Monitor`'s spatial blocking groups species by resolved
+   resolution the same way. `landscapeResolutionOverrides`/
+   `resolveSpeciesResolution()` are deleted; `tools/runClusterTask.R`
+   builds and forwards the same `resolutionConfig` instead of its old
+   `--landscape-resolution` flag.
+   **Not yet done:** `dataPrep_Monitor`'s actual per-resolution raster
+   GENERATION (looping over each scale's distinct resolution set) -- an
+   override still requires that resolution's covariates to already exist
+   on disk. `runMe.R` already computes the distinct-resolution sets needed
+   per scale; wiring `dataPrep_Monitor.R`'s `doEvent` to loop over them is
+   the next step (see `TODO.md`).
+2. **`brt_start_lr` removed from the CSV entirely.** A BRT's starting
+   learning rate is a one-time, technical/algorithmic bootstrap value, not
+   an ecological per-species decision -- and the existing converged-LR-
+   persistence mechanism (`resolveStartingLR()`/`persistConvergedLR()`,
+   unrelated and unchanged) already adapts per species across successive
+   runs, making a CSV-level starting override redundant. Module-level
+   `europeInitialLR`/`habitatInitialLR`/`landscapeInitialLR` constants only.
+3. **`predictor_mode` removed entirely** -- `speciesConfig_predictors.csv`
+   is now the ONLY source of a species' candidate predictors (no more
+   `"table"`/`"all"`/`"auto"` selector; a species missing from that CSV is
+   now a hard error, not a silent `"auto"` fallback). `select07Blockcv()`'s
+   real block-CV collinearity selection survives as an independent
+   `dropCollinearPredictors` toggle (`inputs_Monitor`, module-level,
+   default `FALSE`) applied ON TOP of the table's own list, never
+   substituting a different candidate set.
+4. **Small cleanups:** dead `hedgesTreatment` scaffolding (already
+   commented-out, never active) removed; `dataPrep_Monitor`/`inputs_Monitor`'s
+   hardcoded, stale 11-species `species` parameter defaults replaced with
+   `NA_character_` (errors if a caller doesn't supply `sharedSpecies`
+   explicitly, instead of silently drifting from the real roster); the
+   vestigial pre-SpaDES-pipeline root `config.yaml` deleted (confirmed
+   unreferenced -- the two Python scripts mentioning it in a comment
+   explicitly do NOT read it, by design); README.md's hand-typed
+   `testSpecies` escape hatch replaced with the sanctioned
+   `speciesCanonical.csv`'s `include` column approach (the only way every
+   module and the cluster path see the same restricted roster
+   automatically).
+
+**Governing principle** (stated by the user, now the header comment in
+`sharedSpeciesConfig.R`): config CSVs hold "ecological" decisions --
+predictors, data origin/source, scales/resolution, which species are
+included, per-species evidence filters, the spatial-term opt-in.
+"Technical" decisions about how the optimizer/algorithm itself behaves (a
+BRT's cold-start learning rate, which predictor-selection algorithm to run)
+belong in the module as a simple shared constant, not a per-species CSV
+knob.
+
+**Why:** `predictor_mode` never had a real per-species decision to make
+(every species always used `"table"`) -- a mode selector with one
+observed value is complexity without payoff. `resolution_m` being
+collected but unconsumed was worse than not having the column at all: it
+looked authoritative (a human reading the CSV would assume it took
+effect) while silently doing nothing.
+
+**Status:** Verified end-to-end with real (non-mocked) computation at
+every point: `models_Monitor`'s per-species resolution resolution tested
+with two species (one default, one 15x coarser override) via real
+`optimizeBRT()`/`dismo::gbm.step()` fits -- confirmed each species' model,
+performance, and prediction rasters land in its own resolved `scale_X`
+output folder, reading its own resolution's covariate stack.
+`dropCollinearPredictors` tested with real `select07Blockcv()` over a
+synthetic near-collinear predictor pair -- confirmed `FALSE` keeps the
+table's list as-is and `TRUE` prunes it; confirmed a species missing from
+`speciesConfig_predictors.csv` now hard-errors. `inputs_Monitor`'s
+resolution-based spatial-blocking grouping verified with a synthetic
+mixed default/override species vector.
+
+**Where:** All 4 repos, branch `feature/reconcile-with-v2-flexible-config`
+(root: `feature/config-data-folder`). `sharedSpeciesConfig.R`,
+`data/speciesConfig_general.csv`, `runMe.R` (root); `inputs_Monitor.R`,
+`R/collinearityCheckGerHabitat.R`/`GerLandscape.R`/`Europe.R`
+(inputs_Monitor); `models_Monitor.R`, `R/modelGerHabitat.R`/
+`modelGerLandscape.R`, new `R/resolveResolutionM.R` (models_Monitor,
+replacing deleted `resolveSpeciesResolution.R`/`extractScaleStartingLR.R`);
+`tools/runClusterTask.R` (root).
 
 ---
 
