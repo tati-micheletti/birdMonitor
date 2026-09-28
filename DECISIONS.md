@@ -145,20 +145,33 @@ per-species answer, just faster on repeat runs.
 
 ---
 
-## 2026-09-25 — Habitat ATLAS_CODE ("Brutzeitcode") filter: per-species override available
+## 2026-09-25 — ATLAS_CODE ("Brutzeitcode") filter: per-species override available (habitat AND landscape)
+
+**CORRECTED 2026-09-26 (see note at the end) -- originally written up as
+habitat-only, which was a misattribution on my part. Landscape was the
+actual, and currently the only, applied case.**
 
 **What:** Habitat-scale occurrence records already pass a shared, global
 ATLAS_CODE filter (excludes the weakest "A"-with-no-number possible-breeding
-tier for every species: keeps A1/A2/B3-B9/C10-C16). A per-species ADDITIONAL
-filter can now be layered on top via `speciesConfig_general.csv`'s
-`brutzeitcode_filter` column (a prefix match, e.g. `"C"` keeps only
-confirmed-breeding codes).
+tier for every species: keeps A1/A2/B3-B9/C10-C16); the landscape scale's
+MhB-routed species (see the MhB-landscape-routing entry below) apply the
+same baseline filter to their presence-defining detections. A per-species
+ADDITIONAL filter can now be layered on top of either scale's baseline via
+`speciesConfig_general.csv`'s `brutzeitcode_filter` column (per species
+AND scale, same nesting as `thinning_dist_m`) -- a prefix match, e.g.
+`"C"` keeps only confirmed-breeding codes.
 
 **Why:** Buteo buteo (Mäusebussard) is a generalist that may show up in
 non-breeding contexts, potentially diluting its habitat-preference signal --
 restricting its training data to confirmed-breeding evidence only was
-proposed as a targeted refinement (2026-09-25 improvement notes, from the
-DDA results-review discussion).
+proposed as a targeted refinement, bundled with "slightly increase the
+landscape scale" in the same 2026-09-25 improvement note (from the DDA
+results-review discussion). Buteo's landscape scale was ALSO switched to
+MhB point counts at that same meeting (see the entry below) -- before that
+switch, landscape used DDA territory counts, which have no ATLAS_CODE at
+all, so a "C" filter could not have applied to landscape until MhB-routing
+existed. That landscape-scale routing decision is almost certainly what the
+bundled note was actually about.
 
 **Verification note (important):** the raw MhB data's actual column is named
 `ATLAS_CODE`, not literally "Brutzeitcode" -- verified directly against
@@ -168,11 +181,27 @@ German atlas possible(A)/probable(B)/confirmed(C) convention. A filter value
 is matched as a PREFIX (`startsWith`), not an exact string match, since real
 confirmed codes look like `"C11a"`/`"C12"`.
 
-**Status:** Verified against the actual raw data file. Currently applied:
-Buteo buteo's habitat row = `"C"`.
+**Status:** Verified against the actual raw data file and against real code
+(`occurrencePrepGerLandscape()`'s MhB-routed presence logic now applies this
+filter the same way `occurrencePrepGerHabitat()` does). Currently applied:
+Buteo buteo's LANDSCAPE row = `"C"` (habitat row left blank).
 
-**Where:** `occurrencePrepGerHabitat()`'s `brutzeitcodeFilter` argument
-(dataPrep_Monitor). Branch `feature/reconcile-with-v2-flexible-config`.
+**Correction note (2026-09-26):** this entry originally said the filter was
+applied to Buteo's HABITAT row, with a "habitat-preference-signal dilution"
+rationale invented to justify that scope. User corrected this directly
+("You got it wrong before... it was originally supposed to be on
+LANDSCAPE"). At the time of the original write-up, `occurrencePrepGerLandscape()`
+had no `brutzeitcodeFilter` argument at all -- only habitat scale could
+technically consume the CSV value, which likely drove the mistaken
+attribution rather than the actual intent. Fixed by adding a
+`brutzeitcodeFilter` parameter to `occurrencePrepGerLandscape()` (applied
+only to MhB-routed species' presence-defining detections, same semantics as
+habitat's), threading it through `prepareOccurrenceData()`/`dataPrep_Monitor.R`
+per scale, and moving the CSV value to Buteo's landscape row.
+
+**Where:** `occurrencePrepGerHabitat()`/`occurrencePrepGerLandscape()`'s
+`brutzeitcodeFilter` arguments (dataPrep_Monitor). Branch
+`feature/reconcile-with-v2-flexible-config`.
 
 ---
 

@@ -50,8 +50,10 @@ speciesPredictorTable <- if (file.exists(speciesPredictorsConfigFile)) {
 predictorsToUse <- extractPredictorMode(perSpeciesGeneralConfig)
 
 # Per-species thinning distance (dataPrep_Monitor) and ATLAS_CODE/
-# "Brutzeitcode" filter (habitat scale only) -- both reshaped from
-# speciesConfig_general.csv's thinning_dist_m/brutzeitcode_filter columns.
+# "Brutzeitcode" filter (habitat scale for any species; landscape scale for
+# MhB-routed species only, e.g. Buteo buteo -- see DECISIONS.md) -- both
+# reshaped from speciesConfig_general.csv's thinning_dist_m/
+# brutzeitcode_filter columns, per species+scale.
 perSpeciesThinDist <- if (!is.null(perSpeciesGeneralConfig)) {
   lapply(perSpeciesGeneralConfig, function(sp) {
     scales <- lapply(sp, function(scaleRow) scaleRow$thinning_dist_m)
@@ -59,8 +61,11 @@ perSpeciesThinDist <- if (!is.null(perSpeciesGeneralConfig)) {
   })
 } else NULL
 brutzeitcodeFilter <- if (!is.null(perSpeciesGeneralConfig)) {
-  filt <- lapply(perSpeciesGeneralConfig, function(sp) sp$habitat$brutzeitcode_filter)
-  filt <- filt[!sapply(filt, is.na)]
+  filt <- lapply(perSpeciesGeneralConfig, function(sp) {
+    scales <- lapply(sp, function(scaleRow) scaleRow$brutzeitcode_filter)
+    scales[!sapply(scales, is.na)]
+  })
+  filt <- filt[sapply(filt, length) > 0]
   if (length(filt) == 0) NULL else filt
 } else NULL
 

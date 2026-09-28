@@ -56,8 +56,12 @@ inputs
 .secrets
 .Restart*
 
-# Data
-/data
+# Data (raw/bulk data stays untracked -- but the 3 small config CSVs
+# living under data/ ARE tracked, see DECISIONS.md's 2026-09-28 entry)
+/data/*
+!/data/speciesCanonical.csv
+!/data/speciesConfig_general.csv
+!/data/speciesConfig_predictors.csv
 
 # All pipeline run outputs, regardless of runName
 /outputs
