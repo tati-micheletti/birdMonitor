@@ -540,6 +540,23 @@ for any given run in practice -- climate contributes 0-1.1% to every
 species' meta-model regardless (see the model-results memory/DECISIONS.md),
 so this does not block running the pipeline while unresolved.
 
+## 10. Reviewer defense for the asymmetric multi-scale training-window design
+
+**Status: queued, deliberately deferred (2026-09-29) -- "will happen later
+on."** Not started. See `DECISIONS.md`'s 2026-09-28 "Each scale's fitting-
+year window is dictated by its own survey, not shared" entry for the full
+context this responds to.
+
+Two committed follow-ups, both still to do:
+1. **Temporal holdout validation** -- refit habitat's BRT on 2022-2024
+   only, validate against the held-out 2025 it never saw, to empirically
+   test one-year-forward extrapolation reliability. Real code + a results
+   write-up, not just a caveat.
+2. **Literature grounding** -- pull 2-3 precedents from the multi-scale/
+   stacked-SDM line this project already draws from (Wiedenroth et al.)
+   showing asymmetric training windows across component models is
+   accepted practice.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
