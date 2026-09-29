@@ -47,7 +47,14 @@ sharedLandscapeResolutionM <- 1000
 # of it (see runMe.R's landuseYearsNeeded). Deliberately no `shared` prefix
 # -- unlike the other sharedX values, it's used as-is everywhere, never
 # transformed before being passed into a module's params.
-predictionYears <- 2005:2025
+# Temporarily narrowed to sharedHabitatYears (2022:2025) for the Buteo
+# buteo/Sturnus vulgaris DDA-fix comparison test -- metaModel()'s own
+# AUC/TSS/D2 come from block-CV on TRAINING data regardless of this value,
+# so the broader 2005:2025 default was pure wasted prediction-raster
+# compute for this specific test. WIDEN THIS BACK (e.g. to 2005:2025) once
+# other species are re-included in speciesCanonical.csv -- this is a
+# shared value, not per-species.
+predictionYears <- 2022:2025
 
 sharedClimateWindowLength <- 6
 sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2 training climatology
@@ -55,7 +62,16 @@ sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2
 # Landscape-scale FITTING years only (DDA territory data's real
 # availability) -- no longer also the prediction range, see
 # `predictionYears` above.
-sharedLandscapeYears <- 2005:2025
+# Temporarily narrowed to 2022:2025 for the Buteo buteo/Sturnus vulgaris
+# test -- both are MhB-routed at landscape scale (data_source = "MhB
+# point counts"), whose real records only exist 2022-2025; years
+# 2005-2021 were already confirmed harmless (cleanly skipped, no spurious
+# records) but wasted real compute generating/loading land-use covariates
+# for years these 2 species have zero real data in. WIDEN THIS BACK (e.g.
+# to 2005:2025) once a DDA-sourced species is re-included -- this is a
+# shared value, not per-species, and DDA territories genuinely do span
+# the full 2005:2025 range.
+sharedLandscapeYears <- 2022:2025
 sharedHabitatYears <- 2022:2025          # the only years real MhB point-count occurrence data exists --
                                           # both habitat's fitting-year constraint AND metaModel's training
                                           # window (the same underlying data-availability fact, not two
