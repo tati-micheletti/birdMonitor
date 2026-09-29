@@ -7,3 +7,6 @@
 [submodule "modules/dataPrep_Monitor"]
 	path = modules/dataPrep_Monitor
 	url = https://github.com/tati-micheletti/dataPrep_Monitor.git
+[submodule "runIndex_Monitor"]
+	path = runIndex_Monitor
+	url = git@github.com:tati-micheletti/runIndex_Monitor.git
