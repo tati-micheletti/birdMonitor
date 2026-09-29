@@ -261,6 +261,18 @@ no active species' `inputsData$europe` survives `models_Monitor`'s own
 prep if every active species excludes `"habitat"` or `"landscape"` --
 today's code would still fully process that scale for nothing.
 
+**Confirmed a second instance the same run (2026-09-30):**
+`prepareOccurrenceData` also unconditionally loads/cleans/thins the full
+EBBA2 (climate-scale) occurrence dataset for every active species,
+regardless of `scalesToRun` -- observed processing 35,040 raw EBBA2
+records down to ~4,093 aligned-grid cells for Buteo/Star even though
+neither uses climate scale this run. Cheap in this specific case (a few
+seconds, small dataset) unlike the covariate-raster cost above, but it's
+the same root gap, just in `prepareOccurrenceData` rather than
+`prepareClimateData`/`prepareDEM`/`prepareLanduse`/`prepareLandcover` --
+the eventual fix should gate this event too, not just the 4 covariate-
+prep ones.
+
 **The fix, roughly:** derive, once in `runMe.R` (mirroring how
 `distinctHabitatResolutions`/`distinctLandscapeResolutions` are already
 computed from `resolutionConfig`), which of `climate`/`habitat`/
