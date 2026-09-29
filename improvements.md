@@ -557,6 +557,61 @@ Two committed follow-ups, both still to do:
    showing asymmetric training windows across component models is
    accepted practice.
 
+## 11. MetaModel flexible to a variable scale count (`metaModelScales`)
+
+**Status: queued, deliberately deferred (2026-09-29).** Raised alongside the
+new `scalesToRun` module parameter (see `DECISIONS.md`'s 2026-09-29 entry),
+which controls which of the 4 stages get *fitted/attempted* per species.
+This item is different and bigger: making the **meta-model itself** flexible
+to running the ridge regression on a *subset* of already-fitted scales'
+suitability, so e.g. "with climate niche" vs. "without climate niche" could
+be compared *after the fact*, for species where all 3 scales did get fitted.
+
+**Why this is a real, moderate-to-substantial refactor, confirmed by reading
+the code (not assumed):** `extractSuitability.R`, `loadSuitability.R`, and
+`getOrBuildSuitX.R` all hardcode exactly climate/landscape/habitat as the
+three suitability inputs. `computeVariableImportance.R`'s output has fixed
+field names (`imp_climate`/`imp_landscape`/`imp_habitat`) that downstream
+reporting presumably reads by name. `metaModel.R` itself has a hardcoded
+3-way coefficient-printing message. None of this is a quick parameter add --
+every one of those functions would need to accept and thread through a
+variable-length scale set instead of three fixed named slots.
+
+**Confirmed NOT needed for the "just skip meta for an unfitted scale" case**
+(the thing `scalesToRun` actually needed): `metaModel()`'s own per-species
+loop already degrades gracefully today -- `extractSuitability()` ->
+`loadSuitability()` returns `NULL` per-scale if that species/scale's
+prediction file is missing, `metaModel.R` (lines ~81-86) filters those out,
+and if nothing remains it `warning()`s and skips that species entirely, no
+crash. That existing behavior is sufficient for `scalesToRun` excluding a
+scale entirely. This item is only about deliberately *comparing* "with" vs.
+"without" a scale for the *same* species where all scales exist -- a genuine
+ablation-style feature, not a robustness fix.
+
+**Companion parameter, also deferred:** `metaModelScales` -- a per-species
+override of which already-fitted scales' suitability actually feeds the
+ridge regression (defaulting to "whatever was fit"), which is what would
+make the "with/without climate niche" comparison possible without refitting
+anything.
+
+## 12. Rename `modelEurope`/its event name to `modelClimate`
+
+**Status: queued, deliberately deferred (2026-09-29).** `resolutionConfig`
+and the new `scalesToRun` parameter (see `DECISIONS.md`'s 2026-09-29 entry)
+both use `"climate"` as the scale-name vocabulary, matching
+`modelGerHabitat`/`modelGerLandscape`'s own `"habitat"`/`"landscape"`
+naming -- only `modelEurope` doesn't say `"climate"`, a naming mismatch
+that's been carried since the module's original port.
+
+**Why deferred:** a real rename, not just a comment fix -- touches the
+event name itself in `models_Monitor.R`'s `doEvent` switch,
+`tools/runClusterTask.R`'s `--scale europe` -> event-name mapping, the
+cluster `.sbatch` templates (`eve_array_*.sbatch`), and the
+`sim$europeModels` output object name. Mechanical but multi-file and
+higher blast-radius than anything needed for the near-term tests -- do
+this on its own branch with its own verification pass, per this file's
+process note.
+
 ---
 
 *Some of these have started -- for discussion once the current run's

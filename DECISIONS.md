@@ -864,6 +864,106 @@ deleted). `models_Monitor/R/` (17 files removed).
 
 ---
 
+## 2026-09-29 — `scalesToRun` (per-species stage restriction) + two new habitat/landscape covariates (dist_to_woodland, landscape_heterogeneity)
+
+**What:** Three additions, motivated by a planned test comparing hedges-
+backfill against alternatives for Goldammer (Emberiza citrinella) and
+Neuntöter (Lanius collurio):
+
+1. **`scalesToRun`** -- a new `models_Monitor` module parameter, default
+   `NULL`. A named list, species -> character vector naming a subset of
+   `c("climate", "habitat", "landscape", "meta")`, e.g.
+   `list("Emberiza citrinella" = c("habitat", "landscape"))`. Gates each of
+   the 4 `doEvent` stages' `inputsData` (the same place the existing
+   `runSpecies` cluster-mode filter already lives), via a new
+   `resolveScalesToRun()` helper (`modules/models_Monitor/R/`). Unlike
+   `resolutionConfig`, this is deliberately NOT sourced from
+   `speciesConfig_general.csv` -- it's a testing/debugging control (which
+   scales to attempt in a specific exploratory run), not a persistent
+   ecological fact about a species, so `runMe.R` needs no changes at all for
+   a normal full run; only a specific restricted test adds one override
+   line.
+2. **`dist_to_woodland`** -- distance-to-nearest-forest predictor, computed
+   from a native ~100m binary forest mask (CORINE codes 23-25, the same
+   closed-canopy definition `landcoverCategoriesCorine()`'s `trees` category
+   already uses -- no separate percent-cover threshold needed at the mask
+   step, since CORINE's own class already encodes closed-canopy forest;
+   the FAO closed-forest 10% canopy-cover standard was confirmed as the
+   basis for treating those codes as "forest") via `terra::distance()`,
+   aggregated (mean) to habitat/landscape resolution. New
+   `computeDistToWoodland.R`/`prepareDistToWoodland.R`
+   (`dataPrep_Monitor`), scheduled as part of a new `prepareDerivedCovariates`
+   event.
+3. **`landscape_heterogeneity`** -- Simpson diversity index (`1 -
+   sum(p_i^2)`) computed directly from the 17 already-scale-aggregated
+   land cover (3) + land use (14) proportion layers for a given year/scale
+   (not a separate native-resolution computation -- diversity should
+   reflect composition at the scale being modeled). Any category below 5%
+   of a cell's total is zeroed out and the rest renormalized first,
+   matching the existing `changeThresh = 0.05` convention (no single
+   universal external threshold exists in the literature for this). New
+   `computeHeterogeneityIndex.R`/`prepareHeterogeneityIndex.R`
+   (`dataPrep_Monitor`), same new event.
+
+Both new predictors registered in `covariatePredictorColumns()`
+(`inputs_Monitor`) and wired into `loadCovariates.R`/`loadHabitatCovariates.R`
+(read back optionally -- a missing file, e.g. an older output folder
+predating this change, just means that candidate predictor isn't offered
+that run, not a failure).
+
+**Why:** `scalesToRun` lets Goldammer/Neuntöter be fit at habitat+landscape
+only (no climate niche, no meta/index step) when comparing covariate
+variants, while Buteo buteo/Sturnus vulgaris keep running all 4 stages
+unchanged for their own, unrelated DDA-suggested-change test. The two new
+covariates are candidate alternatives/companions to hedges-backfill, whose
+temporal-constancy problem is documented in `improvements.md` item 5.
+
+**Also fixed in passing:** `loadCovariates.R`/`loadHabitatCovariates.R`
+combined `lu`/`lc`/`elev`/`slope` via a bare `c()` after resampling `lc`/
+`elev`/`slope` (all DERIVED rasters) -- the same class of latent
+c()-combining bug documented for `combineTwoLayerRaster()`/
+`combineLayersSafely()` elsewhere in this codebase (2026-09-28 entry above),
+now switched to `combineLayersSafely()`. `combineLayersSafely.R` duplicated
+into `dataPrep_Monitor` (previously only in `runIndex_Monitor`/
+`models_Monitor`).
+
+**Deferred, logged to `improvements.md` (items 11-12):** making the
+meta-model itself flexible to a variable subset of already-fitted scales
+(the "with/without climate niche" ablation comparison, `metaModelScales`)
+-- confirmed a real, moderate-to-substantial refactor touching hardcoded
+3-way logic in `extractSuitability.R`/`loadSuitability.R`/
+`getOrBuildSuitX.R`/`computeVariableImportance.R`/`metaModel.R`, unrelated
+to what `scalesToRun` needed; and renaming `modelEurope`/its event to
+`modelClimate` for naming consistency with `resolutionConfig`/`scalesToRun`'s
+own `"climate"` vocabulary.
+
+**Status:** Verified. `resolveScalesToRun()` and the 4 gate-point filter
+expressions tested directly (unit tests: NULL default, restricted species,
+unrestricted species unaffected, empty-result-is-list-not-NULL edge case
+for the cluster-mode single-species-excluded scenario). `computeDistToWoodland()`
+tested on a real cropped CORINE 2018 window (distances >= 0, sane range).
+`computeHeterogeneityIndex()` tested on a synthetic 17-layer fixture
+(Simpson index in `[0, 1)`, rare-category thresholding exercised) and its
+missing-file graceful-skip path (warns, returns `NULL`, no crash).
+`prepareHeterogeneityIndex()`/`prepareDistToWoodland()` orchestration
+tested end-to-end. `tools/check_duplicated_functions.R` re-run, all
+duplicated files (including the new `combineLayersSafely.R` copy) match
+across modules.
+
+**Where:** `modules/models_Monitor/models_Monitor.R` (`scalesToRun`
+parameter, 4 gate points), `modules/models_Monitor/R/resolveScalesToRun.R`
+(new). `modules/dataPrep_Monitor/dataPrep_Monitor.R` (new
+`prepareDerivedCovariates` event), `modules/dataPrep_Monitor/R/
+computeDistToWoodland.R`/`prepareDistToWoodland.R`/
+`computeHeterogeneityIndex.R`/`prepareHeterogeneityIndex.R`/
+`combineLayersSafely.R` (new), `loadCovariates.R`/`loadHabitatCovariates.R`
+(modified, duplicated into `models_Monitor`). `modules/inputs_Monitor/R/
+covariatePredictorColumns.R` (2 new candidate names). Branch
+`feature/reconcile-with-v2-flexible-config` (submodules), root branch
+`feature/config-data-folder`.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
