@@ -26,7 +26,7 @@
 # Milvus milvus is flagged excluded (include column blank) as of
 # 2026-09-26, finally implementing the 2026-09-24 Confluence decision to
 # drop it from scope (see project_birdmonitor_confluence_decisions memory).
-source("sharedSpeciesCanonical.R")
+source("tools/sharedSpeciesCanonical.R")
 speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
 sharedSpecies <- canonicalIncludedSpecies(speciesCanonical)
 sharedGermanNames <- canonicalGermanNames(speciesCanonical, sharedSpecies)

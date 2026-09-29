@@ -16,7 +16,7 @@ if (SpaDES.project::user("michelet")) setwd("C:/Users/michelet/Documents/GitHub/
 # See sharedConfig.R -- single source of truth, also sourced by
 # tools/runClusterTask.R so a cluster task and the full pipeline can never
 # silently disagree on these values.
-source("sharedConfig.R")
+source("tools/sharedConfig.R")
 
 ################### FITTING-YEARS / PREDICTION-YEARS DEPENDENCIES
 # See sharedYearsConfig.R -- computes what dataPrep_Monitor's landuseYears
@@ -25,7 +25,7 @@ source("sharedConfig.R")
 # union implies) so restricting predictionYears alone never breaks
 # backfill or shrinks any scale's training data. See DECISIONS.md's
 # 2026-09-28 "Decouple fitting years from prediction years" entry.
-source("sharedYearsConfig.R")
+source("tools/sharedYearsConfig.R")
 warnIfOutsideRealDataRange(sharedHabitatYears, 2022:2025, "sharedHabitatYears")
 warnIfOutsideRealDataRange(sharedLandscapeYears, 2005:2025, "sharedLandscapeYears")
 landuseYearsNeeded <- sort(unique(c(sharedHabitatYears, sharedLandscapeYears, predictionYears)))
@@ -40,7 +40,7 @@ landuseYearsNeeded <- sort(unique(c(landuseYearsNeeded, computeHedgesBackfillYea
 # simply leaving "hedges" out of that species' row in the predictors file
 # (speciesConfig_predictors.csv is the ONLY source of a species'
 # predictors -- see DECISIONS.md's 2026-09-28 entry).
-source("sharedSpeciesConfig.R")
+source("tools/sharedSpeciesConfig.R")
 speciesGeneralConfigFile <- "data/speciesConfig_general.csv"
 speciesPredictorsConfigFile <- "data/speciesConfig_predictors.csv"
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {

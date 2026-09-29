@@ -67,7 +67,7 @@ if (is.null(opt$scale) || !opt$scale %in% c("europe", "habitat", "landscape", "m
 
 ## Single source of truth for species/year/resolution values -- see
 ## sharedConfig.R's own header for why this replaces a hand-typed copy.
-source(file.path(opt$repoRoot, "sharedConfig.R"))
+source(file.path(opt$repoRoot, "tools", "sharedConfig.R"))
 
 ## Per-species/scale resolution overrides (e.g. Milvus milvus's coarser
 ## landscape window) -- same speciesConfig_general.csv resolutionConfig
@@ -75,7 +75,7 @@ source(file.path(opt$repoRoot, "sharedConfig.R"))
 ## disagree with a full run on a species' resolution (see DECISIONS.md's
 ## 2026-09-28 entry; this replaces the old, cluster-task-only
 ## --landscape-resolution flag).
-source(file.path(opt$repoRoot, "sharedSpeciesConfig.R"))
+source(file.path(opt$repoRoot, "tools", "sharedSpeciesConfig.R"))
 speciesGeneralConfigFile <- file.path(opt$repoRoot, "data", "speciesConfig_general.csv")
 perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
   loadSpeciesGeneralConfig(speciesGeneralConfigFile)
