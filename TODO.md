@@ -261,17 +261,34 @@ no active species' `inputsData$europe` survives `models_Monitor`'s own
 prep if every active species excludes `"habitat"` or `"landscape"` --
 today's code would still fully process that scale for nothing.
 
-**Confirmed a second instance the same run (2026-09-30):**
+**Confirmed a second instance the same run (2026-09-30), and it's
+expensive too -- corrected from an earlier "cheap" guess:**
 `prepareOccurrenceData` also unconditionally loads/cleans/thins the full
 EBBA2 (climate-scale) occurrence dataset for every active species,
-regardless of `scalesToRun` -- observed processing 35,040 raw EBBA2
-records down to ~4,093 aligned-grid cells for Buteo/Star even though
-neither uses climate scale this run. Cheap in this specific case (a few
-seconds, small dataset) unlike the covariate-raster cost above, but it's
-the same root gap, just in `prepareOccurrenceData` rather than
-`prepareClimateData`/`prepareDEM`/`prepareLanduse`/`prepareLandcover` --
-the eventual fix should gate this event too, not just the 4 covariate-
-prep ones.
+regardless of `scalesToRun`. Timed directly from the real run's own
+timestamps: Buteo buteo's climate-scale spatial thinning (100km distance,
+~4,093 candidate cells) took ~20.5 minutes; Sturnus vulgaris's took
+another ~20.7 minutes -- ~41 minutes combined, thrown away entirely since
+neither species uses climate scale this run.
+
+**Root cause of the cost, confirmed by direct comparison, not guessed:**
+it's the thinning RADIUS that dominates cost, not record count. The same
+run's habitat-scale thinning (400m distance, 1,655 records for Buteo) took
+only ~87 seconds -- roughly 14x faster despite a similar-order record
+count. A 100km exclusion radius means checking far more candidate
+neighbor pairs per point than a 400m one. This means any species-year
+combination using climate scale's default 100km thinning distance
+(`sharedConfig.R`'s default, or `speciesConfig_general.csv`'s
+`thinning_dist_m` override) pays this cost, independent of how few
+records it actually has.
+
+**Practical implication:** this makes the `scalesToRun`-awareness fix
+above more valuable than first estimated -- it's not just ~10 minutes of
+wasted covariate rasters, it's now looking like ~40+ minutes of wasted
+occurrence-prep thinning too, for a species/run combination that never
+touches climate scale. The eventual fix should gate `prepareOccurrenceData`
+too, not just `prepareClimateData`/`prepareDEM`/`prepareLanduse`/
+`prepareLandcover`.
 
 **The fix, roughly:** derive, once in `runMe.R` (mirroring how
 `distinctHabitatResolutions`/`distinctLandscapeResolutions` are already
