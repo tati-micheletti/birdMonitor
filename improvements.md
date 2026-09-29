@@ -466,10 +466,11 @@ rather than assuming it's wanted just because it's in the source paper.
 
 ## 8. Move the multi-species index/report into its own module
 
-**Status: deferred, explicitly not yet** -- "we need to move the runIndex
-to its own MODULE! But not yet" (2026-09-25). Noted here so it isn't lost,
-not to be started until the current `runIndex.R` script approach has been
-validated (this weekend's local test with the index step included).
+**Status: DONE, 2026-09-28** -- see `DECISIONS.md`'s 2026-09-28
+"runIndex_Monitor" entry for the full write-up (function boundary moved,
+chained into `runMe.R`'s own `loadOrder`, cluster-mode polling, the
+init-time year-sufficiency check, and two real terra bugs found and fixed
+along the way). Kept below for history/context only.
 
 **The problem this addresses:** `runIndex.R` (repo root) is a standalone
 script, not a SpaDES module. It manually re-sources every file in

@@ -133,7 +133,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     modules =c(
       "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
       "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling
-      "tati-micheletti/models_Monitor@main" # Fits and predicts from the models provided
+      "tati-micheletti/models_Monitor@main", # Fits and predicts from the models provided
+      "tati-micheletti/runIndex_Monitor@main" # Builds the multi-species annual report + regional index maps from metaModel()'s output
     ),
     options = list(spades.allowInitDuringSimInit = TRUE,
                    reproducible.cacheSaveFormat = "rds",
@@ -215,6 +216,23 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /
         # rerun* flags: left at module defaults (see models_Monitor.R).
+      ),
+      runIndex_Monitor = list(
+        species = sharedSpecies,
+        baselineYear = 2005,
+        allYears = predictionYears,
+        currentYear = max(sharedHabitatYears),
+        restrictedYears = sharedHabitatYears,
+        cellSizesM = sharedRegionalCellSizesM,
+        climateResolutionM = sharedClimateResolutionM,
+        habitatResolutionM = sharedHabitatResolutionM,
+        landscapeResolutionM = sharedLandscapeResolutionM
+        # indexSpecies: left at module default (NULL -> uses `species`) --
+        # set to a subset here for a restricted test report/index.
+        # changeThresh / nBoot / nSim / useBootstrapSE / pollIntervalSeconds /
+        # pollTimeoutHours: left at module defaults (see runIndex_Monitor.R)
+        # -- the poll params only matter for a cluster run (see DECISIONS.md's
+        # 2026-09-28 "runIndex_Monitor" entry).
       )
     ),
     packages = c("terra", "yaml",
@@ -222,17 +240,21 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
                  "PredictiveEcology/reproducible@development",
                  "PredictiveEcology/Require@development (>= 1.0.1)"),
     # IMPORTANT: setupProject's git handling runs `git checkout <branch>`
-    # then `git pull` on every module folder listed above. All three
-    # modules currently have uncommitted local work and their GitHub
-    # @main branches are still at the old (pre-this-session) state --
-    # pulling here could conflict with or overwrite that work. Left as
-    # FALSE (skip git management entirely; use the module folders
-    # exactly as they already exist on disk) until everything is
-    # committed and pushed. Switch back to "both" afterwards for
-    # reproducible fresh-clone behaviour (e.g. on Lisa's machine, or CI).
+    # then `git pull` on every module folder listed above. dataPrep_Monitor/
+    # inputs_Monitor/models_Monitor currently have uncommitted local work
+    # and their GitHub @main branches are still at the old (pre-this-
+    # session) state -- pulling here could conflict with or overwrite that
+    # work. runIndex_Monitor additionally has no real GitHub repo/submodule
+    # yet at all (see DECISIONS.md's 2026-09-28 "runIndex_Monitor" entry) --
+    # it's read straight from modules/runIndex_Monitor/ on disk regardless
+    # of useGit's setting until that's set up. Left as FALSE (skip git
+    # management entirely; use the module folders exactly as they already
+    # exist on disk) until everything is committed and pushed. Switch back
+    # to "both" afterwards for reproducible fresh-clone behaviour (e.g. on
+    # Lisa's machine, or CI).
     useGit = FALSE,
     loadOrder = c(
-      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor"
+      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor", "runIndex_Monitor"
     )
   )
 

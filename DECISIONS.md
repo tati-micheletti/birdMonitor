@@ -746,6 +746,124 @@ changes from this entry.
 
 ---
 
+## 2026-09-28 — `runIndex_Monitor`: index/report extraction into its own SpaDES module, chained into `runMe.R`
+
+**What:** The multi-species index/report functions (previously loose files
+in `models_Monitor/R/`, driven by a hand-rolled root-level `runIndex.R`
+script run manually AFTER `runMe.R` finished) are extracted into their own
+real SpaDES module, `runIndex_Monitor`, and chained directly into `runMe.R`'s
+own pipeline (`loadOrder`'s last module) -- one `runMe.R` invocation now
+produces data prep -> inputs -> models -> index/report. `runIndex.R` is
+retired.
+
+**Function boundary** (confirmed via cross-reference grep across
+`models_Monitor.R`+`R/*.R` before moving anything): 17 functions form a
+self-contained subgraph, reachable only from `runIndex.R`/each other, never
+from `metaModel()` or any core fitting function --
+`computeAnnualReport`/`computeChainIndex`/`computeChangeCI`/
+`computeChangeMaps`/`computeCombinedIndex`/`computeCombinedIndexAnalytical`/
+`computeCombinedIndexMSI`/`computeGriddedCombinedIndex`/`computeIndexSE`/
+`computeRegionalIndex`/`computeSRMap`/`computeSpeciesIndex`/
+`extractMetaProbSD`/`extractMetaProbSeries`/`aggregateSpeciesToGrid`/
+`smoothGriddedIndex`/`smoothIndex` -- these moved verbatim (logic
+unchanged, aside from the two terra fixes below) and were deleted from
+`models_Monitor/R/`. `extractSuitability`/`loadSuitability`/
+`getOrBuildSuitX`/`computeVariableImportance`/`fitDevRatio` (used directly
+inside `metaModel()`'s own training) and `metamodelLabel`/`scaleLabel`
+(used by `models_Monitor.R`'s own `metaModel` event) stayed in
+`models_Monitor` -- `metamodelLabel.R`/`scaleLabel.R`/
+`isValidPredictionRaster.R` got duplicated (byte-identical) into
+`runIndex_Monitor` too, the same pattern already used for `scaleLabel.R`
+across 3 modules (checked automatically by
+`tools/check_duplicated_functions.R`, which discovers duplicates by
+filename with no watched-list to maintain).
+
+**Ordering:** SpaDES processes same-`time(sim)` events in scheduling order
+-- `runIndex_Monitor` last in `loadOrder` means its `init` is scheduled
+after every one of `models_Monitor`'s own events, the same mechanism
+`metaModel` already relies on to run after
+`modelEurope`/`modelGerHabitat`/`modelGerLandscape` within `models_Monitor`
+itself. For a cluster run (`tools/runClusterTask.R`, one SLURM array task
+per species x scale, no natural "last one out" moment across the WHOLE
+roster), a new self-rescheduling `checkAllInputs` event polls every
+`pollIntervalSeconds` (real wall-clock `Sys.sleep()`, not simulated time --
+this pipeline's `timeunit = "year"` is already a formality) whether every
+species has a complete `metaModel()` output for every year it needs
+(`checkAllSpeciesMetaReady()`, new helper generalizing
+`checkAllScalesReady()`'s per-species-per-scale pattern to the whole
+roster), and only then proceeds. `pollTimeoutHours` bounds this: after
+timeout, WARN (never stop) which species are still missing and proceed
+anyway with whatever is available.
+
+**New `validateIndexYears()`**: before computing, warns (never stops)
+exactly which years a requested comparison (`baselineYear`/`currentYear`/
+`vsLastYear`/`vs5YearsAgo`/the Chain-index `restrictedYears` robustness
+check) needs and which are missing a real `metaModel()` output --
+`computeChangeMaps()`'s comparisons already degraded gracefully to
+`NULL`/`NA` for a missing year, silently; this surfaces the same gaps up
+front, by species, before the (possibly long-running) computation starts.
+
+**Two real terra bugs found and fixed while chaining into the live SpaDES
+session** (both worked fine called standalone in a fresh R session, which
+is how the pre-existing `runIndex.R` script always ran them -- neither was
+ever exercised inside a live `simInit()` session before):
+1. `computeChangeMaps()` directly `c()`-combined several DERIVED (computed,
+   not read-from-disk) rasters -- the same class of bug
+   `writeTwoLayerRaster.R`/`combineTwoLayerRaster()` (models_Monitor) was
+   already found and worked around for a 2-layer case ("Stacking a derived
+   raster... together with its source raster and writing directly causes
+   the source layer's values to zero out in some terra versions"). Fixed
+   with a new, generalized N-layer version of that same workaround
+   (`combineLayersSafely()`: write each layer to its own temp file, then
+   re-read and combine) plus force-materializing every computed raster
+   into memory immediately after computing it
+   (`terra::values(x) <- terra::values(x)`) -- the arithmetic RESULT
+   otherwise stays lazily linked to its source rasters, which can go
+   invalid later in a long-lived session with many other raster
+   reads/writes in between.
+2. `computeChangeMaps()`/`computeGriddedCombinedIndex()` called the BARE
+   `mean()`/`sum()` generics on `SpatRaster` objects. Something about the
+   chained SpaDES session's package loading (not yet root-caused --
+   `mgcv`/`nlme`, both required for the GAM smoothing in
+   `smoothIndex()`/`smoothGriddedIndex()`, are the leading suspect) breaks
+   `mean()`'s S3/S4 dispatch to terra's `SpatRaster` method partway through
+   the session -- `sum()` kept working throughout (it's a primitive, not
+   an ordinary S3 generic, and dispatches differently), but bare
+   `mean(spatRaster)` silently fell through to `mean.default()`, returning
+   a bare numeric `NA` instead of a raster, cascading into a `writeRaster`
+   type error downstream. Fixed by calling `terra::mean()`/
+   `terra::app(fun = "sum")` explicitly, namespaced, everywhere a
+   `SpatRaster` (not a plain numeric vector -- `computeCombinedIndex()`'s/
+   `computeCombinedIndexAnalytical()`'s/`computeCombinedIndexMSI()`'s own
+   `mean(log(...))` calls on numeric index VALUES are unaffected and
+   untouched) is involved, sidestepping the dispatch issue regardless of
+   its exact root cause.
+
+**Why:** Chaining lets one `runMe.R` run produce the full report, and gives
+the index/report step SpaDES's own parameter validation plus the
+init-time year-sufficiency check that was the actual original ask. The
+two terra fixes are real, pre-existing latent bugs the chaining exposed --
+not something introduced by the extraction itself, but only fixable once
+actually exercised inside a live session, which the extraction is what
+finally did.
+
+**Status:** Verified end-to-end with real (non-mocked) `simInit()`/
+`spades()` runs: a fast path (all species ready immediately, `checkAllInputs`
+resolves on its first check, full annual report + regional index complete)
+and a timeout-and-proceed path (one species' output deliberately never
+appears, confirms real wall-clock polling via `Sys.sleep()`, times out,
+warns naming the missing species, still completes the report for the
+species that IS ready).
+
+**Where:** New module `modules/runIndex_Monitor/` (own future GitHub repo,
+`tati-micheletti/runIndex_Monitor` -- not yet a real git submodule as of
+this entry; built and tested locally, `runMe.R`'s `useGit = FALSE` reads
+straight from disk regardless). `runMe.R` (module added to `modules`/
+`loadOrder`, new `params$runIndex_Monitor` block, root `runIndex.R`
+deleted). `models_Monitor/R/` (17 files removed).
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running

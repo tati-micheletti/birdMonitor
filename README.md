@@ -109,26 +109,29 @@ outputs/<runName>/
   <habitat label>/       # e.g. scale_02 -- habitat-scale outputs
   <landscape label>/     # e.g. scale_1  -- landscape-scale outputs
   metamodel_<labels>/    # meta-model outputs (per-species/year prediction rasters) --
-                         # this is what runIndex.R reads as `metaDir`
+                         # this is what runIndex_Monitor reads as `metaDir`
+  annual_report/         # runIndex_Monitor's annual report (see below)
+  regional_index/        # runIndex_Monitor's regional gridded index maps (see below)
 ```
 
-## 2. Running the multi-species index/report (`runIndex.R`)
+## 2. The multi-species index/report (`runIndex_Monitor`)
 
-Not part of `runMe.R`'s own event flow — the index/report functions
-(`computeAnnualReport()`, `computeRegionalIndex()`, and their dependencies,
-all in `modules/models_Monitor/R/`) are auto-sourced when `models_Monitor`
-loads, but nothing calls them automatically. Run this AFTER `runMe.R`
-finishes:
+Part of the SAME `runMe.R` run now (its own SpaDES module, chained last in
+`loadOrder` -- see DECISIONS.md's 2026-09-28 "runIndex_Monitor" entry). No
+separate script to run anymore; one `runMe.R` invocation produces data prep
+-> inputs -> models -> index/report. Configure it via `runMe.R`'s
+`params$runIndex_Monitor` block: `species` (the full roster its
+`checkAllInputs` event waits on before computing anything -- matters mainly
+for a cluster run, where different species' `metaModel()` tasks finish at
+unpredictable times), `indexSpecies` (optional subset the report/index
+actually covers -- leave unset to use all of `species`; an index/change-map
+for a species with no `metaModel()` output is meaningless, not just empty),
+`baselineYear`/`allYears`/`currentYear`/`restrictedYears`.
 
-```r
-source("runIndex.R")
-```
-
-Edit the top of that script first: `runName` (must match the `runMe.R` run
-you just did — check its console output or `ls outputs/`) and
-`indexSpecies` (must be a subset of whatever species that run actually
-covered — an index/change-map for a species with no `metaModel()` output is
-meaningless, not just empty).
+Before computing anything, it warns (never stops) about any specific
+year/comparison it can't actually satisfy given which years'
+`metaModel()` output exists on disk -- e.g. `"species X: vsLastYear needs
+year 2024's metaModel() output, which is missing"`.
 
 Produces, under `outputs/<runName>/annual_report/`:
 - `species_index.csv` — per-species baseline-100 index series
