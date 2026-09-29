@@ -239,6 +239,46 @@ problem.
       was meant as the actual fix and the main file's refresh was
       coincidental/unrelated).
 
+## 9. Make `dataPrep_Monitor` `scalesToRun`-aware, so it can skip a scale nothing active needs
+
+**Confirmed real, expensive, and observed live (2026-09-30):** `scalesToRun`
+(`models_Monitor`'s per-species stage restriction, added 2026-09-29 -- see
+`DECISIONS.md`) only gates which of `modelEurope`/`modelGerHabitat`/
+`modelGerLandscape`/`metaModel` actually run. `dataPrep_Monitor` has no
+visibility into it at all -- it unconditionally prepares climate data
+(CHELSA bioclim, one full 6-year rolling window average per
+`climateTargetYears` entry), DEM derivatives, land cover, and land use for
+every configured year/resolution, regardless of whether any currently-
+active species will ever consume that scale's output.
+
+**Real cost, not theoretical:** during the Buteo buteo/Sturnus vulgaris
+habitat+landscape-only comparison test (`scalesToRun` excludes `"climate"`
+for both species -- neither will ever run `modelEurope()`),
+`prepareClimateData` still spent ~10+ minutes computing 4 overlapping
+6-year climate windows (2022-2025) that get thrown away entirely, since
+no active species' `inputsData$europe` survives `models_Monitor`'s own
+`scalesToRun` filter. The same issue affects DEM/land cover/land use
+prep if every active species excludes `"habitat"` or `"landscape"` --
+today's code would still fully process that scale for nothing.
+
+**The fix, roughly:** derive, once in `runMe.R` (mirroring how
+`distinctHabitatResolutions`/`distinctLandscapeResolutions` are already
+computed from `resolutionConfig`), which of `climate`/`habitat`/
+`landscape` are actually needed by *any* species in `scalesToRun` (default:
+all 3, if `scalesToRun` is unset -- today's behavior, unchanged). Pass
+that down as a new `dataPrep_Monitor` parameter (e.g. `scalesNeeded`), and
+gate `prepareClimateData`'s whole event, and the per-resolution loops
+inside `prepareDEM`/`prepareLanduse`/`prepareLandcover`/
+`prepareDerivedCovariates`, on whether that specific scale is actually
+needed at all before doing any real work for it.
+
+**Why not fixed immediately (2026-09-30):** discovered mid-run, during a
+live test -- the right fix touches `dataPrep_Monitor`'s `init` event and
+every one of its 5 preparation events, plus `runMe.R`'s own scale-
+resolution derivation logic already used for `resolutionConfig`. A
+same-session, code-level fix is documented here as commissioned but not
+yet built.
+
 ---
 
 *Not yet started on any of these — this file is a starting point, not a
