@@ -1,6 +1,6 @@
 ---
-title: "Species Distribution Modeling (SDM) Pipeline Guide"
-subtitle: "Configuration, Execution via `runMe.R`, and Parameter Reference"
+title: "birdMonitor: Species Distribution Modeling Pipeline"
+subtitle: "Configuration, Execution via `runMe.R`, and Reference"
 author: "T. Micheletti & L. Hildebrand"
 date: "`r Sys.Date()`"
 output:
@@ -11,6 +11,9 @@ output:
     theme: cosmo
     highlight: tango
     number_sections: true
+  github_document:
+    toc: true
+    toc_depth: 3
 ---
 
 ```{r setup, include = FALSE}
@@ -23,262 +26,336 @@ knitr::opts_chunk$set(
 
 # Overview
 
-This pipeline runs a multi-scale species distribution modeling (SDM) framework built on SpaDES and Boosted Regression Trees (`dismo::gbm.step`). It standardizes predictions across three geographic and operational scales:
+Code to run the models for the UFZ bird monitor. This document covers how
+to actually run the pipeline — locally and on the EVE cluster — which
+parameters/tables to check before a run, and what each output is.
 
-1. **European Climate Scale** (~50 km, CHELSA bioclimatic predictors, EBBA2 occurrence data).
-2. **German Landscape Scale** (~1000 m, Thünen land-use/cover covariates, DDA / MhB data).
-3. **German Habitat Scale** (~200 m, fine-scale Thünen habitat covariates, MhB point counts).
+This pipeline runs a multi-scale species distribution modeling (SDM)
+framework built on SpaDES and Boosted Regression Trees (`dismo::gbm.step`),
+combined via a ridge-regression meta-model, for the UFZ bird monitor. It
+standardizes predictions across three geographic/operational scales, then
+combines them and reports on the result:
 
-The pipeline is driven **exclusively** by three configuration CSV files (under `data/`), eliminating hardcoded model settings in module scripts.
+1. **European climate scale** (~50 km) — CHELSA bioclimatic predictors,
+   EBBA2 occurrence data.
+2. **German landscape scale** (~1 km) — Thünen land-use/cover covariates,
+   DDA territories (or MhB point counts, for specific species).
+3. **German habitat scale** (~200 m) — fine-scale Thünen habitat
+   covariates, MhB point counts.
+4. **Meta-model** — combines the three scales' suitability predictions via
+   ridge regression, trained on real habitat occurrence data.
+5. **Multi-species index/report** — annual report (per-species and
+   combined indices, change maps) and regional gridded index maps, built
+   from the meta-model's output.
 
----
+Code is organized as 4 SpaDES modules (`dataPrep_Monitor` ->
+`inputs_Monitor` -> `models_Monitor` -> `runIndex_Monitor`, one GitHub
+repo/submodule each), driven by `runMe.R`. Model settings are driven by 3
+configuration CSV files (under `data/`) rather than hardcoded in module
+scripts.
 
-# Phase 1: The Three Config Files
+For **why** things are built the way they are, see:
 
-All run-level options must be set in the 3 CSV files under `data/` (moved out of the project root 2026-09-28).
+- **`DECISIONS.md`** — every methodology/model decision (data sources,
+  thresholds, predictor selection), dated, with rationale.
+- **`improvements.md`** — methodological extensions still under discussion,
+  not yet decided.
+- **`TODO.md`** — engineering/completeness gaps.
 
-```text
-project_root/
-└── data/
-    ├── speciesCanonical.csv          # Species inclusion and canonical naming
-    ├── speciesConfig_general.csv     # Per-species scales, resolutions, modes, & BRT settings
-    └── speciesConfig_predictors.csv  # Exact candidate predictors for "table" mode
+# 0. Before you run anything
+
+**Branch.** As of 2026-09-25, everything described here (the config CSVs,
+the per-species wiring, the Buteo/Star landscape routing) lives on
+`feature/reconcile-with-v2-flexible-config` in the `dataPrep_Monitor`/
+`inputs_Monitor`/`models_Monitor` submodules — not yet merged to `main`.
+Root `birdMonitor` itself is on `feature/config-data-folder`, and
+`runIndex_Monitor` (added later, its own repo) is still on `main` — the
+four repos are deliberately NOT all on the same branch name right now.
+`runMe.R` runs whatever is checked out on disk in each `modules/<name>/`
+folder (`useGit = FALSE`), so before running, confirm each repo is
+actually on the branch you expect:
+
+```bash
+cd birdMonitor && git branch --show-current
+cd modules/dataPrep_Monitor && git branch --show-current
+cd ../inputs_Monitor && git branch --show-current
+cd ../models_Monitor && git branch --show-current
+cd ../runIndex_Monitor && git branch --show-current
 ```
 
-## `speciesCanonical.csv`
+Should print, in order: `feature/config-data-folder`,
+`feature/reconcile-with-v2-flexible-config` (x3), `main`.
 
-Governs **which species run** and maps canonical scientific and vernacular names.
+**Packages.** `runMe.R` installs/manages its own R package library via
+`Require`/`pak` (see its own `paths`/`packages` -- no separate manual
+install step needed under normal use). If you ever see a `could not find
+function` error partway through a run, that's a missing package Require
+didn't catch — install it and re-run.
 
-| Column | Description | Example / Values |
-|:---|:---|:---|
-| `latin_name` | Scientific name matching raw occurrence records | `"Lanius collurio"`, `"Vanellus vanellus"` |
-| `german_name` | Canonical German vernacular name | `"Neuntöter"`, `"Kiebitz"` |
-| `english_name` | Canonical English vernacular name | `"Red-backed Shrike"`, `"Northern Lapwing"` |
-| `euring_code` | Official EURING bird identifier code | `15150` |
-| `include` | **Master Run Switch:** Set `"X"` to run; leave blank `""` to omit | `"X"` or `""` |
+**Raw data.** Must already exist under `inputs/` before `dataPrep_Monitor`
+runs (it never downloads survey data itself — only predictor rasters). The
+default paths (relative to `inputs/`), all `defineParameter(..."Subpath")`
+in `dataPrep_Monitor.R`:
 
-> **Rule:** Only species with `include == "X"` are loaded into `sharedSpecies`. Do not hardcode species subsets in `runMe.R`.
+- `response/raw/ornitho/ebba2_data_occurrence_50km.csv` + `ebba2_grid50x50_v1.shp`
+- `response/raw/MhB/dbird_observations_CBBM.csv` (the raw MhB point-count
+  CSV — used at habitat scale for everyone, AND at landscape scale for
+  whichever species use `"MhB point counts"` in `speciesConfig_general.csv`)
+- `response/raw/MhB/MhB_Probeflaechen_DE_S2637_epsg25832.shp` (routes —
+  shared by habitat and landscape scale)
+- `response/raw/territories/BirdStats_Daten2005-2024D_alle.xlsx` (DDA
+  territories) + `BirdStats_Visits2005-2024D.xlsx` (DDA visited routes) —
+  only actually read if at least one species still uses the default
+  `"DDA territories"` data source at landscape scale.
 
----
-
-## `speciesConfig_general.csv`
-
-Governs **per-species and per-scale operational parameters**. Each species contains up to 3 rows corresponding to its modeling scales (`climate`, `landscape`, `habitat`).
-
-| Column | Description | Valid Values & Options |
-|:---|:---|:---|
-| `species` | Scientific name matching `speciesCanonical.csv` | `"Lanius collurio"` |
-| `scale` | Operational modeling tier | `"climate"`, `"landscape"`, `"habitat"` |
-| `resolution_m` | Raster cell resolution in meters | `50000` (climate), `1000` (landscape), `200` (habitat) |
-| `data_source` | Survey data source | `"EBBA2/CHELSA"`, `"DDA territories"`, `"MhB point counts"` |
-| `thinning_dist_m` | Minimum spatial thinning distance in meters | `0` (none), `500`, `1000` |
-| `brt_start_lr` | Starting learning rate for BRT step optimization | `0.01` (coarse/broad), `0.05`, `0.08` (fine-scale) |
-| `brutzeitcode_filter` | Optional breeding code filter threshold | `"C"`, `"B"`, or blank |
-| `predictor_mode` | **Predictor resolution mechanism:**<br>• `"table"`: Use exact list from `speciesConfig_predictors.csv`<br>• `"all"`: Use all valid environmental layers<br>• `"auto"`: Run block-CV collinearity selection (`select07Blockcv`) | `"table"`, `"all"`, `"auto"` |
-| `spatial_term` | Opt-in spatial coordinates: appends projected `x` and `y` to the candidate tree splits | `"X"` (enable) or blank `""` (disable) |
-
----
-
-## `speciesConfig_predictors.csv`
-
-Consulted whenever `predictor_mode == "table"`. It lists the candidate predictors per species across scales.
-
-```csv
-species,climate,landscape,habitat
-"Lanius collurio","","hedges, grassland, fallow","hedges, grassland, built_up"
-"Vanellus vanellus","","grassland, summer_cereals","grassland, root_crops"
-```
-
-### The Hedges Rule
-- If a species should use hedges, write `hedges` in the `landscape` or `habitat` column.
-- The pipeline automatically loads the backfilled Thünen hedge layer.
-- If `hedges` is omitted from the cell, the species will not use it.
-- **Typo Protection:** If a requested predictor name is misspelled (e.g., `"hedge"` instead of `"hedges"`), the pipeline halts immediately with an explicit error indicating the missing column name.
-
----
-
-# Phase 2: Configuring `runMe.R`
-
-`runMe.R` serves as the master driver script for the SpaDES simulation.
-
-## 1. Dynamic Config Ingestion
-
-Ensure the top of `runMe.R` loads parameters dynamically from the CSV files:
+# 1. Running locally (`runMe.R`)
 
 ```{r}
-source("sharedConfig.R")
-source("sharedSpeciesCanonical.R")
-source("sharedSpeciesConfig.R")
-
-# 1. Load active species list from data/speciesCanonical.csv
-speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
-sharedSpecies    <- canonicalIncludedSpecies(speciesCanonical)
-
-# 2. Ingest operational and predictor tables
-perSpeciesGeneralConfig <- loadSpeciesGeneralConfig("data/speciesConfig_general.csv")
-speciesPredictorTable   <- loadSpeciesPredictorConfig("data/speciesConfig_predictors.csv")
-
-# 3. Extract per-species flags
-predictorsToUse   <- extractPredictorMode(perSpeciesGeneralConfig)
-spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
-```
-
-## 2. Setting Module Parameters (`params`)
-
-```{r}
-params <- list(
-  # -------------------------------------------------------------
-  # Module 1: Data Preparation
-  # -------------------------------------------------------------
-  dataPrep_Monitor = list(
-    species    = sharedSpecies,                      # Dynamic species list
-    years      = 2017:2023,                          # Survey monitoring years
-    dataDir    = file.path(sharedPath, "data"),      # Path to input rasters
-    scratchDir = file.path(sharedPath, "scratch")    # Fast SSD scratch directory
-  ),
-
-  # -------------------------------------------------------------
-  # Module 2: Collinearity & Model-Ready Inputs
-  # -------------------------------------------------------------
-  inputs_Monitor = list(
-    species               = sharedSpecies,
-    predictorsToUse       = predictorsToUse,         # "table", "all", or "auto"
-    speciesPredictorTable = speciesPredictorTable,   # Explicit lists per species
-    spatialTermConfig     = spatialTermConfig,       # TRUE/FALSE spatial term flags
-    
-    # Scale resolutions (in meters)
-    climateResolutionM    = 50000,
-    landscapeResolutionM  = 1000,
-    habitatResolutionM    = 200,
-    
-    # Collinearity parameters (used when predictor_mode == "auto")
-    threshold             = 0.7,                     # Spearman |r| pruning threshold
-    univar                = "gam",                   # Univariate model in select07Blockcv
-    
-    # Spatial cross-validation blocking
-    runSpatialBlocking    = FALSE,                   # Set TRUE to calculate spatial folds
-    kFolds                = 5                        # Number of spatial CV folds
-  ),
-
-  # -------------------------------------------------------------
-  # Module 3: Model Fitting (BRT)
-  # -------------------------------------------------------------
-  models_Monitor = list(
-    species                 = sharedSpecies,
-    perSpeciesGeneralConfig = perSpeciesGeneralConfig, # Slices brt_start_lr per species
-    treeComplexity          = 3,                       # Interaction depth
-    bagFraction             = 0.75,                    # Subsampling fraction
-    maxTrees                = 10000,                   # Maximum tree iterations
-    tolerance               = "fixed"                  # Convergence criterion
-  ),
-
-  # -------------------------------------------------------------
-  # Module 4: Evaluation & Prediction
-  # -------------------------------------------------------------
-  evaluation_Monitor = list(
-    species         = sharedSpecies,
-    metrics         = c("AUC", "TSS", "Deviance"),
-    savePredictions = TRUE,
-    outputDir       = file.path(sharedPath, "outputs")
-  )
-)
-```
-
----
-
-# Phase 3: Launching the Workflow
-
-## Interactive Execution (RStudio / R GUI)
-
-```{r}
-# 1. Verify working directory is project root
-getwd()
-
-# 2. Source the driver script
 source("runMe.R")
 ```
 
-## Batch / High-Performance Computing (CLI)
+This runs all 4 modules end to end (`dataPrep_Monitor` -> `inputs_Monitor`
+-> `models_Monitor` -> `runIndex_Monitor`) via
+`SpaDES.core::simInitAndSpades()`. Outputs land under `outputs/<runName>/`.
 
-For headless nodes or cluster environments, run in background with logging:
+## Batch / non-interactive execution
+
+For a long run you don't want tied to an open terminal (headless nodes,
+overnight runs), launch in the background with logging:
 
 ```bash
-cd /path/to/SDM_Monitoring
+cd /path/to/birdMonitor
 nohup Rscript runMe.R > runMe_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 ```
 
-Monitor run output:
+Monitor progress:
+
 ```bash
 tail -f runMe_*.log
 ```
 
----
+## Parameters to check/adjust before a run
 
-# Phase 4: Workflow Execution Architecture
+- **`runNameBase`** (top of `runMe.R`) — bump this by hand for a run whose
+  cached outputs shouldn't be reused (a real config change). A timestamp is
+  always appended automatically (`test1_20260927_091500`), so every run
+  gets its own `outputs/` folder regardless — see `DECISIONS.md` if you
+  want the history of why it's built this way.
+- **Species subset, for a test run** — do NOT hand-type a species vector
+  anywhere in `runMe.R`; `sharedSpecies` (from `sharedConfig.R`) is the
+  single source of truth every module and the cluster path both read, and
+  a hand-typed copy is easy to forget to revert. Instead, temporarily mark
+  just the species you want to test `"X"` in `data/speciesCanonical.csv`'s
+  `include` column (and the rest not-included) — `sharedSpecies` is built
+  from that column, so every module and the cluster path see the same
+  restricted roster automatically, with nothing else to remember to revert.
+- **`predictionYears`** (`sharedConfig.R`) — which years to generate
+  PREDICTION rasters for, across every scale and the meta-model. Restrict
+  this alone (e.g. to `c(2005, 2015, 2025)`) to test a small set of output
+  years without shrinking any scale's training data or breaking the
+  hedges-backfill mechanism — both are handled automatically (see
+  `DECISIONS.md`'s 2026-09-28 "Decouple fitting years from prediction
+  years" entry). `sharedHabitatYears`/`sharedLandscapeYears` are each
+  scale's separate FITTING-year constraint (real survey data availability,
+  not a free choice) — a `warning()` fires if either is pushed outside its
+  known real-data range.
+
+## Config tables to check before a run
+
+Both live under `data/` (not the repo root — moved there 2026-09-28), loaded
+once by `runMe.R` via `sharedSpeciesConfig.R`. Missing either file is fine —
+every module falls back to its own shared defaults exactly as if these
+didn't exist.
+
+**`speciesConfig_general.csv`** — exactly 3 rows per species (climate/
+landscape/habitat):
+
+| column | wired to real effect? | what it does |
+|---|---|---|
+| `resolution_m` | **Yes** | per-species resolution override (e.g. Milvus milvus's coarser landscape window) — `dataPrep_Monitor` generates each scale's distinct resolutions and re-keys occurrence extraction by it; `inputs_Monitor` groups spatial blocking by it; `models_Monitor` resolves each species' own model/prediction directory from it |
+| `data_source` | **Yes** (landscape rows only) | `"DDA territories"` (default) or `"MhB point counts"` — routes that species' landscape-scale occurrence construction through a different raw source entirely, see `DECISIONS.md` |
+| `thinning_dist_m` | **Yes** | per-species spatial thinning distance override |
+| `brutzeitcode_filter` | **Yes** (habitat rows only) | ATLAS_CODE prefix filter (e.g. `"C"` = confirmed-breeding only), on top of the existing global filter |
+| `spatial_term` | **Yes** | `"X"` opts a species into the `x`/`y` spatial-trend-surface predictor (deliberately opt-in, not blanket -- see `DECISIONS.md`'s 2026-09-26 entries) |
+
+**`speciesConfig_predictors.csv`** — many rows per species, one per
+predictor, columns `species`/`climate`/`landscape`/`habitat`. The ONLY
+source of a species' candidate predictors — every species must be listed
+here (a species missing here is a hard error, not a silent fallback).
+Toggle a predictor off just by blanking its cell for that species+scale.
+Independently, `inputs_Monitor`'s `dropCollinearPredictors` parameter
+(module-level, default `FALSE`) controls whether that per-species list is
+further pruned for collinearity via `select07Blockcv()` — see
+`DECISIONS.md`'s 2026-09-28 entry.
+
+## Output layout
 
 ```text
-[speciesCanonical.csv]          ──> sharedSpecies
-[speciesConfig_general.csv]     ──> predictor_mode, spatial_term, brt_start_lr
-[speciesConfig_predictors.csv]  ──> candidate predictor table
-         │
-         ▼
+outputs/<runName>/
+  <climate label>/       # e.g. scale_50 -- europe/climate-scale outputs
+  <habitat label>/       # e.g. scale_02 -- habitat-scale outputs
+  <landscape label>/     # e.g. scale_1  -- landscape-scale outputs
+  metamodel_<labels>/    # meta-model outputs (per-species/year prediction rasters) --
+                         # this is what runIndex_Monitor reads as `metaDir`
+  annual_report/         # runIndex_Monitor's annual report (see below)
+  regional_index/        # runIndex_Monitor's regional gridded index maps (see below)
+```
+
+# 2. The multi-species index/report (`runIndex_Monitor`)
+
+Part of the SAME `runMe.R` run (its own SpaDES module, chained last in
+`loadOrder` -- see `DECISIONS.md`'s 2026-09-28 "runIndex_Monitor" entry).
+No separate script to run; one `runMe.R` invocation produces data prep ->
+inputs -> models -> index/report. Configure it via `runMe.R`'s
+`params$runIndex_Monitor` block: `species` (the full roster its
+`checkAllInputs` event waits on before computing anything -- matters mainly
+for a cluster run, where different species' `metaModel()` tasks finish at
+unpredictable times), `indexSpecies` (optional subset the report/index
+actually covers -- leave unset to use all of `species`; an index/change-map
+for a species with no `metaModel()` output is meaningless, not just empty),
+`baselineYear`/`allYears`/`currentYear`/`restrictedYears`.
+
+Before computing anything, it warns (never stops) about any specific
+year/comparison it can't actually satisfy given which years'
+`metaModel()` output exists on disk -- e.g. `"species X: vsLastYear needs
+year 2024's metaModel() output, which is missing"`.
+
+Produces, under `outputs/<runName>/annual_report/`:
+
+- `species_index.csv` — per-species baseline-100 index series
+- `combined_index_{sbi,analytical,msi,chain}.csv` — four combined-index
+  methods (report all four together, not just one — see `computeAnnualReport()`'s
+  docstring for why they can legitimately disagree at the margins)
+- `combined_index_chain_restricted.csv` — Chain index restricted to
+  non-hindcast years only (a robustness check)
+- `SR_map_<year>.tif` — species richness map
+- `change_{vsBaseline,vs5YearsAgo,vsLastYear}_{community,<species>}.tif` —
+  prevalence-change/gain-loss maps
+
+And under `outputs/<runName>/regional_index/`:
+`regional_index_<N>km_{raw,smoothed}.tif` for each of
+`sharedRegionalCellSizesM`'s grid sizes (10/20/50km by default).
+
+# 3. Running on the EVE cluster
+
+**Status as of 2026-09-25: designed, never actually submitted to real EVE,
+and NOT yet updated for today's per-species config CSVs — see the gap
+below before relying on it for a real cluster run.** See
+[[project_eve_cluster_parallelization]] memory / `.claude/skills/eve-cluster/`
+for onboarding constraints (VPN-only access, module system, transfer-queue
+downloads).
+
+The design: `tools/runClusterTask.R` is a standalone entry point for one
+species x scale/meta task, run as a SLURM array (`--array=1-12`, one index
+per `sharedSpecies` entry) via
+`modules/models_Monitor/cluster/eve_array_{europe,habitat,landscape,meta}.sbatch`.
+It requires `inputs_Monitor`'s `collinearityCheck` event to have already
+run locally for that `runName` (reads the `_inputs.rds`/`_predictors.rds`
+files that step writes) — i.e. run `dataPrep_Monitor` + `inputs_Monitor`
+locally/beforehand, then submit `models_Monitor`'s per-species fitting as
+the cluster array job.
+
+```bash
+# one task, locally, for testing:
+Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test1
+# real submission: sbatch modules/models_Monitor/cluster/eve_array_habitat.sbatch
+# (partition name and R module-load line inside are still explicit
+# placeholders -- genuinely unknown until submitted for real)
+```
+
+`runClusterTask.R` builds its own `resolutionConfig`/`predictionYears` from
+`sharedConfig.R`/`speciesConfig_general.csv` (same as `runMe.R`) and
+forwards them to `models_Monitor`, so a cluster task's per-species
+resolution/prediction years can never silently disagree with a full run's.
+
+# 4. Workflow architecture
+
+```text
+data/speciesCanonical.csv          --> sharedSpecies (species with include == "X")
+data/speciesConfig_general.csv     --> resolution_m, thinning_dist_m, data_source,
+                                        brutzeitcode_filter, spatial_term
+data/speciesConfig_predictors.csv  --> the ONLY source of a species' candidate predictors
+         |
+         v
  1. dataPrep_Monitor
-    ├── Crop / cache CHELSA climate rasters (50 km)
-    ├── Load / backfill Thünen land-use & hedges layers (1000 m & 200 m)
-    └── Pool presence/absence occurrences per species
-         │
-         ▼
+    +-- Crop/cache CHELSA climate rasters; DEM derivatives; land use/cover
+    |   (each generated once per distinct resolution actually needed, not
+    |   once per species -- see DECISIONS.md's 2026-09-28 entry)
+    +-- Pool presence/absence occurrence data per species per scale
+    |   (habitat: MhB point counts; landscape: DDA territories, or MhB-
+    |   routed for specific species; climate: EBBA2)
+    +-- Every covariate raster filename also encodes its own resolution
+        (a second safety layer beyond the containing scale_X folder)
+         |
+         v
  2. inputs_Monitor
-    ├── Write diagnostic Spearman correlation plots (.png)
-    ├── Resolve predictors:
-    │     • "table" ──> Validate & select from speciesConfig_predictors.csv
-    │     • "all"   ──> Select all environmental candidate columns
-    │     • "auto"  ──> Prune via select07Blockcv()
-    ├── Append "x" and "y" if spatial_term == "X"
-    └── Emit model-ready data frames:
-          ID + occurrence + foldID + predictors
-         │
-         ▼
+    +-- Pool per-species-year occurrence + covariates into one table per scale
+    +-- Spatial blocking (real block-CV or mimicked), grouped by each
+    |   species' own resolved resolution
+    +-- collinearityCheck: speciesConfig_predictors.csv's table is the
+    |   ONLY predictor source (hard error if a species is missing);
+    |   dropCollinearPredictors optionally prunes it via select07Blockcv()
+    +-- Append x/y if spatial_term == "X" for that species
+    +-- Emit model-ready tables: occurrence + foldID + resolved predictors
+         |
+         v
  3. models_Monitor
-    ├── Retrieve brt_start_lr from perSpeciesGeneralConfig
-    ├── Fit Boosted Regression Trees (dismo::gbm.step)
-    └── Optimize tree depth & learning rate
-         │
-         ▼
- 4. evaluation_Monitor
-    ├── Calculate CV metrics (AUC, TSS, deviance explained)
-    └── Export spatial prediction rasters (.tif)
+    +-- Fit BRTs (dismo::gbm.step) per scale, per species, onto predictionYears
+    |   (auto-covering habitatYears too, so the meta-model always has what
+    |   it needs to train on -- see resolveScalePredictionYears())
+    +-- Combine via ridge-regression meta-model (metaModel()), trained on
+        real habitat occurrence (habitatYears)
+         |
+         v
+ 4. runIndex_Monitor
+    +-- Waits (real-time polling in cluster mode) for every species'
+    |   metaModel() output to be ready
+    +-- Multi-species annual report (per-species + 4 combined-index
+    |   methods, species-richness map, change maps) and regional gridded
+    |   index maps
 ```
 
----
+# 5. Output/diagnostic verification
 
-# Phase 5: Outputs and Diagnostic Validation
+## Correlation plots
 
-## 1. Correlation Plots
-Generated in the directory defined by `corrplotDir` (e.g. `outputs/corrplots/`):
-- `[Species]_EU.png`: European climate covariate collinearity matrix.
-- `[Species]_landscape_pooled.png`: German landscape scale correlation matrix.
-- `[Species]_habitat_pooled.png`: German habitat scale correlation matrix.
+Generated in the directory given by `inputs_Monitor`'s `corrplotDir`
+parameter:
 
-## 2. Terminal Log Verification
-During execution, verify module output in the console:
+- `[Species]_EU.png` — European climate covariate collinearity matrix
+  (always written).
+- `[Species]_habitat_pooled.png` — German habitat-scale correlation matrix
+  (written only when there are >= 2 candidate predictors, and skipped if
+  already present).
+- `[Species]_landscape_pooled.png` — German landscape-scale correlation
+  matrix (same guard as habitat).
+
+## Terminal log verification
+
+During `inputs_Monitor`'s `collinearityCheck` event, verify each species'
+resolved predictor list in the console:
 
 ```text
-  -- Lanius_collurio --------------------------
-Pooled records: 1842 (312 pres / 1530 abs)
-Predictors used (5): grassland hedges built_up x y
+Predictors used (4): hedges, forest_cover, x, y
 ```
 
-- If `x` and `y` are listed, `spatial_term` was successfully applied.
-- If `hedges` is listed, it was successfully validated and included.
+- If `x`/`y` are listed, that species' `spatial_term` was successfully
+  applied.
+- Whatever's listed here is EXACTLY what came from
+  `speciesConfig_predictors.csv` (optionally pruned by
+  `dropCollinearPredictors`) -- there is no other source.
 
-## 3. Typo Interception (No Silent Drops)
-If a predictor is misspelled in `speciesConfig_predictors.csv` (e.g. `"hedge"` instead of `"hedges"`), execution halts immediately:
+## Predictor typo interception (no silent drops)
+
+If a predictor is misspelled in `speciesConfig_predictors.csv` (e.g.
+`"hedge"` instead of `"hedges"`), the run stops immediately, per
+species+scale, before any model fitting:
 
 ```text
 [PREDICTOR ERROR] Species 'Lanius collurio' [HABITAT scale]:
-Requested predictor(s) "hedge" from speciesConfig_predictors.csv were NOT found in occurrence dataset!
-Available data columns are: grassland, winter_cereals, maize, hedges, trees, water, elevation, slope
+Requested predictor(s) "hedge" were NOT found in occurrence data!
+Available columns: grassland, winter_cereals, maize, hedges, trees, water, elevation, slope, ...
 ```
 
-**Resolution:** Correct the name in `speciesConfig_predictors.csv` and re-run.
+**Resolution:** correct the name in `speciesConfig_predictors.csv` and
+re-run.

@@ -199,6 +199,46 @@ pressure. When migrating to UFZ's EVE cluster:
       estimating how many parallel workers a given EVE node allocation could
       support.
 
+## 8. Verify whether Anthus pratensis's climate-scale 0-presence result is stale
+
+Cross-references `improvements.md` item 9 (the broader "no EBBA2 refresh
+mechanism" gap). During an unrelated block-CV investigation (2026-09-30),
+the cached `Anthus_pratensis_inputs.rds` at climate scale was confirmed to
+have 0 presence records in all 670 rows -- matching the documented stale
+2026-07-17 EBBA2 extract (predates the species being added to the roster,
+2026-09-24), which is why `optimizeBRT()` correctly returns `NULL` and the
+caller skips this species/scale rather than fitting on an all-absence
+response.
+
+**But the raw file on disk right now is newer** --
+`inputs/response/raw/ornitho/ebba2_data_occurrence_50km.csv` is dated
+2026-09-26 and contains 2149 rows matching "pratensis" (case-insensitive
+grep). This strongly suggests the raw data gap may already be resolved,
+and the 0-presence result is reading a stale CACHED/processed occurrence
+extract that predates this refresh, not a currently-still-missing-data
+problem.
+
+- [ ] Force a re-extraction (delete/invalidate the cached
+      `Anthus_pratensis_inputs.rds` at climate scale, or set the relevant
+      `rerun*` flag in `dataPrep_Monitor`) and confirm whether real
+      presence data now flows through to the model-ready table.
+- [ ] If yes: the data gap is resolved -- `optimizeBRT()` should no longer
+      skip this species/scale. Update `improvements.md` item 9 and
+      `DECISIONS.md` to record the resolution, then re-run climate-scale
+      fitting for this species.
+- [ ] If the extract still comes up empty despite the refreshed raw file:
+      investigate why (check the occurrence-prep/filter logic for climate
+      scale for anything that could be excluding these rows for a
+      different reason -- e.g. a name-matching mismatch, a bbox/grid-cell
+      filter, a date-range filter), then plan the real fix.
+- [ ] Separately: `inputs/response/raw/ornitho/ebba2_data_occurrence_50km_pipit.csv`
+      exists on disk (also contains the same 2149 "pratensis" rows) but is
+      not referenced anywhere in the code (confirmed by grep). Confirm
+      whether it's a leftover manual-verification artifact safe to
+      delete, or something that should actually be wired in (e.g. if it
+      was meant as the actual fix and the main file's refresh was
+      coincidental/unrelated).
+
 ---
 
 *Not yet started on any of these — this file is a starting point, not a
