@@ -115,7 +115,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
   # change means the previous run's cached outputs shouldn't be reused --
   # a timestamp is then always appended automatically, so every run gets
   # its own outputs/ folder regardless of whether the base name changed.
-  runNameBase <- "test2"
+  runNameBase <- "test3"
   runName <- paste0(runNameBase, "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
 
   out <- SpaDES.project::setupProject(
