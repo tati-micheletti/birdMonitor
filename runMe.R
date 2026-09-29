@@ -133,8 +133,14 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     modules =c(
       "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
       "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling
-      "tati-micheletti/models_Monitor@main", # Fits and predicts from the models provided
-      "tati-micheletti/runIndex_Monitor@main" # Builds the multi-species annual report + regional index maps from metaModel()'s output
+      "tati-micheletti/models_Monitor@main" # Fits and predicts from the models provided
+      # runIndex_Monitor removed for this test -- scalesToRun above excludes
+      # "meta" for both species, so metaModel() produces zero output this
+      # run; runIndex_Monitor's polling loop would just wait out its full
+      # pollTimeoutHours for output that will never appear. Add it back
+      # (and remove the scalesToRun override) once comparing habitat/
+      # landscape scale models is done and a real meta-model/index run is
+      # wanted again.
     ),
     options = list(spades.allowInitDuringSimInit = TRUE,
                    reproducible.cacheSaveFormat = "rds",
@@ -211,29 +217,23 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        resolutionConfig = resolutionConfig
+        resolutionConfig = resolutionConfig,
+        # Comparing ONLY the individual habitat/landscape scale models for
+        # this test (no climate scale, no meta-model combining them) --
+        # temporary, per-species-string override; remove once this
+        # comparison round is done (species absent from this list run all
+        # 4 stages, today's default behavior).
+        scalesToRun = list(
+          "Buteo buteo" = c("habitat", "landscape"),
+          "Sturnus vulgaris" = c("habitat", "landscape")
+        )
         # No species param here -- models_Monitor takes its species list
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /
         # rerun* flags: left at module defaults (see models_Monitor.R).
-      ),
-      runIndex_Monitor = list(
-        species = sharedSpecies,
-        baselineYear = 2005,
-        allYears = predictionYears,
-        currentYear = max(sharedHabitatYears),
-        restrictedYears = sharedHabitatYears,
-        cellSizesM = sharedRegionalCellSizesM,
-        climateResolutionM = sharedClimateResolutionM,
-        habitatResolutionM = sharedHabitatResolutionM,
-        landscapeResolutionM = sharedLandscapeResolutionM
-        # indexSpecies: left at module default (NULL -> uses `species`) --
-        # set to a subset here for a restricted test report/index.
-        # changeThresh / nBoot / nSim / useBootstrapSE / pollIntervalSeconds /
-        # pollTimeoutHours: left at module defaults (see runIndex_Monitor.R)
-        # -- the poll params only matter for a cluster run (see DECISIONS.md's
-        # 2026-09-28 "runIndex_Monitor" entry).
       )
+      # runIndex_Monitor params block removed along with the module itself
+      # above -- restore both together for a real meta-model/index run.
     ),
     packages = c("terra", "yaml",
                  "PredictiveEcology/SpaDES.core@development",
@@ -254,7 +254,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     # Lisa's machine, or CI).
     useGit = FALSE,
     loadOrder = c(
-      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor", "runIndex_Monitor"
+      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor"
     )
   )
 
