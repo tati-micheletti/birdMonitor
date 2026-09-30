@@ -612,6 +612,47 @@ higher blast-radius than anything needed for the near-term tests -- do
 this on its own branch with its own verification pass, per this file's
 process note.
 
+## 13. Replace the ridge-regression meta-model with Talluto et al. (2016)'s hierarchical Bayesian metamodeling framework
+
+**Status: queued, not started (2026-09-30).**
+
+**The idea, as described:** Talluto et al.'s "metamodel" framework
+statistically combines several different, already-existing models --
+e.g. a fine-scale demographic/dispersal model and a coarse-scale
+climate-envelope model -- into one integrated prediction via
+hierarchical Bayesian methods, with uncertainty propagating through
+every component model rather than being estimated only at the final
+combination step.
+
+**Citation:** Talluto MV, Boulangeat I, Ameztegui A, Aubin I, Berteaux
+D, Butler A, Doyon F, Drever CR, Fortin M-J, Franceschini T, Liénard J,
+McKenney D, Solarik KA, Strigul N, Thuiller W, Gravel D. 2016.
+Cross-scale integration of knowledge for predicting species ranges: a
+metamodeling framework. *Global Ecology and Biogeography* 25:338-349.
+
+**Why this is directly relevant here:** this pipeline's own
+`metaModel()` (`models_Monitor`) already does the SAME conceptual job
+Talluto et al.'s framework targets -- combining multiple already-fitted,
+independent scale-level models (climate/landscape/habitat) into one
+final prediction -- but via a much simpler mechanism: a ridge (L2-
+penalized) logistic regression on the three scales' point suitability
+predictions, with no explicit uncertainty propagation from the
+component models into the combined result (the combined model's own
+AUC/TSS/D2 reflect the RIDGE step's own block-CV performance, not
+uncertainty carried forward from each scale's own fit). Swapping in a
+hierarchical Bayesian metamodeling framework would be a genuine
+architectural change to how "combine climate + landscape + habitat"
+works, not a parameter tweak -- worth comparing directly against the
+current ridge approach, and against the source paper's (Wiedenroth et
+al.) own approach, once ready to invest in it.
+
+**Not scoped or designed yet** -- needs its own read of the source paper
+in full (this entry is based on the framing given when the improvement
+was requested, not yet independently verified against the paper itself),
+and a concrete plan for what changes in `metaModel.R` (or whether it
+becomes a new, alternative meta-model function altogether, selectable
+alongside the existing ridge approach) before any implementation starts.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
