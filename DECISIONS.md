@@ -964,6 +964,78 @@ covariatePredictorColumns.R` (2 new candidate names). Branch
 
 ---
 
+## 2026-09-30 — `Cache()` NULL-coercion bug + occurrence-prep pooling had no year filter
+
+**What:** Two real, confirmed bugs found together, live, during the
+Buteo buteo/Sturnus vulgaris habitat+landscape comparison test:
+
+1. `reproducible::Cache()` can't attach its own metadata attributes to a
+   genuine `NULL` (a singleton in R), so when `buildHabitatSpeciesYear()`/
+   `buildLandscapeSpeciesYear()` legitimately return `NULL` (too few
+   presences), `Cache()` silently coerces it into the literal character
+   string `"NULL"` instead. The existing `if (is.null(result)) next`
+   guard never catches this coerced form, so a bogus 147-byte placeholder
+   gets `saveRDS()`'d as if it were real occurrence data. New
+   `isCachedNull()` helper (`dataPrep_Monitor/R/`) does a value-only
+   comparison (`x == "NULL"`, not `identical()`, which fails on the
+   coerced object's attached Cache attributes).
+2. `poolOccurrenceGerHabitat()`/`poolOccurrenceGerLandscape()`
+   (`inputs_Monitor/R/`) globbed every `.rds` file matching a species
+   name with no year filter at all -- stale files left over from an
+   earlier run with a different year range (`sharedLandscapeYears` was
+   `2005:2025` before this session, narrowed to `2022:2025` for this
+   test) got silently pooled alongside the current run's fresh files,
+   mixing genuinely different covariate vintages (pre- vs. post-
+   `dist_to_woodland`/`landscape_heterogeneity`) into one training table.
+
+**Why this matters together, not separately:** bug 2 is what actually
+crashed the run (`Error in rbind(): numbers of columns of arguments do
+not match`, pooling 17 stale pre-2026-09-29 landscape files against 4
+fresh ones), but bug 1 is what put a bogus `"NULL"`-string file at
+`Buteo_buteo_landscape_2022.rds` etc. in the first place -- and bug 1
+would have kept silently corrupting future runs even after bug 2 was
+fixed, since a `"NULL"` string is not `is.null()`.
+
+**Root trigger of bug 1 not fully resolved:** the actual `buildLandscape
+SpeciesYear()` call, reproduced standalone against the identical real
+data (same raw MhB CSV, same filters, same `Cache()` wrapping), produces
+correct results every time (49-77 confirmed-breeding presences per year,
+2022-2025) -- never a `NULL`. The cached artifact's own metadata
+(`elapsedTimeFirstRun` ~0.01s, versus several seconds/minutes for a real
+covariate-extraction+thinning run) shows the real call returned near-
+instantly, meaning it hit one of the early `return(NULL)` guards during
+the actual live session -- but why `spYr` was empty/near-empty only in
+that live run, not in an identical standalone reproduction, is unresolved.
+Ruled out: no bare (non-namespace-qualified) `extract()` calls exist in
+either module (checked directly) that raster-vs-terra masking could have
+hit (the live session's own startup log showed `raster`'s `extract`
+masking `terra`'s). The bad cache entries (4, one per year, confirmed via
+their exact `cacheId`s matching the corrupted files' own embedded IDs)
+were cleared via `reproducible::clearCache()`, scoped to just those IDs
+-- a scan of the full cache confirmed no other entries share this
+`class: NULL` signature. A fresh run should genuinely recompute (not
+reuse the bad cache) and, per the standalone reproduction, should
+succeed with real data.
+
+**Status:** Bugs 1 and 2 fixed and verified (real synthetic tests for
+both). The specific live-session trigger for bug 1 is unresolved -- worth
+watching for recurrence; if it does, that's a strong signal of a deeper,
+session-state-dependent issue needing further investigation (e.g.
+`sessionInfo()`/attached-package state captured live, mid-run).
+
+**Where:** `modules/dataPrep_Monitor/R/isCachedNull.R` (new),
+`occurrencePrepGerHabitat.R`/`occurrencePrepGerLandscape.R` (modified).
+`modules/inputs_Monitor/R/poolOccurrenceGerHabitat.R`/
+`poolOccurrenceGerLandscape.R` (new `years` parameter, `rbind()` ->
+`dplyr::bind_rows()`), `inputs_Monitor.R` (new `habitatYears`/
+`landscapeYears` parameters). `runMe.R` (wires both through). Also
+manually removed the 4 confirmed-corrupted `Buteo_buteo_landscape_
+{2022,2023,2024,2025}.rds` files and cleared their specific cache
+entries. Branch `feature/reconcile-with-v2-flexible-config` (submodules),
+root branch `feature/config-data-folder`.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
