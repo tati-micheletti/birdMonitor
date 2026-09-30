@@ -22,7 +22,18 @@
 #'   tracked (not just currently-included ones -- see
 #'   `canonicalIncludedSpecies()` to get just the active roster).
 loadSpeciesCanonical <- function(path) {
-  df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
+  # fileEncoding is explicit (not left to the process's ambient locale) because
+  # this file is saved as ISO-8859-1/Latin-1 -- confirmed via `file(1)` and a
+  # byte-level hexdump showing single-byte "e4" for "a" (vs the raw MhB CSV's
+  # 2-byte UTF-8 "c3 a4"). Without this, german_name strings like
+  # "Mausebussard" decode differently
+  # depending on the R session's locale state at the moment of the read, so
+  # they can silently fail to byte-match the UTF-8 German names in the raw MhB
+  # data -- this was the root cause of Buteo buteo landscape-scale occurrence
+  # data coming back empty (0 presences -> NULL) only inside the long-running
+  # SpaDES session, never in a fresh standalone Rscript.
+  df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character",
+                         fileEncoding = "latin1")
 
   requiredCols <- c("latin_name", "english_name", "german_name", "euring_code", "include")
   missingCols <- setdiff(requiredCols, names(df))
