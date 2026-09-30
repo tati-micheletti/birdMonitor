@@ -198,6 +198,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         species = sharedSpecies,
         ebba2TrainingYear = sharedEbba2TrainingYear,
         climateWindowLength = sharedClimateWindowLength,
+        habitatYears = sharedHabitatYears,
+        landscapeYears = sharedLandscapeYears,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
