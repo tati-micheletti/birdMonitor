@@ -25,10 +25,10 @@ Emberiza citrinella,landscape,1000,DDA territories,2000,,,
 Emberiza citrinella,habitat,200,MhB point counts,400,,,
 Buteo buteo,climate,50000,EBBA2/CHELSA,100000,,,
 Buteo buteo,landscape,5000,MhB point counts,10000,C,,2022:2025
-Buteo buteo,habitat,200,MhB point counts,400,,,2022:2025
+Buteo buteo,habitat,200,MhB point counts,400,,,
 Sturnus vulgaris,climate,50000,EBBA2/CHELSA,100000,,,
 Sturnus vulgaris,landscape,1000,MhB point counts,2000,,,2022:2025
-Sturnus vulgaris,habitat,200,MhB point counts,400,,,2022:2025
+Sturnus vulgaris,habitat,200,MhB point counts,400,,,
 Perdix perdix,climate,50000,EBBA2/CHELSA,100000,,,
 Perdix perdix,landscape,1000,DDA territories,2000,,,
 Perdix perdix,habitat,200,MhB point counts,400,,,
