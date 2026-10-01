@@ -26,8 +26,14 @@ source("tools/sharedConfig.R")
 # backfill or shrinks any scale's training data. See DECISIONS.md's
 # 2026-09-28 "Decouple fitting years from prediction years" entry.
 source("tools/sharedYearsConfig.R")
-warnIfOutsideRealDataRange(sharedHabitatYears, 2022:2025, "sharedHabitatYears")
-warnIfOutsideRealDataRange(sharedLandscapeYears, 2005:2025, "sharedLandscapeYears")
+# warnIfOutsideRealDataRange() calls against sharedHabitatYears/
+# sharedLandscapeYears removed 2026-10-01: those hardcoded a single
+# "real-data range" (2022:2025) that was only ever true for Buteo buteo/
+# Sturnus vulgaris's MhB-routed data, not for species on DDA territories
+# (genuinely real across the full 2005:2025 shared default). Per-species
+# real-data constraints are now the whole POINT of years_override
+# (speciesConfig_general.csv) + resolveYearsPerSpecies() below, not
+# something to warn about after the fact.
 landuseYearsNeeded <- sort(unique(c(sharedHabitatYears, sharedLandscapeYears, predictionYears)))
 landuseYearsNeeded <- sort(unique(c(landuseYearsNeeded, computeHedgesBackfillYears(landuseYearsNeeded))))
 
@@ -67,6 +73,20 @@ distinctResolutions <- function(scale, sharedDefault) {
 distinctClimateResolutions <- distinctResolutions("climate", sharedClimateResolutionM)
 distinctHabitatResolutions <- distinctResolutions("habitat", sharedHabitatResolutionM)
 distinctLandscapeResolutions <- distinctResolutions("landscape", sharedLandscapeResolutionM)
+
+# Per-species fitting-year overrides (2026-10-01) -- e.g. Buteo buteo/
+# Sturnus vulgaris's real MhB point-count data is negligible before ~2020,
+# while DDA-territories-sourced species genuinely span the full
+# sharedHabitatYears/sharedLandscapeYears default range. Resolved ONCE
+# here into a complete named list (every included species gets an entry,
+# either its own years_override or the shared default) and passed as-is
+# into every module below -- see resolveYearsPerSpecies()
+# (sharedSpeciesConfig.R) for the mechanism, and DECISIONS.md's 2026-10-01
+# entry for why a single shared value could never serve both groups of
+# species correctly in the same run.
+yearsConfig <- extractYearsConfig(perSpeciesGeneralConfig)
+habitatYearsResolved <- resolveYearsPerSpecies(sharedSpecies, "habitat", yearsConfig, sharedHabitatYears)
+landscapeYearsResolved <- resolveYearsPerSpecies(sharedSpecies, "landscape", yearsConfig, sharedLandscapeYears)
 
 # Per-species thinning distance (dataPrep_Monitor) and ATLAS_CODE/
 # "Brutzeitcode" filter (habitat scale for any species; landscape scale for
@@ -183,8 +203,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateWindowLength = sharedClimateWindowLength,
         ebba2TrainingYear = sharedEbba2TrainingYear,
         landuseYears = landuseYearsNeeded,
-        habitatYears = sharedHabitatYears,
-        landscapeYears = sharedLandscapeYears,
+        habitatYears = habitatYearsResolved,
+        landscapeYears = landscapeYearsResolved,
         species = sharedSpecies,
         localeCtype = sharedLocaleCtype,
         clmsTokenJSONPath = sharedClmsTokenJSONPath,
@@ -208,8 +228,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         species = sharedSpecies,
         ebba2TrainingYear = sharedEbba2TrainingYear,
         climateWindowLength = sharedClimateWindowLength,
-        habitatYears = sharedHabitatYears,
-        landscapeYears = sharedLandscapeYears,
+        habitatYears = habitatYearsResolved,
+        landscapeYears = landscapeYearsResolved,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
@@ -225,7 +245,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       models_Monitor = list(
         predictionYears = predictionYears,
         climateWindowLength = sharedClimateWindowLength,
-        habitatYears = sharedHabitatYears,
+        habitatYears = habitatYearsResolved,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,

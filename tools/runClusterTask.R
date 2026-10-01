@@ -82,6 +82,13 @@ perSpeciesGeneralConfig <- if (file.exists(speciesGeneralConfigFile)) {
 } else NULL
 resolutionConfig <- extractResolutionConfig(perSpeciesGeneralConfig)
 
+## Per-species fitting-year overrides (e.g. Buteo buteo/Sturnus vulgaris's
+## real MhB point-count data is negligible before ~2020) -- same
+## speciesConfig_general.csv years_override the full runMe.R pipeline
+## resolves, so a cluster task can never silently disagree with a full run
+## on a species' training-year window (see DECISIONS.md's 2026-10-01 entry).
+habitatYearsConfig <- extractYearsConfig(perSpeciesGeneralConfig)
+
 if (is.na(opt$index) || opt$index < 1 || opt$index > length(sharedSpecies)) {
   stop("--index (or $SLURM_ARRAY_TASK_ID) must be an integer between 1 and ",
        length(sharedSpecies), " -- got: ", opt$index)
@@ -144,7 +151,7 @@ SpaDES.core::simInitAndSpades(
     runSpecies = species,
     predictionYears = predictionYears,
     climateWindowLength = sharedClimateWindowLength,
-    habitatYears = sharedHabitatYears,
+    habitatYears = resolveYearsPerSpecies(species, "habitat", habitatYearsConfig, sharedHabitatYears),
     climateResolutionM = sharedClimateResolutionM,
     habitatResolutionM = sharedHabitatResolutionM,
     landscapeResolutionM = sharedLandscapeResolutionM,

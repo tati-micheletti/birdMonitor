@@ -68,7 +68,8 @@ loadSpeciesGeneralConfig <- function(path) {
   df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
 
   requiredCols <- c("species", "scale", "resolution_m", "data_source",
-                     "thinning_dist_m", "brutzeitcode_filter", "spatial_term")
+                     "thinning_dist_m", "brutzeitcode_filter", "spatial_term",
+                     "years_override")
   missingCols <- setdiff(requiredCols, names(df))
   if (length(missingCols) > 0) {
     stop("speciesConfig_general.csv is missing column(s): ", paste(missingCols, collapse = ", "))
@@ -141,6 +142,32 @@ loadSpeciesGeneralConfig <- function(path) {
       row[[col]] <- blankToNA(row[[col]])
     }
     row$spatial_term <- identical(row$spatial_term, "X")
+
+    # years_override: blank = NA (fall back to that scale's shared fitting-
+    # year window); otherwise "YYYY:YYYY" (e.g. "2022:2025"), parsed with an
+    # explicit regex rather than eval(parse(...)) on CSV content. Meaningful
+    # on landscape/habitat rows only -- e.g. Buteo buteo/Sturnus vulgaris's
+    # real MhB point-count data is negligible before ~2020 at BOTH scales,
+    # while DDA-territories/EBBA2-sourced species genuinely span the full
+    # shared default range (see DECISIONS.md's 2026-10-01 entry).
+    rawYears <- blankToNA(row[["years_override"]])
+    if (is.na(rawYears)) {
+      row$years_override <- NA_integer_
+    } else {
+      m <- regmatches(rawYears, regexec("^\\s*(\\d{4})\\s*:\\s*(\\d{4})\\s*$", rawYears))[[1]]
+      if (length(m) != 3) {
+        stop("speciesConfig_general.csv: ", sp, " (", sc, ") has an invalid ",
+             "years_override value: \"", rawYears, "\" -- must be \"YYYY:YYYY\" ",
+             "(e.g. \"2022:2025\") or blank.")
+      }
+      startYr <- as.integer(m[2]); endYr <- as.integer(m[3])
+      if (startYr > endYr) {
+        stop("speciesConfig_general.csv: ", sp, " (", sc, ") years_override ",
+             "start year is after its end year: \"", rawYears, "\"")
+      }
+      row$years_override <- startYr:endYr
+    }
+
     config[[sp]][[sc]] <- row
   }
   config
@@ -216,4 +243,39 @@ extractSpatialTermSpecies <- function(generalConfig) {
 extractResolutionConfig <- function(generalConfig) {
   if (is.null(generalConfig)) return(NULL)
   lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$resolution_m))
+}
+
+#' Pull the years_override column out of the general config, per species+scale
+#'
+#' @param generalConfig Return value of `loadSpeciesGeneralConfig()`, or NULL.
+#' @return Nested list `config[[species]][[scale]]` -> integer vector of
+#'   years, or NA if that species+scale left it blank (falls back to that
+#'   scale's shared fitting-year window). NULL if `generalConfig` is NULL.
+extractYearsConfig <- function(generalConfig) {
+  if (is.null(generalConfig)) return(NULL)
+  lapply(generalConfig, function(sp) lapply(sp, function(scaleRow) scaleRow$years_override))
+}
+
+#' Resolve a complete per-species year-vector list for one scale
+#'
+#' Every downstream function that used to take a single shared
+#' `habitatYears`/`landscapeYears` vector now takes the return value of this
+#' function instead -- a named list, one entry per species, each either that
+#' species' own `years_override` or the scale's shared default. Resolved
+#' ONCE here (at the runMe.R/runClusterTask.R wiring level) rather than
+#' inside every worker function, so e.g. Buteo buteo/Sturnus vulgaris (real
+#' MhB point-count data negligible before ~2020) can use a narrow window
+#' while Lanius collurio/Lullula arborea (DDA territories, genuinely full
+#' range) use the wide shared default, in the SAME run.
+#'
+#' @param species Character vector of Latin names.
+#' @param scale Character, "habitat" or "landscape".
+#' @param yearsConfig Return value of `extractYearsConfig()`, or NULL.
+#' @param sharedDefault Integer vector, the scale's shared default years.
+#' @return Named list, species -> integer vector of years.
+resolveYearsPerSpecies <- function(species, scale, yearsConfig, sharedDefault) {
+  stats::setNames(lapply(species, function(sp) {
+    v <- if (is.null(yearsConfig)) NULL else yearsConfig[[sp]][[scale]]
+    if (is.null(v) || length(v) == 0 || all(is.na(v))) sharedDefault else v
+  }), species)
 }
