@@ -1,37 +1,37 @@
 species,scale,resolution_m,data_source,thinning_dist_m,brutzeitcode_filter,spatial_term,years_override
 Vanellus vanellus,climate,50000,EBBA2/CHELSA,100000,,,
 Vanellus vanellus,landscape,1000,DDA territories,2000,,,
-Vanellus vanellus,habitat,200,MhB point counts,400,,,
+Vanellus vanellus,habitat,200,MhB point counts,400,,,2022:2025
 Milvus milvus,climate,50000,EBBA2/CHELSA,100000,,,
 Milvus milvus,landscape,1000,DDA territories,2000,,,
-Milvus milvus,habitat,200,MhB point counts,400,,,
+Milvus milvus,habitat,200,MhB point counts,400,,,2022:2025
 Lanius collurio,climate,50000,EBBA2/CHELSA,100000,,,
 Lanius collurio,landscape,700,DDA territories,1400,,,
-Lanius collurio,habitat,200,MhB point counts,400,,,
+Lanius collurio,habitat,200,MhB point counts,400,,,2022:2025
 Lullula arborea,climate,50000,EBBA2/CHELSA,100000,,,
 Lullula arborea,landscape,1000,DDA territories,2000,,,
-Lullula arborea,habitat,200,MhB point counts,400,,,
+Lullula arborea,habitat,200,MhB point counts,400,,,2022:2025
 Alauda arvensis,climate,50000,EBBA2/CHELSA,100000,,,
 Alauda arvensis,landscape,1000,DDA territories,2000,,,
-Alauda arvensis,habitat,200,MhB point counts,400,,,
+Alauda arvensis,habitat,200,MhB point counts,400,,,2022:2025
 Saxicola rubetra,climate,50000,EBBA2/CHELSA,100000,,,
 Saxicola rubetra,landscape,1000,DDA territories,2000,,,
-Saxicola rubetra,habitat,200,MhB point counts,400,,,
+Saxicola rubetra,habitat,200,MhB point counts,400,,,2022:2025
 Emberiza calandra,climate,50000,EBBA2/CHELSA,100000,,X,
 Emberiza calandra,landscape,1000,DDA territories,2000,,X,
-Emberiza calandra,habitat,200,MhB point counts,400,,X,
+Emberiza calandra,habitat,200,MhB point counts,400,,X,2022:2025
 Emberiza citrinella,climate,50000,EBBA2/CHELSA,100000,,,
 Emberiza citrinella,landscape,1000,DDA territories,2000,,,
-Emberiza citrinella,habitat,200,MhB point counts,400,,,
+Emberiza citrinella,habitat,200,MhB point counts,400,,,2022:2025
 Buteo buteo,climate,50000,EBBA2/CHELSA,100000,,,
 Buteo buteo,landscape,5000,MhB point counts,10000,C,,2022:2025
-Buteo buteo,habitat,200,MhB point counts,400,,,
+Buteo buteo,habitat,200,MhB point counts,400,,,2022:2025
 Sturnus vulgaris,climate,50000,EBBA2/CHELSA,100000,,,
 Sturnus vulgaris,landscape,1000,MhB point counts,2000,,,2022:2025
-Sturnus vulgaris,habitat,200,MhB point counts,400,,,
+Sturnus vulgaris,habitat,200,MhB point counts,400,,,2022:2025
 Perdix perdix,climate,50000,EBBA2/CHELSA,100000,,,
 Perdix perdix,landscape,1000,DDA territories,2000,,,
-Perdix perdix,habitat,200,MhB point counts,400,,,
+Perdix perdix,habitat,200,MhB point counts,400,,,2022:2025
 Anthus pratensis,climate,50000,EBBA2/CHELSA,100000,,,
 Anthus pratensis,landscape,1000,DDA territories,2000,,,
-Anthus pratensis,habitat,200,MhB point counts,400,,,
+Anthus pratensis,habitat,200,MhB point counts,400,,,2022:2025
