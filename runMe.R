@@ -115,7 +115,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
   # change means the previous run's cached outputs shouldn't be reused --
   # a timestamp is then always appended automatically, so every run gets
   # its own outputs/ folder regardless of whether the base name changed.
-  runNameBase <- "test3"
+  runNameBase <- "test4"
   runName <- paste0(runNameBase, "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
 
   out <- SpaDES.project::setupProject(
@@ -133,21 +133,31 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     modules =c(
       "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
       "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling
-      "tati-micheletti/models_Monitor@main" # Fits and predicts from the models provided
-      # runIndex_Monitor removed for this test -- scalesToRun above excludes
-      # "meta" for both species, so metaModel() produces zero output this
-      # run; runIndex_Monitor's polling loop would just wait out its full
-      # pollTimeoutHours for output that will never appear. Add it back
-      # (and remove the scalesToRun override) once comparing habitat/
-      # landscape scale models is done and a real meta-model/index run is
-      # wanted again.
+      "tati-micheletti/models_Monitor@main", # Fits and predicts from the models provided
+      "tati-micheletti/runIndex_Monitor@main" # Builds the SBI-style trend index from metaModel() output
     ),
     options = list(spades.allowInitDuringSimInit = TRUE,
                    reproducible.cacheSaveFormat = "rds",
                    repos = "https://cloud.r-project.org",
                    reproducible.gdalwarp = TRUE,
                    reproducible.destinationPath = file.path(getwd(), "outputs/"),
-                   reproducible.useMemoise = TRUE
+                   # Disabled 2026-10-01: every Cache() call (40+ distinct
+                   # cached functions across this pipeline) also keeps its
+                   # result resident in R's own memory for the rest of the
+                   # session when this is TRUE, on top of the on-disk cache.
+                   # Across one long session processing 3 species x multiple
+                   # scales x years of large rasters, that accumulates until
+                   # a large allocation fails outright -- confirmed via a
+                   # real crash, `Error: ! std::bad_alloc` inside
+                   # combineTwoLayerRaster()'s terra::setValues() call,
+                   # always at the same point in the pipeline (Lullula
+                   # arborea's 2024 meta suitability prediction) across two
+                   # separate run attempts, since both ran the same
+                   # cumulative amount of prior work before hitting it.
+                   # Disk-cache hits across restarts are unaffected; only a
+                   # repeat call within the SAME session now re-reads from
+                   # disk instead of RAM, a minor cost next to crashing.
+                   reproducible.useMemoise = FALSE
                    # reproducible.destinationPathShared removed -- the old
                    # "data/" shared-path workaround is superseded by
                    # inputPath(sim) (set in `paths` above), which is what
@@ -219,23 +229,32 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
-        resolutionConfig = resolutionConfig,
-        # Comparing ONLY the individual habitat/landscape scale models for
-        # this test (no climate scale, no meta-model combining them) --
-        # temporary, per-species-string override; remove once this
-        # comparison round is done (species absent from this list run all
-        # 4 stages, today's default behavior).
-        scalesToRun = list(
-          "Buteo buteo" = c("habitat", "landscape"),
-          "Sturnus vulgaris" = c("habitat", "landscape")
-        )
+        resolutionConfig = resolutionConfig
+        # No scalesToRun override -- every included species now runs all 4
+        # stages (climate/habitat/landscape/meta), needed for a real index
+        # run and for timing a full cluster-bound batch.
         # No species param here -- models_Monitor takes its species list
         # from sim$inputsData's names(), supplied by inputs_Monitor.
         # europeInitialLR / habitatInitialLR / landscapeInitialLR /
         # rerun* flags: left at module defaults (see models_Monitor.R).
+      ),
+      runIndex_Monitor = list(
+        species = sharedSpecies,
+        baselineYear = 2005,
+        allYears = predictionYears,
+        currentYear = max(sharedHabitatYears),
+        restrictedYears = sharedHabitatYears,
+        cellSizesM = sharedRegionalCellSizesM,
+        climateResolutionM = sharedClimateResolutionM,
+        habitatResolutionM = sharedHabitatResolutionM,
+        landscapeResolutionM = sharedLandscapeResolutionM
+        # indexSpecies: left at module default (NULL -> uses `species`) --
+        # set to a subset here for a restricted test report/index.
+        # changeThresh / nBoot / nSim / useBootstrapSE / pollIntervalSeconds /
+        # pollTimeoutHours: left at module defaults (see runIndex_Monitor.R)
+        # -- the poll params only matter for a cluster run (see DECISIONS.md's
+        # 2026-09-28 "runIndex_Monitor" entry).
       )
-      # runIndex_Monitor params block removed along with the module itself
-      # above -- restore both together for a real meta-model/index run.
     ),
     packages = c("terra", "yaml",
                  "PredictiveEcology/SpaDES.core@development",
@@ -256,7 +275,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     # Lisa's machine, or CI).
     useGit = FALSE,
     loadOrder = c(
-      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor"
+      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor", "runIndex_Monitor"
     )
   )
 
