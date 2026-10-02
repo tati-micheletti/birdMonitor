@@ -193,7 +193,21 @@ BIRDMONITOR_RUNNAME=test4 \
   cluster task can never silently disagree with a full run.
 - Resource requests in `eve_prep.sbatch`/`eve_index.sbatch` are unmeasured
   starting guesses; tighten them from `sacct` after the first run.
-- Nothing in these jobs downloads data: put `inputs/` and `cache/` on EVE first.
+- Nothing in these jobs downloads data: put `inputs/` and `cache/` on EVE first.
+
+### First-time setup on EVE (once)
+
+1. Connect the UFZ VPN, then `ssh -l michelet frontend1.eve.ufz.de` (a "login node").
+2. `git clone --recurse-submodules https://github.com/tati-micheletti/birdMonitor.git`
+   (HTTPS, not SSH), then `cd birdMonitor`.
+3. Find R: `module avail R` -- pick a recent `R/4.x.x` line, then `module load R/4.x.x`
+   and check `R --version`. That exact name is your `EVE_R_MODULE`.
+4. Install every R package once, on the login node (compute nodes have throttled
+   internet): `BIRDMONITOR_INSTALL_ONLY=1 Rscript runMe.R`. It installs and quits
+   without running the pipeline. Re-run it if it stops on an error; it resumes.
+5. Optional: `sinfo -s` lists partitions (the first column is the name). Leave
+   `EVE_PARTITION` unset to use EVE's default.
+6. Put `inputs/` and `cache/` on EVE, then submit with `cluster/submit_eve_pipeline.sh`.
 
 ```bash
 # one model task, locally, for testing:

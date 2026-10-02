@@ -4,6 +4,11 @@
 # compute nodes have throttled internet (EVE) and packages must already be
 # installed from a login node beforehand.
 if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
+  # Non-interactive R (Rscript on a cluster) has no default CRAN mirror, so
+  # install.packages() would fail with "trying to use CRAN without setting a mirror".
+  cranRepo <- getOption("repos")["CRAN"]
+  if (is.null(cranRepo) || is.na(cranRepo) || cranRepo == "@CRAN@")
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
   if (!require("pak")) install.packages("pak")
   pe <- "predictiveecology.r-universe.dev"
   if (!any(grepl(pe, getOption("repos"))))
@@ -316,6 +321,15 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     useGit = FALSE,
     loadOrder = stageModules
   )
+
+  # BIRDMONITOR_INSTALL_ONLY=1: setupProject() above has just installed every
+  # package the pipeline needs (its own + each module's reqdPkgs). Stop here
+  # without running anything -- this is how packages get installed once, from an
+  # EVE login node (see README, section 3).
+  if (Sys.getenv("BIRDMONITOR_INSTALL_ONLY") == "1") {
+    message("BIRDMONITOR_INSTALL_ONLY=1: all packages installed. Nothing was run.")
+    quit(save = "no", status = 0)
+  }
 
   birdMonitorOutputs <- do.call(SpaDES.core::simInitAndSpades, out)
 
