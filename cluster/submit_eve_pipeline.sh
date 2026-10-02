@@ -11,7 +11,7 @@
 #   - R packages installed (login node -- compute nodes have throttled internet)
 #
 # Usage:
-#   [EVE_R_MODULE="GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38"] \
+#   [EVE_R_MODULE="GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28"] \
 #   [EVE_PARTITION=<partition from `sinfo -s`>] \
 #   [BIRDMONITOR_RUNNAME=test4] \
 #     bash cluster/submit_eve_pipeline.sh
@@ -31,7 +31,7 @@ cd "$(dirname "$0")/.."
 # Modules to load, in order. R 4.5.1 (not 4.6.1) on purpose: EVE's GDAL 3.10.3 (needed
 # by terra) was built with GCC/13.3.0 + OpenMPI/5.0.5, which matches R 4.5.1 but not 4.6.1.
 # Found with `module spider R/4.5.1` and `module spider GDAL/3.10.3`. Override at submit time if EVE's modules change.
-EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38}"
+EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 
 export EVE_R_MODULE
 export BIRDMONITOR_RUNNAME="${BIRDMONITOR_RUNNAME:-test4}"
