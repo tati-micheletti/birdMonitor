@@ -193,8 +193,8 @@ BIRDMONITOR_RUNNAME=test4 \
   cluster task can never silently disagree with a full run.
 - Resource requests in `eve_prep.sbatch`/`eve_index.sbatch` are unmeasured
   starting guesses; tighten them from `sacct` after the first run.
-- Nothing in these jobs downloads data: put `inputs/` and `cache/` on EVE first.
-
+- Nothing in these jobs downloads data: put `inputs/` and `cache/` on EVE first.
+
 ### First-time setup on EVE (once)
 
 1. Connect the UFZ VPN, then `ssh -l michelet frontend1.eve.ufz.de` (a "login node").
@@ -204,7 +204,7 @@ BIRDMONITOR_RUNNAME=test4 \
    compiler is loaded; use `module spider`). R 4.6.1 exists but cannot be combined with
    GDAL: GDAL 3.10.3 (needed by `terra`) was built with GCC/13.3.0 + OpenMPI/5.0.5, which
    matches R 4.5.1. As of 2026-10-02:
-   `module load GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake`, then `R --version`.
+   `module load GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38`, then `R --version`.
    The submit script loads the same set by default (`EVE_R_MODULE`).
 4. Install every R package once, on the login node (compute nodes have throttled
    internet): `BIRDMONITOR_INSTALL_ONLY=1 Rscript runMe.R`. It installs and quits
