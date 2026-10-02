@@ -11,7 +11,7 @@
 #   - R packages installed (login node -- compute nodes have throttled internet)
 #
 # Usage:
-#   EVE_R_MODULE=<name from `module spider R`> \
+#   [EVE_R_MODULE="GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake"] \
 #   [EVE_PARTITION=<partition from `sinfo -s`>] \
 #   [BIRDMONITOR_RUNNAME=test4] \
 #     bash cluster/submit_eve_pipeline.sh
