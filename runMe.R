@@ -23,7 +23,8 @@ if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
   if (!any(grepl(pe, getOption("repos"))))
     options(repos = c(pe, getOption("repos")))
   pak::pak(c("PredictiveEcology/Require@development",
-            "PredictiveEcology/SpaDES.core@development"),
+            "PredictiveEcology/SpaDES.core@development",
+             "PredictiveEcology/SpaDES.project@development"),
            ask = FALSE)
 }
 
