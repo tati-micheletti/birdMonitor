@@ -37,6 +37,8 @@ if [ -n "${EVE_R_MODULE:-}" ]; then module load "${EVE_R_MODULE}"; fi
 
 export BIRDMONITOR_STAGE=prep
 export BIRDMONITOR_SKIP_INSTALL=1
+# No Python/CLMS token/internet on compute nodes: use what is already in inputs/.
+export BIRDMONITOR_SKIP_DOWNLOAD=1
 export BIRDMONITOR_RUNNAME="${BIRDMONITOR_RUNNAME:-test4}"
 
 cd "${SLURM_SUBMIT_DIR}"

@@ -219,6 +219,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
                  end = 2005),
     params = paramsForStage(list(
       dataPrep_Monitor = list(
+        rastersOnly = identical(Sys.getenv("BIRDMONITOR_STAGE"), "rasters"),
         targetCRS = sharedTargetCRS,
         europeBbox = sharedEuropeBbox,
         climateResolutionM = sharedClimateResolutionM,

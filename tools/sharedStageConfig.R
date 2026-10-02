@@ -8,6 +8,9 @@
 #                             covariates, occurrence tables, spatial blocks
 #                             and the model_ready/ tables the model arrays
 #                             read.
+#   BIRDMONITOR_STAGE=rasters dataPrep_Monitor only, predictor rasters only
+#                             (no occurrence tables): pre-builds new-resolution
+#                             layers on a local machine. See README.
 #   BIRDMONITOR_STAGE=index  runIndex_Monitor only: builds the index from the
 #                             finished metaModel() outputs.
 #
@@ -27,8 +30,9 @@ pipelineStageModules <- function(stage = Sys.getenv("BIRDMONITOR_STAGE", "all"))
   switch(stage,
          all = allModules,
          prep = allModules[1:2],
+         rasters = allModules[1],
          index = allModules[4],
-         stop("BIRDMONITOR_STAGE must be one of: all, prep, index (got: \"", stage, "\")",
+         stop("BIRDMONITOR_STAGE must be one of: all, prep, rasters, index (got: \"", stage, "\")",
               call. = FALSE))
 }
 
