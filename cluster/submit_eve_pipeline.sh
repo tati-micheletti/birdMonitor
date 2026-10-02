@@ -20,9 +20,10 @@
 # (outputs/<runName>/), so it MUST be the same across stages -- this script
 # exports it once for all of them. Default test4.
 #
-# If the prep job fails, the three model arrays stay pending as
-# "DependencyNeverSatisfied" -- cancel them with scancel and re-submit once
-# the cause is fixed (Cache() resumes, so nothing already computed is redone).
+# If the prep job fails, SLURM cancels every job waiting on it automatically
+# (--kill-on-invalid-dep=yes below), so nothing is left stuck in the queue.
+# Read the prep log (logs/prep_<jobid>.err), fix the cause, and run this
+# script again -- Cache() resumes, so nothing already computed is redone.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -51,13 +52,19 @@ echo "prep:      ${prep}"
 arrayIds=()
 for scale in europe habitat landscape; do
   id=$(sbatch --parsable "${PART[@]+"${PART[@]}"}" --dependency=afterok:"${prep}" \
+         --kill-on-invalid-dep=yes \
          modules/models_Monitor/cluster/eve_array_${scale}.sbatch)
   echo "${scale}: ${id}"
   arrayIds+=("${id}")
 done
 
 dep=$(IFS=:; echo "${arrayIds[*]}")
-idx=$(sbatch --parsable "${PART[@]+"${PART[@]}"}" --dependency=afterany:"${dep}" cluster/eve_index.sbatch)
+# The index needs BOTH: prep succeeded (afterok -- otherwise it would start after
+# the arrays were auto-cancelled and have nothing to index) AND every array task
+# has ended (afterany -- so one failed species doesn't block the rest).
+idx=$(sbatch --parsable "${PART[@]+"${PART[@]}"}" \
+        --dependency=afterok:"${prep}",afterany:"${dep}" --kill-on-invalid-dep=yes \
+        cluster/eve_index.sbatch)
 echo "index:     ${idx}"
 
 echo

@@ -3,12 +3,12 @@
 #
 # Builds the per-species/combined trend index from the finished metaModel()
 # outputs of every model-array task. Submitted by cluster/submit_eve_pipeline.sh
-# with --dependency=afterany on all three scale arrays, so it starts once
-# every model task has ended (meta runs inside whichever scale task finishes
-# last for a species -- see checkAllScalesReady() in models_Monitor.R).
-# afterany rather than afterok: if one species' task failed, you still get
-# an index for the rest, plus a warning naming the missing species, instead
-# of the job waiting forever.
+# with --dependency=afterok:<prep>,afterany:<the three scale arrays>: it starts
+# once prep succeeded AND every model task has ended (meta runs inside
+# whichever scale task finishes last for a species -- see
+# checkAllScalesReady() in models_Monitor.R). afterany (not afterok) for the
+# arrays: if one species' task failed, you still get an index for the rest,
+# plus a warning naming the missing species, instead of the job waiting forever.
 #
 # NOTE: runIndex_Monitor's own checkAllInputs event polls for missing species
 # before proceeding (pollIntervalSeconds/pollTimeoutHours, default 5 min / 6 h).
