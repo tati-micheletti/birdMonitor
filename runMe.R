@@ -9,6 +9,15 @@ if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
   cranRepo <- getOption("repos")["CRAN"]
   if (is.null(cranRepo) || is.na(cranRepo) || cranRepo == "@CRAN@")
     options(repos = c(CRAN = "https://cloud.r-project.org"))
+  # Cluster R installs (e.g. EVE) have a read-only system library and no personal
+  # library yet, so install.packages() fails. Create one and put it first.
+  if (!any(file.access(.libPaths(), 2) == 0)) {
+    userLib <- Sys.getenv("R_LIBS_USER")
+    if (!nzchar(userLib)) userLib <- file.path("~", "R", "library")
+    dir.create(userLib, recursive = TRUE, showWarnings = FALSE)
+    .libPaths(c(userLib, .libPaths()))
+    message("No writable R library found; using ", userLib)
+  }
   if (!require("pak")) install.packages("pak")
   pe <- "predictiveecology.r-universe.dev"
   if (!any(grepl(pe, getOption("repos"))))
