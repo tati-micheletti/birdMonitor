@@ -22,7 +22,7 @@ if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
   pe <- "predictiveecology.r-universe.dev"
   if (!any(grepl(pe, getOption("repos"))))
     options(repos = c(pe, getOption("repos")))
-  pak::pak(c("PredictiveEcology/Require@fix/pak-no-copy-ensure-in-projlint",
+  pak::pak(c("PredictiveEcology/Require@development",
             "PredictiveEcology/SpaDES.core@development"),
            ask = FALSE)
 }
