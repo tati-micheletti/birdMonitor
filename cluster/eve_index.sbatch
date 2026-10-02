@@ -28,7 +28,7 @@
 set -euo pipefail
 mkdir -p logs
 
-if [ -n "${EVE_R_MODULE:-}" ]; then module load "${EVE_R_MODULE}"; fi
+if [ -n "${EVE_R_MODULE:-}" ]; then module load ${EVE_R_MODULE}; fi   # may hold several names: "GCC/15.3.0 R/4.6.1" (unquoted on purpose)
 
 export BIRDMONITOR_STAGE=index
 export BIRDMONITOR_SKIP_INSTALL=1

@@ -28,11 +28,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if [ -z "${EVE_R_MODULE:-}" ]; then
-  echo "EVE_R_MODULE is not set. Find the module name with \`module spider R\`," >&2
-  echo "then re-run:  EVE_R_MODULE=<name> bash cluster/submit_eve_pipeline.sh" >&2
-  exit 1
-fi
+# Modules to load, in order (EVE's R needs its compiler loaded first; found with
+# `module spider R/4.6.1`). Override at submit time if EVE's modules change.
+EVE_R_MODULE="${EVE_R_MODULE:-GCC/15.3.0 R/4.6.1}"
 
 export EVE_R_MODULE
 export BIRDMONITOR_RUNNAME="${BIRDMONITOR_RUNNAME:-test4}"

@@ -200,8 +200,10 @@ BIRDMONITOR_RUNNAME=test4 \
 1. Connect the UFZ VPN, then `ssh -l michelet frontend1.eve.ufz.de` (a "login node").
 2. `git clone --recurse-submodules https://github.com/tati-micheletti/birdMonitor.git`
    (HTTPS, not SSH), then `cd birdMonitor`.
-3. Find R: `module avail R` -- pick a recent `R/4.x.x` line, then `module load R/4.x.x`
-   and check `R --version`. That exact name is your `EVE_R_MODULE`.
+3. Load R. EVE hides R until its compiler is loaded (`module avail R` shows nothing;
+   use `module spider R`, then `module spider R/4.6.1`). As of 2026-10-02:
+   `module load GCC/15.3.0 R/4.6.1`, then check `R --version`. The submit script loads
+   the same two by default (`EVE_R_MODULE`).
 4. Install every R package once, on the login node (compute nodes have throttled
    internet): `BIRDMONITOR_INSTALL_ONLY=1 Rscript runMe.R`. It installs and quits
    without running the pipeline. Re-run it if it stops on an error; it resumes.
