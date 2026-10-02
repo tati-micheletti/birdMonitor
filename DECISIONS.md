@@ -1036,6 +1036,73 @@ root branch `feature/config-data-folder`.
 
 ---
 
+## 2026-10-02 — German-name matching, per-species fitting years (MhB = 2022:2025), Buteo/Lanius landscape scales, `useMemoise` off, whole-workflow EVE staging
+
+**1. German-name matching broke twice, independently, on accented names.**
+`speciesCanonical.csv` is hand-edited every time the included species change.
+Buteo buteo's "Mäusebussard" failed because the file is Latin-1 while the raw
+MhB CSV is UTF-8 and `read.csv()` had no `fileEncoding` (decoding depended on
+the session's locale -- reproducible only inside the long SpaDES session, never
+in a standalone Rscript). Lanius collurio's "Neuntöter" failed differently: the
+"ö" had already been overwritten with U+FFFD in the file itself (unrecoverable
+by any `fileEncoding`). Both silently produced zero landscape presences.
+**Decision:** `speciesCanonical.csv` is now pure ASCII ("Maeusebussard",
+"Neuntoeter"), AND `foldGermanUmlauts()` (occurrencePrepGerLandscape.R, written
+with `\u` escapes so its own source stays ASCII) folds both sides of every
+German-name comparison -- the raw DDA/MhB sources keep their real umlauts and
+are never modified. Habitat scale was never affected (it matches on the
+scientific name).
+
+**2. Fitting years are now per-species (`years_override` in
+`speciesConfig_general.csv`), resolved once by `resolveYearsPerSpecies()`.**
+Previously `sharedHabitatYears`/`sharedLandscapeYears` were one value for every
+species. **User decision (domain knowledge, not something re-derived here):**
+MhB data is only used from 2022:2025 -- earlier MhB records are inconsistent
+and were collected with a different method. Applied to every `data_source =
+"MhB point counts"` row: habitat scale for all species, and landscape scale for
+Buteo buteo/Sturnus vulgaris (the only MhB-routed species there). DDA-territories
+landscape rows keep the shared 2005:2025 default. What was verified directly:
+raw MhB record counts for every species checked (Buteo, Sturnus, Lanius) are
+tiny before 2020 and jump from 2020; the methodology change itself was not
+independently verified. The `<10 presences` guard would have skipped sparse
+years safely anyway -- this is a data-consistency decision, not a power fix.
+`warnIfOutsideRealDataRange()` calls in `runMe.R` were removed (they hardcoded
+2022:2025 for every species).
+
+**3. Landscape scale/thinning changes (UNTESTED at these scales in this
+pipeline).** Buteo buteo 1km -> 5km, thinning 2000m -> 10000m; Lanius collurio
+1km -> 700m, thinning 2000m -> 1400m (thinning = 2x resolution, the
+Wiedenroth convention -- left at the old 2000m it would barely thin anything
+relative to a coarser cell). Rationale: Lisa's 2nd-round Confluence tests
+showed 30km was worse for Buteo (AUC 0.541 vs 0.622 at 1km, plus block-CV
+leakage); 5km is a deliberately conservative step. Whether 5km/700m actually
+beat 1km is not known. Note our own Buteo 1km landscape result (AUC 0.643, D2
++0.003, with `dist_to_woodland` added) already beat every variant Lisa tried.
+
+**4. `reproducible.useMemoise = FALSE`.** With it on, every `Cache()` call also
+kept its result resident in R for the whole session; the same run crashed with
+`std::bad_alloc` inside `terra::setValues()` at the same step (Lullula arborea's
+2024 meta suitability) on two separate attempts. Disk caching is unaffected.
+
+**5. Roster.** 11 species included for the first full EVE run (all except Milvus
+milvus, which stays excluded per the 2026-09-24 DDA decision -- one-line flip in
+`speciesCanonical.csv` if that changes).
+
+**6. Whole workflow on EVE.** `runMe.R` gained `BIRDMONITOR_STAGE`
+(`all`/`prep`/`index`), `BIRDMONITOR_RUNNAME`, `BIRDMONITOR_SKIP_INSTALL`; its
+Windows-only `setwd()` is now guarded (it would also have fired on EVE, same
+username). `cluster/submit_eve_pipeline.sh` chains prep -> model arrays ->
+index. Resource requests for prep/index are unmeasured guesses. **Never run on
+real EVE; the SpaDES `prep`/`index` stages were not exercised end to end.**
+
+**Open:** `thin()` draws its seeds from the unseeded global RNG, so a fresh
+recompute can give a different thinned training set from identical raw data --
+a plausible (unverified) contributor to Buteo's habitat AUC moving from 0.730
+to 0.665 between runs with identical predictor sets. Worth seeding per
+species/year/distance.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running

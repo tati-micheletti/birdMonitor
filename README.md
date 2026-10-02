@@ -149,32 +149,53 @@ for each of `sharedRegionalCellSizesM`'s grid sizes (10/20/50km by default).
 
 ## 3. Running on the EVE cluster
 
-**Status as of 2026-09-25: designed, never actually submitted to real EVE,
-and NOT yet updated for today's per-species config CSVs — see the gap
-below before relying on it for a real cluster run.** See
-[[project_eve_cluster_parallelization]] memory / `.claude/skills/eve-cluster/`
-for onboarding constraints (VPN-only access, module system, transfer-queue
-downloads).
+**Status as of 2026-10-02: the whole workflow is wired for EVE, but has never
+been submitted to the real cluster -- expect to debug the first run.** See the
+`.claude/skills/eve-cluster/` skill for onboarding constraints (VPN-only
+access, module system, Transfer Queue for downloads, memory/node sizing,
+fair-share priority).
 
-The design: `tools/runClusterTask.R` is a standalone entry point for one
-species × scale/meta task, run as a SLURM array (`--array=1-12`, one index
-per `sharedSpecies` entry) via
-`modules/models_Monitor/cluster/eve_array_{europe,habitat,landscape,meta}.sbatch`.
-It requires `inputs_Monitor`'s `collinearityCheck` event to have already
-run locally for that `runName` (reads the `_inputs.rds`/`_predictors.rds`
-files that step writes) — i.e. run `dataPrep_Monitor` + `inputs_Monitor`
-locally/beforehand, then submit `models_Monitor`'s per-species fitting as
-the cluster array job.
+The whole workflow runs on EVE as one dependency chain, submitted by a single
+command from an EVE login node:
 
-```bash
-# one task, locally, for testing:
-Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test1
-# real submission: sbatch modules/models_Monitor/cluster/eve_array_habitat.sbatch
-# (partition name and R module-load line inside are still explicit
-# placeholders -- genuinely unknown until submitted for real)
+```text
+prep   (dataPrep_Monitor + inputs_Monitor)      cluster/eve_prep.sbatch
+  -> model arrays: europe, habitat, landscape    modules/models_Monitor/cluster/eve_array_*.sbatch
+     (one task per included species; each species' meta-model
+      runs inside whichever of its scale tasks finishes last)
+    -> index (runIndex_Monitor)                  cluster/eve_index.sbatch
 ```
 
-`runClusterTask.R` builds its own `resolutionConfig` from
-`speciesConfig_general.csv` (same as `runMe.R`) and forwards it to
-`models_Monitor`, so a cluster task's per-species resolution can never
-silently disagree with a full run's.
+```bash
+# on an EVE login node, from the repo root, after VPN + clone + rsync of
+# inputs/ and cache/ + R packages installed (compute nodes have throttled internet):
+EVE_R_MODULE=<name from `module spider R`> \
+EVE_PARTITION=<partition from `sinfo -s`> \
+BIRDMONITOR_RUNNAME=test4 \
+  bash cluster/submit_eve_pipeline.sh
+```
+
+- The array size is `--array=1-N` where N is the number of `include = "X"` rows
+  in `data/speciesCanonical.csv` (currently 11, Milvus milvus excluded); the
+  task index maps to that species' position among the included rows. Keep the
+  four `.sbatch` files in sync when the roster changes.
+- `runMe.R` runs a single stage when `BIRDMONITOR_STAGE` is set (`prep` or
+  `index`; default `all` = everything in one session, the local behaviour --
+  see `tools/sharedStageConfig.R`). `BIRDMONITOR_RUNNAME` pins the run folder
+  so every stage and the model arrays write to the same `outputs/<runName>/`.
+  `BIRDMONITOR_SKIP_INSTALL=1` skips the package-install block at the top of
+  `runMe.R` (set automatically in the cluster jobs).
+- `tools/runClusterTask.R` is the standalone entry point for one species x
+  scale/meta task. It reads the `_inputs.rds`/`_predictors.rds` files that
+  `inputs_Monitor` writes, which is why the prep stage must finish first.
+  It builds its own `resolutionConfig`/per-species fitting years from
+  `sharedConfig.R`/`speciesConfig_general.csv` (same as `runMe.R`), so a
+  cluster task can never silently disagree with a full run.
+- Resource requests in `eve_prep.sbatch`/`eve_index.sbatch` are unmeasured
+  starting guesses; tighten them from `sacct` after the first run.
+- Nothing in these jobs downloads data: put `inputs/` and `cache/` on EVE first.
+
+```bash
+# one model task, locally, for testing:
+Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test4
+```

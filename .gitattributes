@@ -1,0 +1,4 @@
+# Shell/SLURM scripts must keep Unix line endings -- they run on EVE (Linux),
+# where a stray \r makes bash fail with "$'\r': command not found".
+*.sh      text eol=lf
+*.sbatch  text eol=lf

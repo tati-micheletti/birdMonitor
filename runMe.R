@@ -1,22 +1,40 @@
 ################### PACKAGE INSTALLATION
 
-if (!require("pak")) install.packages("pak")
-pe <- "predictiveecology.r-universe.dev"
-if (!any(grepl(pe, getOption("repos"))))
-  options(repos = c(pe, getOption("repos")))
-pak::pak(c("PredictiveEcology/Require@fix/pak-no-copy-ensure-in-projlint",
-          "PredictiveEcology/SpaDES.core@development"),
-         ask = FALSE)
+# BIRDMONITOR_SKIP_INSTALL=1 skips this block -- for cluster jobs, where
+# compute nodes have throttled internet (EVE) and packages must already be
+# installed from a login node beforehand.
+if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
+  if (!require("pak")) install.packages("pak")
+  pe <- "predictiveecology.r-universe.dev"
+  if (!any(grepl(pe, getOption("repos"))))
+    options(repos = c(pe, getOption("repos")))
+  pak::pak(c("PredictiveEcology/Require@fix/pak-no-copy-ensure-in-projlint",
+            "PredictiveEcology/SpaDES.core@development"),
+           ask = FALSE)
+}
 
 ################### SETUP
 
-if (SpaDES.project::user("michelet")) setwd("C:/Users/michelet/Documents/GitHub/birdMonitor")
+# Windows-only: the username check alone would also fire on EVE (same
+# username there) and setwd() to a nonexistent Windows path. On a cluster the
+# working directory is simply wherever the job was submitted from (the repo
+# root).
+if (.Platform$OS.type == "windows" && SpaDES.project::user("michelet"))
+  setwd("C:/Users/michelet/Documents/GitHub/birdMonitor")
 
 ################### SHARED CONFIGURATION
 # See sharedConfig.R -- single source of truth, also sourced by
 # tools/runClusterTask.R so a cluster task and the full pipeline can never
 # silently disagree on these values.
 source("tools/sharedConfig.R")
+
+################### PIPELINE STAGE (cluster runs)
+# See tools/sharedStageConfig.R -- BIRDMONITOR_STAGE (all/prep/index) and
+# BIRDMONITOR_RUNNAME let each non-model-fitting piece of the workflow run as
+# its own SLURM job on EVE. Unset (default, local runs): everything runs in
+# this one session, exactly as before.
+source("tools/sharedStageConfig.R")
+stageModules <- pipelineStageModules()
 
 ################### FITTING-YEARS / PREDICTION-YEARS DEPENDENCIES
 # See sharedYearsConfig.R -- computes what dataPrep_Monitor's landuseYears
@@ -136,7 +154,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
   # a timestamp is then always appended automatically, so every run gets
   # its own outputs/ folder regardless of whether the base name changed.
   runNameBase <- "test4"
-  runName <- paste0(runNameBase, "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
+  runName <- resolveRunName(runNameBase)
 
   out <- SpaDES.project::setupProject(
         Restart = FALSE,
@@ -150,12 +168,14 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
                  # runMe.R invocations (not just within one run). See DECISIONS.md,
                  # 2026-09-28.
                  cachePath = "cache"),
-    modules =c(
-      "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
-      "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling
-      "tati-micheletti/models_Monitor@main", # Fits and predicts from the models provided
-      "tati-micheletti/runIndex_Monitor@main" # Builds the SBI-style trend index from metaModel() output
-    ),
+    # Filtered to the modules of the selected BIRDMONITOR_STAGE (all four by
+    # default) -- see tools/sharedStageConfig.R.
+    modules = unname(c(
+      dataPrep_Monitor = "tati-micheletti/dataPrep_Monitor@main", # Downloads and prepare all data
+      inputs_Monitor = "tati-micheletti/inputs_Monitor@main", # Creates the "final" analysis table with options for spatial blocking and for collinearity handling
+      models_Monitor = "tati-micheletti/models_Monitor@main", # Fits and predicts from the models provided
+      runIndex_Monitor = "tati-micheletti/runIndex_Monitor@main" # Builds the SBI-style trend index from metaModel() output
+    )[stageModules]),
     options = list(spades.allowInitDuringSimInit = TRUE,
                    reproducible.cacheSaveFormat = "rds",
                    repos = "https://cloud.r-project.org",
@@ -192,7 +212,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     # range; it has no other effect on the pipeline.
     times = list(start = 2005,
                  end = 2005),
-    params = list(
+    params = paramsForStage(list(
       dataPrep_Monitor = list(
         targetCRS = sharedTargetCRS,
         europeBbox = sharedEuropeBbox,
@@ -275,7 +295,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         # -- the poll params only matter for a cluster run (see DECISIONS.md's
         # 2026-09-28 "runIndex_Monitor" entry).
       )
-    ),
+    ), stageModules),
     packages = c("terra", "yaml",
                  "PredictiveEcology/SpaDES.core@development",
                  "PredictiveEcology/reproducible@development",
@@ -294,9 +314,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     # to "both" afterwards for reproducible fresh-clone behaviour (e.g. on
     # Lisa's machine, or CI).
     useGit = FALSE,
-    loadOrder = c(
-      "dataPrep_Monitor", "inputs_Monitor", "models_Monitor", "runIndex_Monitor"
-    )
+    loadOrder = stageModules
   )
 
   birdMonitorOutputs <- do.call(SpaDES.core::simInitAndSpades, out)
