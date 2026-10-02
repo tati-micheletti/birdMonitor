@@ -9,6 +9,7 @@
 # Submit via cluster/submit_eve_pipeline.sh (which chains this -> model
 # arrays -> index), not directly.
 #
+# EVE rejects --mem; it requires --mem-per-cpu (total = cpus x mem-per-cpu: here 8 x 8G = 64G).
 # RESOURCES BELOW ARE UNMEASURED STARTING GUESSES -- nothing has been timed
 # for this stage on EVE yet. After the first run, check
 #   sacct -j <jobid> --format=JobID,Elapsed,MaxRSS,State
@@ -23,8 +24,8 @@
 # picks up where a killed/timed-out run stopped.
 
 #SBATCH --job-name=birdmon-prep
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=8G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/prep_%j.out
 #SBATCH --error=logs/prep_%j.err

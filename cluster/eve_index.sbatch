@@ -19,8 +19,8 @@
 # and tighten after the first run.
 
 #SBATCH --job-name=birdmon-index
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=8G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/index_%j.out
 #SBATCH --error=logs/index_%j.err
