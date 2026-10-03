@@ -653,6 +653,59 @@ and a concrete plan for what changes in `metaModel.R` (or whether it
 becomes a new, alternative meta-model function altogether, selectable
 alongside the existing ridge approach) before any implementation starts.
 
+## 14. Exact-resolution covariate layers: aggregate straight to the target cell size
+
+**Raised 2026-10-03 (while debugging the first EVE run); to think about, not decided.**
+
+**What the pipeline does today** (every covariate: DEM elevation/slope, landuse and
+landcover proportions, dist_to_woodland), in `aggregateAndSave()`,
+`makeCategoryProportionLayer()` and `computeDistToWoodland()`:
+
+1. `terra::aggregate(x, fact = round(targetRes / nativeRes), fun = "mean")` -- a real block
+   mean, but only to an INTEGER multiple of the native cell size (30 m x 23 = 690 m, not
+   700 m; 30 m x 7 = 210 m, not 200 m; 30 m x 167 = 5010 m, not 5000 m).
+2. A second step interpolates that grid onto the exact target size (bilinear). Until
+   2026-10-03 this was `terra::project()`; it is now `regridToResolution()` (a `resample()`
+   onto a template grid -- EVE's older GDAL/PROJ reject `project()`'s area-of-use check
+   for large LAEA rasters; output verified identical to the old call).
+
+**The methodological issue (independent of the EVE fix).** The mean is taken over blocks
+of the "wrong" size, and the bilinear step then smooths between neighbouring blocks. The
+effective cell value is therefore a slightly blurred mean over an area a few percent
+larger or smaller than the nominal cell: ~1.4 % in linear size at 700 m (690 -> 700),
+5 % at 200 m (210 -> 200), 0.2 % at 5 km. Small for smooth layers (elevation), possibly
+more noticeable for sparse categorical proportions (e.g. `hops`, `grapevine`) and for
+slope, whose value depends on the averaging window.
+
+**Option A -- aggregate straight to the target grid.** Build the exact target grid and take
+the area-weighted mean of the native cells that overlap each target cell, e.g.
+`terra::resample(x30m, targetGrid, method = "average")`. Exact cell size, no second
+smoothing step. Costs: slower/heavier on the 46 GB 30 m DEM (needs a check on EVE), and --
+the real catch -- it would change the layers of EVERY scale already built (200 m, 1 km,
+50 km), so models and past results would no longer be comparable without rebuilding and
+refitting everything.
+
+**Option B -- keep as is, document it.** Consistent with all existing layers and with the
+published multi-scale approach we follow; the effect is small. Record the nominal vs
+effective window in the methods.
+
+**Option C -- choose resolutions that are integer multiples of the native cell size**
+(e.g. 690 m, 210 m, 5010 m) and skip the second step entirely. Cleanest, but resolutions
+no longer match the literature values we picked (700 m, 5 km, 200 m).
+
+**To decide / check before changing anything:**
+- Measure the actual difference between the current layers and Option A on 1-2 test scales
+  (correlation and mean absolute difference per layer), before deciding if it matters.
+- If it matters for any scale: rebuild all scales with the chosen option and refit; do not
+  mix methods across scales.
+- Related: `dist_to_woodland` is a distance (not a proportion) -- a mean of distances over
+  690 m blocks and then bilinear is also fine, but note it is computed on the 100 m CORINE
+  grid, so its native-to-target factors differ (fact = 7 for 700 m).
+
+**Where:** `modules/dataPrep_Monitor/R/regridToResolution.R` (the single place to change the
+second step), `aggregateAndSave.R`, `makeCategoryProportionLayer.R`,
+`computeDistToWoodland.R`.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
