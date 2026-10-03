@@ -26,7 +26,7 @@
 #SBATCH --job-name=birdmon-prep
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=8G
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/prep_%j.out
 #SBATCH --error=logs/prep_%j.err
 
