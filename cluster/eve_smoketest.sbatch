@@ -18,6 +18,7 @@ mkdir -p logs
 
 EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 module load ${EVE_R_MODULE}
+if ! command -v Rscript >/dev/null 2>&1; then echo "ERROR on $(hostname): Rscript not found after module load" >&2; module list >&2; exit 1; fi
 
 export TMPDIR="/work/${USER}/birdMonitor/tmp/${SLURM_JOB_ID}"
 mkdir -p "${TMPDIR}"
