@@ -36,6 +36,13 @@ mkdir -p logs
 # EVE_R_MODULE is set at submit time (see cluster/submit_eve_pipeline.sh).
 if [ -n "${EVE_R_MODULE:-}" ]; then module load ${EVE_R_MODULE}; fi   # may hold several names: "GCC/15.3.0 R/4.6.1" (unquoted on purpose)
 
+# $TMPDIR on EVE is a RAM disk (half of the node's RAM, shared with the job itself),
+# so terra's large temporary rasters would exhaust memory. Use /work instead and
+# clean up when the job ends (EVE wiki, Storage page).
+export TMPDIR="/work/${USER}/birdMonitor/tmp/${SLURM_JOB_ID}"
+mkdir -p "${TMPDIR}"
+trap 'rm -rf "${TMPDIR}"' EXIT
+
 export BIRDMONITOR_STAGE=prep
 export BIRDMONITOR_SKIP_INSTALL=1
 # No Python/CLMS token/internet on compute nodes: use what is already in inputs/.
