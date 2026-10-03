@@ -17,15 +17,14 @@ probe <- function(name, e, srcRes, targetRes, crs = "EPSG:3035") {
   cat(name, ": extent", paste(round(e), collapse = " "), "| source", srcRes, "m -> target", targetRes, "m
 ")
   r <- rast(ext(e[1], e[2], e[3], e[4]), resolution = srcRes, crs = crs); values(r) <- 1
-  tmpl <- rast(ext(r), resolution = targetRes, crs = crs)
-  try1("A project(r, crs, res)  [current code]", project(r, "EPSG:3035", res = targetRes, method = "bilinear"))
-  try1("B project(r, crs, res, use_gdal = FALSE)", project(r, "EPSG:3035", res = targetRes, method = "bilinear", use_gdal = FALSE))
-  try1("C project(r, template)", project(r, tmpl, method = "bilinear"))
-  try1("D project(r, template, use_gdal = FALSE)", project(r, tmpl, method = "bilinear", use_gdal = FALSE))
-  try1("E resample(r, template)", resample(r, tmpl, method = "bilinear"))
-  try1("F resample(r, template, 'average')", resample(r, tmpl, method = "average"))
+  tmpl <- rast(ext(r), resolution = targetRes, crs = "EPSG:3035")
+  try1("A project(r, 'EPSG:3035', res)  [CURRENT CODE]", project(r, "EPSG:3035", res = targetRes, method = "bilinear"))
+  r2 <- r; crs(r2) <- "EPSG:3035"
+  try1("G relabel crs to EPSG:3035, then project  [PROPOSED]", project(r2, "EPSG:3035", res = targetRes, method = "bilinear"))
+  try1("H relabel crs, then resample(r2, template)", resample(r2, tmpl, method = "bilinear"))
+  try1("I project(r, template)", project(r, tmpl, method = "bilinear"))
   cat("
-")
+"); invisible(gc())
 }
 
 # 1) REAL geometry + REAL projection definition, taken from the 30 m DEM file's header only
@@ -46,8 +45,5 @@ if (file.exists(demFile)) {
   }
 }
 
-# 2) made-up rasters with the plain "EPSG:3035" code
-probe("DEM extent, EPSG code",  c(1172421, 7552041, 1218230, 5846210), 690,  700)
-probe("Germany box, EPSG code", c(4031000, 4672000, 2682000, 3552000), 690,  700)
 cat("DONE
 ")
