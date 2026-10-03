@@ -11,11 +11,29 @@ libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonito
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 message("libPaths: ", paste(.libPaths(), collapse = " | "))
 
-for (pkg in c("terra", "sf", "SpaDES.core", "SpaDES.project", "reproducible", "Require",
-              "data.table", "gbm", "dismo", "glmnet", "ranger", "blockCV", "magick", "yaml"))
+# Packages: the fixed core set plus EVERY package the four modules declare in reqdPkgs
+# (read from the module files, so this test cannot drift out of sync with them).
+modPkgs <- unlist(lapply(c("dataPrep_Monitor", "inputs_Monitor", "models_Monitor", "runIndex_Monitor"), function(m) {
+  lines <- readLines(file.path("modules", m, paste0(m, ".R")), warn = FALSE)
+  start <- grep("reqdPkgs *=", lines)[1]
+  if (is.na(start)) return(character())
+  end <- grep("parameters *=", lines)
+  end <- end[end >= start][1]
+  blk <- paste(lines[start:end], collapse = " ")
+  q <- regmatches(blk, gregexpr('"[^"]+"', blk))[[1]]
+  q <- gsub('"', "", q)
+  q <- sub(" *[(].*[)]$", "", q)   # drop version constraint
+  q <- sub("@.*$", "", q)          # drop @branch
+  q <- sub("^.*/", "", q)          # drop GitHub owner
+  q[q != "parameters"]
+}))
+pkgs <- sort(unique(c("terra", "sf", "SpaDES.core", "SpaDES.project", "reproducible", "Require",
+                      "data.table", "gbm", "dismo", "glmnet", "blockCV", "magick", "yaml", modPkgs)))
+message("checking ", length(pkgs), " packages: ", paste(pkgs, collapse = ", "))
+for (pkg in pkgs)
   check(paste("library", pkg), suppressPackageStartupMessages(library(pkg, character.only = TRUE)))
 
-check("terra sees GDAL", message("  GDAL ", terra::gdal(), " / GEOS ", terra::geos_version(), " / PROJ ", terra::proj_version()))
+check("terra sees GDAL", print(terra::gdal(lib = TRUE)))
 check("R tempdir() is on /work, not the RAM disk", stopifnot(grepl("^(/gpfs1)?/work", normalizePath(tempdir()))))
 
 for (d in c("inputs", "cache", "outputs")) {
