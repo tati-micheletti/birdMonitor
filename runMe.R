@@ -338,6 +338,16 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
   # without running anything -- this is how packages get installed once, from an
   # EVE login node (see README, section 3).
   if (Sys.getenv("BIRDMONITOR_INSTALL_ONLY") == "1") {
+    # setupProject() can skip packages it considers part of base R (e.g. mgcv), which
+    # EVE's bare R module does not ship. Install whatever the modules declare but is missing.
+    source("tools/sharedPackages.R")
+    stillMissing <- Filter(function(p) !requireNamespace(p, quietly = TRUE), modulePackages())
+    if (length(stillMissing)) {
+      message("Installing packages setupProject() skipped: ", paste(stillMissing, collapse = ", "))
+      install.packages(stillMissing, repos = "https://cloud.r-project.org")
+      stillMissing <- Filter(function(p) !requireNamespace(p, quietly = TRUE), stillMissing)
+      if (length(stillMissing)) stop("Could not install: ", paste(stillMissing, collapse = ", "))
+    }
     message("BIRDMONITOR_INSTALL_ONLY=1: all packages installed. Nothing was run.")
     quit(save = "no", status = 0)
   }
