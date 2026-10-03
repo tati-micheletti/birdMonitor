@@ -13,21 +13,41 @@ try1 <- function(label, expr) {
   cat(sprintf("  %-46s %s\n", label, res))
 }
 
-probe <- function(name, e, srcRes, targetRes) {
-  cat(name, ": extent", paste(round(e), collapse = " "), "| source", srcRes, "m -> target", targetRes, "m\n")
-  r <- rast(ext(e[1], e[2], e[3], e[4]), resolution = srcRes, crs = "EPSG:3035"); values(r) <- 1
-  tmpl <- rast(ext(r), resolution = targetRes, crs = "EPSG:3035")
+probe <- function(name, e, srcRes, targetRes, crs = "EPSG:3035") {
+  cat(name, ": extent", paste(round(e), collapse = " "), "| source", srcRes, "m -> target", targetRes, "m
+")
+  r <- rast(ext(e[1], e[2], e[3], e[4]), resolution = srcRes, crs = crs); values(r) <- 1
+  tmpl <- rast(ext(r), resolution = targetRes, crs = crs)
   try1("A project(r, crs, res)  [current code]", project(r, "EPSG:3035", res = targetRes, method = "bilinear"))
   try1("B project(r, crs, res, use_gdal = FALSE)", project(r, "EPSG:3035", res = targetRes, method = "bilinear", use_gdal = FALSE))
   try1("C project(r, template)", project(r, tmpl, method = "bilinear"))
   try1("D project(r, template, use_gdal = FALSE)", project(r, tmpl, method = "bilinear", use_gdal = FALSE))
   try1("E resample(r, template)", resample(r, tmpl, method = "bilinear"))
   try1("F resample(r, template, 'average')", resample(r, tmpl, method = "average"))
-  cat("\n")
+  cat("
+")
 }
 
-# the real extents (xmin, xmax, ymin, ymax) in EPSG:3035
-probe("DEM (Europe)",       c(1172421, 7552041, 1218230, 5846210), 690,  700)
-probe("DEM (Europe) 5 km",  c(1172421, 7552041, 1218230, 5846210), 4980, 5000)
-probe("Germany box",        c(4031000, 4672000, 2682000, 3552000), 690,  700)
-cat("DONE\n")
+# 1) REAL geometry + REAL projection definition, taken from the 30 m DEM file's header only
+demFile <- "inputs/predictors/processed/dem/dem_30m_laea.tif"
+if (file.exists(demFile)) {
+  dem <- rast(demFile)
+  cat("real 30m DEM:", nrow(dem), "x", ncol(dem), "cells; crs code:", crs(dem, describe = TRUE)$code, "
+")
+  cat("crs name:", crs(dem, describe = TRUE)$name, "
+
+")
+  for (res in c(700, 5000)) {
+    fact <- round(res / 30)                      # what aggregate() does
+    e <- as.vector(ext(dem))
+    ncA <- ceiling(ncol(dem) / fact); nrA <- ceiling(nrow(dem) / fact)   # aggregate() pads the extent
+    eAgg <- c(e[1], e[1] + ncA * fact * 30, e[4] - nrA * fact * 30, e[4])
+    probe(paste0("REAL DEM geometry, real CRS, ", res, " m"), eAgg, fact * 30, res, crs = crs(dem))
+  }
+}
+
+# 2) made-up rasters with the plain "EPSG:3035" code
+probe("DEM extent, EPSG code",  c(1172421, 7552041, 1218230, 5846210), 690,  700)
+probe("Germany box, EPSG code", c(4031000, 4672000, 2682000, 3552000), 690,  700)
+cat("DONE
+")
