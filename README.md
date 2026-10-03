@@ -149,6 +149,9 @@ for each of `sharedRegionalCellSizesM`'s grid sizes (10/20/50km by default).
 
 ## 3. Running on the EVE cluster
 
+**New to EVE? Follow [`EVE_GUIDE.md`](EVE_GUIDE.md)** (step by step, one-command setup via
+`cluster/setup_eve.sh`). The notes below are the technical reference.
+
 **Status as of 2026-10-02: the whole workflow is wired for EVE, but has never
 been submitted to the real cluster -- expect to debug the first run.** See the
 `.claude/skills/eve-cluster/` skill for onboarding constraints (VPN-only

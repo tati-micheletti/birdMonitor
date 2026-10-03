@@ -65,3 +65,6 @@ inputs
 
 # All pipeline run outputs, regardless of runName
 /outputs
+
+# SLURM job logs (EVE)
+/logs
