@@ -15,4 +15,4 @@ export TMPDIR="/work/${USER}/birdMonitor/tmp/${SLURM_JOB_ID}"
 mkdir -p "${TMPDIR}"
 trap 'rm -rf "${TMPDIR}"' EXIT
 cd "${SLURM_SUBMIT_DIR}"
-Rscript tools/reprexTerraSfAxis.R
+Rscript --vanilla tools/reprexTerraSfAxis.R

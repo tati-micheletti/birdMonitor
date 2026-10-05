@@ -1,6 +1,6 @@
 # Minimal, self-contained reprex (no project data): does terra opening a raster BEFORE sf's first
 # transformation change the axis order sf returns for EPSG:3035?
-# Run:  Rscript tools/reprexTerraSfAxis.R
+# Run:  Rscript --vanilla tools/reprexTerraSfAxis.R
 # Each case runs in its own fresh R process (the effect is per process, set by who initialises GDAL/PROJ first).
 # Expected for the point (11.5E, 48.1N) in EPSG:3035 (easting, northing): x = 4432769, y = 2777406.
 # EVE only: use the personal R library the pipeline installed its packages in (no-op elsewhere)
@@ -30,7 +30,7 @@ if (mode %in% c("terraFirst", "sfFirst")) {
 # ---- parent: only base R, so it does not initialise GDAL/PROJ itself ----
 rs <- file.path(R.home("bin"), "Rscript"); self <- sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE)[1])
 tif <- tempfile(fileext = ".tif")
-run <- function(...) system2(rs, c(shQuote(self), ...))
+run <- function(...) system2(rs, c("--vanilla", shQuote(self), ...))   # --vanilla: no .Rprofile/.Renviron involved
 run("make", shQuote(tif))
 cat("== versions ==\n")
 cat(R.version.string, "\n")
