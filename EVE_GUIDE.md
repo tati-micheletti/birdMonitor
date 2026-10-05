@@ -119,6 +119,20 @@ and has no backup.
 
 Download results to a Windows PC with WinSCP (right panel = EVE, left panel = PC).
 
+## Part D -- uncertainty (confidence layers), after the normal run has finished
+This is a second, separate workflow (spatial-block bootstrap of the models). It needs the finished model arrays and
+index of Part B. Everything is explained in `uncertainty/README.md`; the short version:
+```
+cd ~/projects/birdMonitor
+git pull
+bash --login cluster/setup_uncertainty.sh              # once: installs one extra R package
+# cheap test first (replicate 0 + 3 replicates, 1 year, separate folder):
+BIRDMONITOR_UNC_TAG=timing BIRDMONITOR_UNC_REPS=0:3 BIRDMONITOR_UNC_YEARS=2025 UNC_THROTTLE=40 bash --login cluster/submit_eve_uncertainty.sh
+# the real run (replicate 0 + 50 replicates, all years):
+bash --login cluster/submit_eve_uncertainty.sh
+```
+Results: `/work/YOURNAME/birdMonitor/outputs/<run name>/uncertainty/`.
+
 ## Rules of the house (from the EVE wiki)
 - Never store data in `/home`; never run heavy work on the login nodes.
 - No downloads inside jobs (compute nodes have almost no internet).

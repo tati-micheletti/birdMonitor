@@ -708,7 +708,7 @@ second step), `aggregateAndSave.R`, `makeCategoryProportionLayer.R`,
 
 ## 15. Model uncertainty: confidence layers for maps and per-pixel trends (bootstrap of the BRTs)
 
-**Decided 2026-10-05 (planned, not yet built).** Today the pipeline has NO uncertainty on the BRT predictions:
+**Decided 2026-10-05; BUILT 2026-10-06 as a separate workflow -- see `uncertainty/README.md` and DECISIONS.md (2026-10-06); not yet run on EVE, timings below are still estimates.** Before it, the pipeline had NO uncertainty on the BRT predictions:
 `blockCVPredictBRT()` keeps only the out-of-fold predictions (the per-fold models are discarded), the final maps come
 from one BRT per scale plus one ridge meta-model, `nBootTrend` (ridge-only bootstrap, area-mean trend) is off by default
 and `useBootstrapSE` is FALSE. Lisa Hildebrand's options (A fold ensemble, B block bootstrap, C algorithm ensemble,

@@ -1143,6 +1143,56 @@ exists wherever vectors are projected (e.g. `metaModel()`'s GADM crop via `terra
 
 ---
 
+## 2026-10-06 -- Uncertainty option B built: spatial-block bootstrap of the BRTs (separate workflow, not part of the baseline)
+
+**What:** `uncertainty/` (R code), `tools/runUncertaintyTask.R`, `cluster/eve_unc_*.sbatch`, `cluster/submit_eve_uncertainty.sh`.
+Plan and parameters: improvements.md item 15; user decisions 2026-10-05: 90% interval (5th-95th percentile), ALL years,
+CI width + share of replicates decreasing/increasing as confidence layers, B = 50 first with the ability to add replicates,
+seeds logged. Option A (fold models) is NOT combined with B (cross-check only).
+
+**Why a separate folder and not another models_Monitor event:** the baseline arrays were already queued when B was built;
+a new folder outside `modules/` cannot affect them (SpaDES sources every file in a module's `R/`). The baseline's
+`bootstrapBRT.R` (unwired WIP, models_Monitor) is superseded by `uncertainty/R/uncCommon.R` and can be deleted after the
+baseline is finished.
+
+**Design choices that affect results (state them in the methods):**
+- A replicate re-fits ALL THREE scales' BRTs and the ridge meta-model on resampled blocks, so scale-model and meta-model
+  uncertainty both enter. Hyperparameters fixed from the main fit (not re-tuned).
+- Resampling blocks: square grid whose size is the cross-validation block size of each scale (same `cv_spatial_autocor()`
+  rule and caps as inputs_Monitor; computed once per species and cached). `BIRDMONITOR_UNC_BLOCKMULT` scales it for a
+  sensitivity test (0.5, 2).
+- The ridge of a replicate is trained on the replicate's own scale predictions at the habitat records, using the habitat
+  draw as training rows. Its penalty is chosen with spatial-block folds (the baseline's plain 10-fold CV would put copies of
+  a resampled block into both training and test folds); replicate 0 (= the main models, no resampling) mimics the
+  baseline exactly and is used only as a consistency check (it is excluded from every interval).
+- The coarse scales are resampled bilinearly onto the 200 m reference grid exactly as `loadSuitability()` does; the habitat
+  200 m grid is offset by 5 m from the reference grid, so this resampling is NOT an identity and is reproduced, not skipped.
+- Intervals are percentile intervals of the fitted probability surface (model uncertainty given the training data), not
+  prediction intervals. Per-pixel change and trend are computed per replicate first, then summarised.
+- Per-replicate predictions are stored as 16-bit integers (resolution 3.3e-5) so replicates can be added later without
+  recomputing; ~100 GB for 11 species at B = 50.
+
+**Not covered:** tuning uncertainty, covariate error, structural (algorithm) uncertainty, survey-design bias, thinning
+randomness. See `uncertainty/README.md`.
+
+**Verified locally (2026-10-06, Alauda arvensis, a mini baseline built with the baseline's own functions, 4 replicates incl. replicate 0,
+years 2020-2025, one band of the country):** replicate 0 (main models, no resampling) reproduces the baseline meta-model map
+with the SAME valid cells and a maximum difference of 0.00002 (the 16-bit storage resolution), correlation 1.000000; its ridge
+coefficients equal the baseline's to 6 digits. Bootstrap replicates differ from each other as expected (ridge coefficients and a
+mean range of 0.08 in probability across 3 replicates). Unit tests (`uncertainty/tests/test_units.R`) pass. NOT yet verified:
+anything on EVE (timing, memory, the SLURM chain) -- the timing run described in `uncertainty/README.md` is the first step there.
+Then an end-to-end rehearsal through the real command-line entry point (`uncertainty/tests/e2e_local.sh`: all 40 bands of the whole
+country, 2 mapped years, replicate 0 + 2 replicates, band tasks in parallel): replicate 0 vs the baseline map: identical valid cells
+(349,127 in the checked band), max difference 1.7e-5, country area mean 0.656788 vs 0.656788 (relative difference 1.4e-10); the
+stitched 40-band map has no visible seams (adjacent-row difference 0.0555 at band borders vs 0.0547 elsewhere) and lwr <= mean <= upr
+everywhere. Local cost: habitat prediction of one year on the whole country takes about 7 min per model for a 4950-tree BRT.
+
+**Known choice to review:** the climate-scale resampling block comes out at the 1500 km cap (autocorrelation range 4400 km), i.e.
+about 13 blocks for the whole of Europe. That is what the cross-validation rule gives, but it makes the climate-scale replicates
+very different from each other; check `replicate_log.csv` and, if needed, the sensitivity run (`BIRDMONITOR_UNC_BLOCKMULT`).
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
