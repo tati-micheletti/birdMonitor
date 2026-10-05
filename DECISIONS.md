@@ -1103,6 +1103,36 @@ species/year/distance.
 
 ---
 
+## 2026-10-05 — EVE: bird points came out with x and y SWAPPED (every covariate NA); robust LAEA transform
+
+**What happened:** the first real EVE prep run lost EVERY row of every habitat and landscape occurrence table
+("Removed N rows with NA covariates" with N = all rows). Per-layer NA counts at the points were 100% for all 22
+layers. The point coordinates in the real session were **x 2.7-3.5 million / y 4.0-4.7 million** -- x and y swapped
+(Germany in EPSG:3035 is x ~ 4.0-4.7e6, y ~ 2.7-3.5e6), so every raster lookup fell outside Germany. Old PC tables
+stayed on disk (the NULL result is skipped, the previous file is not overwritten), so the pooling step then failed
+with a misleading "predictor landscape_heterogeneity NOT found in occurrence data".
+
+**Cause:** `sf::st_transform(x, 3035)` returned (northing, easting) in EVE's R session. EPSG:3035 officially lists
+northing first; whether sf/GDAL/PROJ hand back easting/northing depends on the installation's axis-order setting
+(EVE: GDAL 3.10.3 / PROJ 9.4.1). Not reproducible on the PC (GDAL 3.12 / PROJ 9.7); an isolated probe on EVE
+(`tools/probeOccurrence.R`) also worked, so it is specific to the full session. Root cause inside the session not
+identified; the fix does not depend on it.
+
+**Fix (dataPrep_Monitor):** `transformToLAEA()` transforms to an explicit PROJ string (no axis ambiguity; identical to
+`st_transform(.,3035)` to 0 m where that works) and `laeaCoordinates()` STOPS with a clear message if x/y look swapped
+or fall outside Germany's bounding box. Used for the Probeflaechen shapefile and the MhB lon/lat records (habitat) and
+the Probeflaechen centroids (landscape). Also: `reportDroppedRows()` now logs which covariates are NA and the
+coordinate ranges whenever > 50% of rows are dropped; occurrence caches carry a schema version (`.cacheExtra`,
+`occurrenceCacheSchema`, now 3).
+
+**Lessons:** (1) a NULL builder result must not leave a stale file in place -- see the open item below; (2) any
+`terra::project()`/`sf::st_transform()` result on a new platform needs a range check; (3) the same axis-order risk
+exists wherever vectors are projected (e.g. `metaModel()`'s GADM crop via `terra::project`) -- untested on EVE.
+
+**Open:** make the occurrence builders delete/refuse a stale output file when the new result is NULL.
+
+---
+
 ## Unverified / open items (do not treat as settled)
 
 - **`evalSDM()`/`blockCVPredictBRT()` have no fixed seed** -- re-running
