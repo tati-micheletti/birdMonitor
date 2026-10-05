@@ -1123,7 +1123,7 @@ does GDAL work first** (open raster, read/project vector, extract) and sf makes 
 afterwards, `sf::st_transform(., 3035)` returns x/y **swapped**; if **sf transforms first**, it is correct, before and
 after terra work. So it is an initialisation-order problem between terra and sf with GDAL 3.10.3 / PROJ 9.4.1 / sf 1.1.3
 / terra 1.9-50 (single clean set of geo libraries confirmed, so not a mixed installation). Mitigation: sf is forced to
-transform first (`axisCheck()` at the top of runMe.R; `warmUpSfProj()` in dataPrep_Monitor's init event); the validated
+transform first (`axisCheck()` in runMe.R after `setupProject()`, before `simInit()` -- sf is not installed yet at the top of the script; `warmUpSfProj()` in dataPrep_Monitor's init event); the validated
 `transformToLAEA()` below stays as the real safeguard. `cluster/eve_reprex_order.sbatch` now also bisects WHICH terra
 operation triggers it (library / rast / vect / vectProject / extract) -- input for a bug report to the sf/terra
 maintainers (not sent).
