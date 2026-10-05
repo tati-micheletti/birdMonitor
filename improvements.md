@@ -706,6 +706,45 @@ no longer match the literature values we picked (700 m, 5 km, 200 m).
 second step), `aggregateAndSave.R`, `makeCategoryProportionLayer.R`,
 `computeDistToWoodland.R`.
 
+## 15. Model uncertainty: confidence layers for maps and per-pixel trends (bootstrap of the BRTs)
+
+**Decided 2026-10-05 (planned, not yet built).** Today the pipeline has NO uncertainty on the BRT predictions:
+`blockCVPredictBRT()` keeps only the out-of-fold predictions (the per-fold models are discarded), the final maps come
+from one BRT per scale plus one ridge meta-model, `nBootTrend` (ridge-only bootstrap, area-mean trend) is off by default
+and `useBootstrapSE` is FALSE. Lisa Hildebrand's options (A fold ensemble, B block bootstrap, C algorithm ensemble,
+D ensemble + bootstrap) were checked against the code (see conversation 2026-10-05).
+
+**Chosen: option B (block bootstrap of the BRTs), in the spirit of the Boreal Avian Modelling Project** (bootstrapped
+BRTs with the number of trees fixed from cross-validation; percentile intervals) -- cite BAM for the general approach, but
+read their methods before claiming equivalence (we resample spatial blocks and add a ridge meta-model).
+
+- **Interval:** 90% (5th and 95th percentiles) for now.
+- **Years:** ALL prediction years (2005-2025), not just key years.
+- **Outputs per species:** per-year maps of mean / SD / lower / upper percentile; per-pixel change maps (vs baseline,
+  vs 5 years ago, vs last year) with their interval; **CI width** and **share of replicates decreasing (or increasing)**
+  as the confidence layer; per-replicate area means for annual index CIs.
+- **Method:** per replicate and per scale, resample SPATIAL BLOCKS with replacement (blocks from the saved
+  `blockCV::cv_spatial()` objects, not the 5 fold ids), refit gbm with the FIXED hyperparameters of the main fit (3-6 s),
+  predict all years, apply the ridge meta-model, and compute every derived quantity (changes, trends, area means) INSIDE
+  the replicate before taking percentiles -- this is what carries spatial AND temporal uncertainty into per-pixel trends.
+- **Cost (single-core, unmeasured on EVE; prediction dominates, not fitting):** habitat 2.2-5.8 core-min per year per model
+  (about 8.9M valid cells at 200 m), landscape 9-22 s, climate negligible. All 21 years: B=50 -> 38-100 core-h per
+  species (420-1,100 total); B=100 -> 77-216 per species (850-2,400 total). Wall time = core-hours / cores available;
+  about 100 cores -> 9-24 h at B=100. Plan: B=50 first, store replicates (int16) so replicates can be ADDED later.
+- **Not built / not covered (candidate improvements, to state in the methods):**
+  1. **Hyperparameter-tuning uncertainty** -- tuning is done once; bootstrap replicates reuse the settings (as BAM does).
+  2. **Covariate error** -- the predictor layers (land use, climate, DEM, ...) are treated as exact.
+  3. **Structural / model-form uncertainty** -- one algorithm (BRT) per scale; option C (algorithm ensemble: GLM/RF/NN,
+     see item 7) is planned for spring, and option D (ensemble + bootstrap) after that.
+  4. Also not covered: bias in the survey data (DDA vs MhB selection), spatial/temporal autocorrelation beyond what block
+     resampling captures, and the thinning randomness (`thin()` is unseeded).
+- **Option A (fold models, block jackknife):** NOT part of this plan. It is cheap (~5% of B=100) but adds little once B
+  exists; its spread across 5 folds underestimates the sampling error (jackknife inflation of the SD by ~1.8, only 4
+  degrees of freedom) and the jackknife is unreliable for non-smooth estimators such as trees. Could serve later as an
+  independent cross-check.
+- **Interval meaning:** percentile intervals of the fitted probability surface (and of derived changes/trends), NOT
+  prediction intervals for observed occurrences.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
