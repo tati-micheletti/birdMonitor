@@ -15,6 +15,4 @@ export TMPDIR="/work/${USER}/birdMonitor/tmp/${SLURM_JOB_ID}"
 mkdir -p "${TMPDIR}"
 trap 'rm -rf "${TMPDIR}"' EXIT
 cd "${SLURM_SUBMIT_DIR}"
-# same personal R library the pipeline uses (children of the reprex inherit it)
-R_LIBS_USER="$(Rscript -e 'cat(paste(Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*")), collapse=":"))')" \
-  Rscript tools/reprexTerraSfAxis.R
+Rscript tools/reprexTerraSfAxis.R

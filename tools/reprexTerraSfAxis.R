@@ -3,6 +3,9 @@
 # Run:  Rscript tools/reprexTerraSfAxis.R
 # Each case runs in its own fresh R process (the effect is per process, set by who initialises GDAL/PROJ first).
 # Expected for the point (11.5E, 48.1N) in EPSG:3035 (easting, northing): x = 4.27e6, y = 2.86e6.
+# EVE only: use the personal R library the pipeline installed its packages in (no-op elsewhere)
+libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
+if (length(libs)) .libPaths(c(libs, .libPaths()))
 args <- commandArgs(trailingOnly = TRUE)
 mode <- if (length(args)) args[1] else "all"
 tif <- if (length(args) > 1) args[2] else NA_character_
