@@ -1,6 +1,17 @@
 # One-line log of how EPSG:3035 transformations behave RIGHT NOW in this R session (see DECISIONS.md,
 # 2026-10-05). Called from runMe.R before/after setupProject() and (as reportAxisState()) at the start of
 # every dataPrep_Monitor event, to show where the axis order changes in the full SpaDES session on EVE.
+# Shared libraries of the geo stack that this R process has actually loaded (Linux only). Two different
+# libproj/libgdal files in one process = mixed installations (cf. rspatial/terra#1378).
+loadedGeoLibs <- function() {
+  tryCatch({
+    if (!file.exists("/proc/self/maps")) return("n/a (not Linux)")
+    m <- readLines("/proc/self/maps", warn = FALSE)
+    p <- sub("^.* ", "", m[grepl("lib(proj|gdal|geos|sqlite3|netcdf|hdf5)[^/]*[.]so", m)])
+    paste(sort(unique(p)), collapse = "; ")
+  }, error = function(e) paste("?", conditionMessage(e)))
+}
+
 axisCheck <- function(label) {
   tryCatch({
     if (!requireNamespace("sf", quietly = TRUE)) { message("[axis] ", label, ": sf not available yet"); return(invisible(NULL)) }
@@ -12,6 +23,8 @@ axisCheck <- function(label) {
             " | GDAL axis-strategy config='", cfg, "' | sf ", as.character(utils::packageVersion("sf")),
             " | loaded: ", paste(intersect(c("terra", "sf", "reproducible", "SpaDES.core", "Require", "reticulate", "raster", "sp", "rgdal"),
                                           loadedNamespaces()), collapse = ","))
+    message("[axis-libs] ", label, ": ", loadedGeoLibs(), " | PROJ_DATA='", Sys.getenv("PROJ_DATA"), "' PROJ_LIB='", Sys.getenv("PROJ_LIB"),
+            "' proj search paths: ", tryCatch(paste(sf::sf_proj_search_paths(), collapse = ","), error = function(e) "?"))
   }, error = function(e) message("[axis] ", label, ": check failed: ", conditionMessage(e)))
   invisible(NULL)
 }

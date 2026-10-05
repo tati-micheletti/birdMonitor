@@ -18,6 +18,8 @@ testSet <- function(label) {
               rg(raw[c(1,3)]), rg(raw[c(2,4)]), rg(g[c(1,3)]), rg(g[c(2,4)]), rg(l[c(1,3)]), rg(l[c(2,4)])))
 }
 suppressMessages(library(sf)); cat("sf", as.character(packageVersion("sf")), "PROJ", sf::sf_extSoftVersion()[["PROJ"]], "GDAL", sf::sf_extSoftVersion()[["GDAL"]], "\n")
+source("tools/sharedAxisCheck.R"); cat("LIBS:", loadedGeoLibs(), "
+")
 testSet("sf only")
 for (pkg in c("terra", "dplyr", "readxl", "raster", "dismo", "blockCV", "geodata", "reproducible", "Require", "SpaDES.core", "SpaDES.project", "reticulate", "spatialEco", "mgcv")) {
   if (!requireNamespace(pkg, quietly = TRUE)) { cat("[", pkg, "] not installed\n"); next }

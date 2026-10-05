@@ -18,6 +18,8 @@ testAxis <- function(label) {
 }
 cat("sf", as.character(packageVersion("sf")), "| terra", as.character(packageVersion("terra")),
     "| GDAL", sf::sf_extSoftVersion()[["GDAL"]], "| PROJ", sf::sf_extSoftVersion()[["PROJ"]], "\n\n")
+source("tools/sharedAxisCheck.R"); cat("LIBS:", loadedGeoLibs(), "
+")
 testAxis("0. plain session")
 
 cat("\n-- 1. options that setupProject() sets in the real run, one at a time\n")
