@@ -37,6 +37,8 @@ if (Sys.getenv("BIRDMONITOR_SKIP_INSTALL") != "1") {
 if (.Platform$OS.type == "windows" && SpaDES.project::user("michelet"))
   setwd("C:/Users/michelet/Documents/GitHub/birdMonitor")
 
+source("tools/sharedAxisCheck.R"); axisCheck("runMe start (before setupProject)")
+
 ################### SHARED CONFIGURATION
 # See sharedConfig.R -- single source of truth, also sourced by
 # tools/runClusterTask.R so a cluster task and the full pipeline can never
@@ -351,6 +353,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     message("BIRDMONITOR_INSTALL_ONLY=1: all packages installed. Nothing was run.")
     quit(save = "no", status = 0)
   }
+
+  axisCheck("after setupProject(), before simInit")
 
   birdMonitorOutputs <- do.call(SpaDES.core::simInitAndSpades, out)
 
