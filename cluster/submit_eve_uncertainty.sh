@@ -18,7 +18,8 @@
 #   [BIRDMONITOR_UNC_BLOCKMULT=1]        multiplier on the resampling block size (sensitivity test)
 #   [BIRDMONITOR_UNC_TAG=timing]         write to outputs/<run>/uncertainty_timing/ instead (timing/test run; never mixes with real replicates)
 #   [UNC_THROTTLE=60]                    max band tasks running at once (default: no limit)
-#   [UNC_AFTER=62887500]                 job id(s) to wait for first (e.g. the baseline index job), colon-separated
+#   [UNC_AFTER=62887498]                 job id(s) to wait for first (e.g. the baseline habitat array), colon-separated.
+#                                        The whole chain then queues unattended (e.g. overnight).
 #   [UNC_BAND_TIME=12:00:00]             wall-time limit of one band task
 #     bash --login cluster/submit_eve_uncertainty.sh
 #
@@ -42,8 +43,13 @@ EXPORTS="ALL"
 
 echo "Run: ${BIRDMONITOR_RUNNAME} | replicates ${BIRDMONITOR_UNC_REPS} | bands ${BIRDMONITOR_UNC_BANDS} | years ${BIRDMONITOR_UNC_YEARS:-<all>}"
 
-# 1. pre-flight: every input must exist (also prints the species count)
-Rscript tools/runUncertaintyTask.R --step preflight
+# 1. pre-flight: every input must exist. When queued behind the baseline (UNC_AFTER) the inputs do not exist yet, so the
+#    check is skipped here and runs as the first thing inside the covcache job instead.
+if [ -z "${UNC_AFTER:-}" ]; then
+  Rscript tools/runUncertaintyTask.R --step preflight
+else
+  echo "UNC_AFTER is set: the input check runs inside the first job, after ${UNC_AFTER} has finished."
+fi
 NSP=$(Rscript -e 'source("tools/sharedConfig.R"); cat(length(sharedSpecies))' 2>/dev/null | tail -1)
 NB="${BIRDMONITOR_UNC_BANDS}"
 NSB=$((NSP * NB))
