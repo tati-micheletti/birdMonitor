@@ -34,7 +34,7 @@ caller's RNG state is restored. Adding replicates later (ids 51–100) never cha
 |---|---|
 | `maps/<sp>_unc_<year>.tif` | 5 layers per year: `mean`, `sd`, `lwr` (5th pct), `upr` (95th pct), `width` (= upr − lwr) of the probability of occurrence across replicates. **`width` is the confidence layer: wide = uncertain.** |
 | `maps/<sp>_unc_change_vsBaseline.tif`, `…_vs5YearsAgo.tif`, `…_vsLastYear.tif` | change in probability, current year minus reference year, computed per replicate. 7 layers: `deltaMean`, `deltaSd`, `deltaLwr`, `deltaUpr`, `deltaWidth`, **`shareDecrease`** (share of replicates with a decrease), **`shareIncrease`**. Reference years: 2005, current−5, current−1; current = 2025. |
-| `maps/<sp>_unc_trend_per_decade.tif` | per-pixel linear trend over all mapped years (change in probability per decade), per replicate, same 7 layers. |
+| `maps/<sp>_unc_trend_per_decade.tif` | per-pixel linear trend over all mapped years (change in probability per decade), per replicate. 7 layers: `slopeMean`, `slopeSd`, **`slopeLwr`, `slopeUpr`** (the 90% interval of the slope), `slopeWidth`, `shareDecrease`, `shareIncrease`. |
 | `species_index_uncertainty.csv` | per year: mean, median, 90% interval of the species' area-mean probability and of the **index** (100 × area mean ÷ baseline-year area mean). |
 | `area_mean_replicates.csv` | the raw numbers behind it: area mean of every replicate and year (long format). |
 | `replicate_log.csv` | one row per fitted model: seeds, attempts, blocks, rows drawn, presences/absences, hyperparameters, git commits, time. |

@@ -16,10 +16,11 @@ uncSummarizeMatrix <- function(m, probs = c(0.05, 0.95)) {
 }
 
 #' Summary of a change (or trend) matrix: mean, SD, lower, upper, width, share of replicates decreasing / increasing
-uncSummarizeChange <- function(d, probs = c(0.05, 0.95)) {
+#' Layer names: `<prefix>Mean/Sd/Lwr/Upr/Width` (prefix `delta` for a change, `slope` for the per-decade trend) and the two shares.
+uncSummarizeChange <- function(d, probs = c(0.05, 0.95), prefix = "delta") {
   s <- uncSummarizeMatrix(d, probs)
   out <- cbind(s, shareDecrease = rowMeans(d < 0), shareIncrease = rowMeans(d > 0))
-  colnames(out) <- c("deltaMean", "deltaSd", "deltaLwr", "deltaUpr", "deltaWidth", "shareDecrease", "shareIncrease")
+  colnames(out) <- c(paste0(prefix, c("Mean", "Sd", "Lwr", "Upr", "Width")), "shareDecrease", "shareIncrease")
   out
 }
 
@@ -134,7 +135,7 @@ uncSummarizeSpeciesBand <- function(cfg, sp, band) {
         cells <- common; ids <- cols
       }
     }
-    if (length(cells) && length(ids) >= 2) uncWritePiece(tmpl, cells, uncSummarizeChange(S, cfg$probs), pf("trend", "all"))
+    if (length(cells) && length(ids) >= 2) uncWritePiece(tmpl, cells, uncSummarizeChange(S, cfg$probs, prefix = "slope"), pf("trend", "all"))
   }
   invisible(TRUE)
 }
