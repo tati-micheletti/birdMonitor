@@ -1118,6 +1118,16 @@ northing first; whether sf/GDAL/PROJ hand back easting/northing depends on the i
 (`tools/probeOccurrence.R`) also worked, so it is specific to the full session. Root cause inside the session not
 identified; the fix does not depend on it.
 
+**Root cause isolated (later the same day):** `tools/reprexOrder.R` run in two fresh R processes on EVE: if **terra
+does GDAL work first** (open raster, read/project vector, extract) and sf makes its first PROJ transformation
+afterwards, `sf::st_transform(., 3035)` returns x/y **swapped**; if **sf transforms first**, it is correct, before and
+after terra work. So it is an initialisation-order problem between terra and sf with GDAL 3.10.3 / PROJ 9.4.1 / sf 1.1.3
+/ terra 1.9-50 (single clean set of geo libraries confirmed, so not a mixed installation). Mitigation: sf is forced to
+transform first (`axisCheck()` at the top of runMe.R; `warmUpSfProj()` in dataPrep_Monitor's init event); the validated
+`transformToLAEA()` below stays as the real safeguard. `cluster/eve_reprex_order.sbatch` now also bisects WHICH terra
+operation triggers it (library / rast / vect / vectProject / extract) -- input for a bug report to the sf/terra
+maintainers (not sent).
+
 **Fix (dataPrep_Monitor):** `transformToLAEA()` transforms to an explicit PROJ string (no axis ambiguity; identical to
 `st_transform(.,3035)` to 0 m where that works) and `laeaCoordinates()` STOPS with a clear message if x/y look swapped
 or fall outside Germany's bounding box. Used for the Probeflaechen shapefile and the MhB lon/lat records (habitat) and

@@ -16,5 +16,6 @@ mkdir -p "${TMPDIR}"
 trap 'rm -rf "${TMPDIR}"' EXIT
 cd "${SLURM_SUBMIT_DIR}"
 # two SEPARATE R processes, so each starts with a fresh GDAL/PROJ state
-Rscript tools/reprexOrder.R terraFirst
-Rscript tools/reprexOrder.R sfFirst
+for m in library rast vect vectProject extract sfFirst; do
+  Rscript tools/reprexOrder.R "$m"
+done

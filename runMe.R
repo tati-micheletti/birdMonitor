@@ -354,6 +354,9 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     quit(save = "no", status = 0)
   }
 
+  # sf must make its first PROJ transformation BEFORE terra does any GDAL work, otherwise EPSG:3035 comes out
+  # with x/y swapped on EVE (tools/reprexOrder.R; DECISIONS.md 2026-10-05). axisCheck() at the top of this
+  # script makes that transformation; warmUpSfProj() in dataPrep_Monitor's init repeats it as a second guard.
   axisCheck("after setupProject(), before simInit")
 
   birdMonitorOutputs <- do.call(SpaDES.core::simInitAndSpades, out)
