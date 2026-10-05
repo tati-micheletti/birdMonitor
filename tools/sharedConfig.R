@@ -29,6 +29,18 @@
 source("tools/sharedSpeciesCanonical.R")
 speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
 sharedSpecies <- canonicalIncludedSpecies(speciesCanonical)
+# DEBUG ONLY: BIRDMONITOR_SPECIES="Emberiza citrinella;Emberiza calandra" restricts the run to those species
+# (semicolon-separated Latin names) for a fast test of the real pipeline. Unset = the full roster.
+local({
+  dbg <- Sys.getenv("BIRDMONITOR_SPECIES", "")
+  if (nzchar(dbg)) {
+    keep <- trimws(strsplit(dbg, ";")[[1]])
+    unknown <- setdiff(keep, sharedSpecies)
+    if (length(unknown)) stop("BIRDMONITOR_SPECIES contains species not in the roster: ", paste(unknown, collapse = ", "), call. = FALSE)
+    sharedSpecies <<- sharedSpecies[sharedSpecies %in% keep]
+    message("BIRDMONITOR_SPECIES set -- running ONLY: ", paste(sharedSpecies, collapse = ", "))
+  }
+})
 sharedGermanNames <- canonicalGermanNames(speciesCanonical, sharedSpecies)
 
 sharedTargetCRS <- "EPSG:3035"
