@@ -2,7 +2,7 @@
 # transformation change the axis order sf returns for EPSG:3035?
 # Run:  Rscript tools/reprexTerraSfAxis.R
 # Each case runs in its own fresh R process (the effect is per process, set by who initialises GDAL/PROJ first).
-# Expected for the point (11.5E, 48.1N) in EPSG:3035 (easting, northing): x = 4.27e6, y = 2.86e6.
+# Expected for the point (11.5E, 48.1N) in EPSG:3035 (easting, northing): x = 4432769, y = 2777406.
 # EVE only: use the personal R library the pipeline installed its packages in (no-op elsewhere)
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
