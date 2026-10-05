@@ -1145,14 +1145,15 @@ exists wherever vectors are projected (e.g. `metaModel()`'s GADM crop via `terra
 
 ## 2026-10-06 -- Uncertainty option B built: spatial-block bootstrap of the BRTs (separate workflow, not part of the baseline)
 
-**What:** `uncertainty/` (R code), `tools/runUncertaintyTask.R`, `cluster/eve_unc_*.sbatch`, `cluster/submit_eve_uncertainty.sh`.
+**What:** SpaDES events of models_Monitor (`R/unc*.R`, `R/uncSim.R`, parameters `uncertainty*`, `runBand`) and of runIndex_Monitor (`computeIndexUncertainty`, parameters `uncertaintyDir`/`uncertaintyOnly`), `tools/runUncertaintyTask.R`, `cluster/eve_unc_*.sbatch`, `cluster/submit_eve_uncertainty.sh`.
 Plan and parameters: improvements.md item 15; user decisions 2026-10-05: 90% interval (5th-95th percentile), ALL years,
 CI width + share of replicates decreasing/increasing as confidence layers, B = 50 first with the ability to add replicates,
 seeds logged. Option A (fold models) is NOT combined with B (cross-check only).
 
-**Why a separate folder and not another models_Monitor event:** the baseline arrays were already queued when B was built;
-a new folder outside `modules/` cannot affect them (SpaDES sources every file in a module's `R/`). The baseline's
-`bootstrapBRT.R` (unwired WIP, models_Monitor) is superseded by `uncertainty/R/uncCommon.R` and can be deleted after the
+**History:** B was first written as a stand-alone folder so it could not disturb the baseline arrays that were already queued
+(2026-10-05/06), then moved into the modules as SpaDES events once the baseline results were secured (not pulled on EVE
+before the baseline finishes). The baseline's
+`bootstrapBRT.R` (unwired WIP, models_Monitor) is superseded by `R/uncCommon.R` and can be deleted after the
 baseline is finished.
 
 **Design choices that affect results (state them in the methods):**
@@ -1173,15 +1174,15 @@ baseline is finished.
   recomputing; ~100 GB for 11 species at B = 50.
 
 **Not covered:** tuning uncertainty, covariate error, structural (algorithm) uncertainty, survey-design bias, thinning
-randomness. See `uncertainty/README.md`.
+randomness. See `modules/models_Monitor/UNCERTAINTY.md`.
 
 **Verified locally (2026-10-06, Alauda arvensis, a mini baseline built with the baseline's own functions, 4 replicates incl. replicate 0,
 years 2020-2025, one band of the country):** replicate 0 (main models, no resampling) reproduces the baseline meta-model map
 with the SAME valid cells and a maximum difference of 0.00002 (the 16-bit storage resolution), correlation 1.000000; its ridge
 coefficients equal the baseline's to 6 digits. Bootstrap replicates differ from each other as expected (ridge coefficients and a
-mean range of 0.08 in probability across 3 replicates). Unit tests (`uncertainty/tests/test_units.R`) pass. NOT yet verified:
-anything on EVE (timing, memory, the SLURM chain) -- the timing run described in `uncertainty/README.md` is the first step there.
-Then an end-to-end rehearsal through the real command-line entry point (`uncertainty/tests/e2e_local.sh`: all 40 bands of the whole
+mean range of 0.08 in probability across 3 replicates). Unit tests (`modules/models_Monitor/tests/uncertainty/test_units.R`) pass. NOT yet verified:
+anything on EVE (timing, memory, the SLURM chain) -- the timing run described in `modules/models_Monitor/UNCERTAINTY.md` is the first step there.
+Then an end-to-end rehearsal through the real command-line entry point (`modules/models_Monitor/tests/uncertainty/e2e_local.sh`: all 40 bands of the whole
 country, 2 mapped years, replicate 0 + 2 replicates, band tasks in parallel): replicate 0 vs the baseline map: identical valid cells
 (349,127 in the checked band), max difference 1.7e-5, country area mean 0.656788 vs 0.656788 (relative difference 1.4e-10); the
 stitched 40-band map has no visible seams (adjacent-row difference 0.0555 at band borders vs 0.0547 elsewhere) and lwr <= mean <= upr

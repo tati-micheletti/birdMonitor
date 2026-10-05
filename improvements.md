@@ -708,7 +708,7 @@ second step), `aggregateAndSave.R`, `makeCategoryProportionLayer.R`,
 
 ## 15. Model uncertainty: confidence layers for maps and per-pixel trends (bootstrap of the BRTs)
 
-**Decided 2026-10-05; BUILT 2026-10-06 as a separate workflow -- see `uncertainty/README.md` and DECISIONS.md (2026-10-06); not yet run on EVE, timings below are still estimates.** Before it, the pipeline had NO uncertainty on the BRT predictions:
+**Decided 2026-10-05; BUILT 2026-10-06 as a separate workflow -- see `modules/models_Monitor/UNCERTAINTY.md` and DECISIONS.md (2026-10-06); not yet run on EVE, timings below are still estimates.** Before it, the pipeline had NO uncertainty on the BRT predictions:
 `blockCVPredictBRT()` keeps only the out-of-fold predictions (the per-fold models are discarded), the final maps come
 from one BRT per scale plus one ridge meta-model, `nBootTrend` (ridge-only bootstrap, area-mean trend) is off by default
 and `useBootstrapSE` is FALSE. Lisa Hildebrand's options (A fold ensemble, B block bootstrap, C algorithm ensemble,
@@ -744,6 +744,19 @@ read their methods before claiming equivalence (we resample spatial blocks and a
   independent cross-check.
 - **Interval meaning:** percentile intervals of the fitted probability surface (and of derived changes/trends), NOT
   prediction intervals for observed occurrences.
+
+---
+
+## 16. Meta-model trained on in-sample scale predictions (stacking with out-of-fold predictions)
+
+**Noted 2026-10-06 (not changed; the baseline and the uncertainty workflow both follow the current design).** `metaModel()`
+fits the ridge regression on the predictions of the three scale BRTs at the SAME habitat records those BRTs were trained on.
+A boosted-tree model fits its own training records more closely than new records, so those predictions are optimistic and the
+ridge may give the scale that overfits most (probably habitat) more weight than it deserves. The textbook remedy for stacking
+(Wolpert 1992; Breiman 1996, "Stacked regressions") is to train the combiner on out-of-fold predictions. The per-fold BRTs are
+already saved (`<species>_foldModels_<scale>.rds`), so out-of-fold suitability at the habitat records can be built without
+refitting. **Check, don't assume:** compare the ridge coefficients (and block-CV AUC of the final map) with in-sample vs
+out-of-fold training; if they barely differ the issue is immaterial and this item can be closed.
 
 ---
 

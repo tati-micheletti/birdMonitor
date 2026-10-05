@@ -121,7 +121,7 @@ Download results to a Windows PC with WinSCP (right panel = EVE, left panel = PC
 
 ## Part D -- uncertainty (confidence layers), after the normal run has finished
 This is a second, separate workflow (spatial-block bootstrap of the models). It needs the finished model arrays and
-index of Part B. Everything is explained in `uncertainty/README.md`; the short version:
+index of Part B. Everything is explained in `modules/models_Monitor/UNCERTAINTY.md`; the short version:
 ```
 cd ~/projects/birdMonitor
 git pull
