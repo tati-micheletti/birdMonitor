@@ -1241,6 +1241,12 @@ replicates' ridge (`uncRidgeSpecies()`) use the same constraint, so replicate 0 
 the accuracy of the combiner when every habitat record is predicted by models that never saw its block (`metaOutOfFoldCheck()`:
 habitat = fold model of the record's fold; landscape/climate = fold model of the nearest record's fold, an approximation because
 the blocks were not saved). The old in-sample number is kept in `<species>_perf_meta_inSample.rds` (AUC ~0.99, flattered). The
-binary-map threshold still comes from the in-sample evaluation (not to change maps for a reporting fix). Wiedenroth validate
-with out-of-fold habitat predictions too; the weights of the final model are trained on in-sample inputs in both
-(improvements.md item 16 (b) remains open).
+binary-map threshold now comes from the same out-of-fold evaluation.
+
+**Honest weights (same day, decided by Tati: "I NEED the most honest measures of uncertainty as possible").** The ridge
+weights are trained on the out-of-fold inputs too (stacked generalization: Wolpert 1992; Breiman 1996), then applied to the
+main models' maps. This goes BEYOND Wiedenroth et al., whose final weights are trained on in-sample inputs (their validation is
+out-of-fold). The replicates do the same: new step `oof` (`uncOofSpecies()`) refits each replicate's BRTs on the draw minus one
+fold to get out-of-fold inputs (about 4x the previous BRT fitting cost per replicate); `ridge` refuses to run without it.
+Verified locally: replicate 0 equals the baseline (area mean relative difference 3e-11). Maps are rebuilt automatically when the
+weights differ from those of the existing maps (`<species>_meta_ridgeid.txt`). improvements.md item 16 is closed by this.

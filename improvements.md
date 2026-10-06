@@ -762,8 +762,7 @@ out-of-fold training; if they barely differ the issue is immaterial and this ite
 number is about that of the habitat BRT alone. Two parts of this item exist:
 (a) the REPORTED ACCURACY -- DONE: `metaModel()` now reports the out-of-fold accuracy (`metaHonestEval`, default TRUE), the old
     number stays in `<species>_perf_meta_inSample.rds`;
-(b) the WEIGHTS (ridge trained on out-of-fold inputs) -- still open, decision planned for 2026-10-07, work 2026-10-08 if the
-    uncertainty run and the index are done. The maps change slightly with (b); they do not with (a).
+(b) the WEIGHTS (ridge trained on out-of-fold inputs) -- DONE 2026-10-06 as well (baseline and replicates; DECISIONS.md).
 
 ---
 

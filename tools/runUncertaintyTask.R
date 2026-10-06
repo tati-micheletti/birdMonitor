@@ -13,6 +13,7 @@
 #'   covcache        once: write the habitat covariate stacks of all needed years     [uncertaintyCovcache]
 #'   fit             per species (index = species number): refit the replicate BRTs    [uncertaintyFit]
 #'   coarse          per species: predict the replicate climate and landscape BRTs    [uncertaintyCoarse]
+#'   oof             per species: out-of-fold scale predictions of every replicate    [uncertaintyOof]
 #'   ridge           per species: fit the replicate ridge meta-models                 [uncertaintyRidge]
 #'   bandpredict     per species x band (index = (species - 1) * nBands + band)       [uncertaintyBand]
 #'   summarize       per species x band: percentile maps, change maps, per-pixel trend [uncertaintySummarize]
@@ -100,8 +101,8 @@ if (step == "preflight") {
   uncPreflight(cfg)
 } else if (step == "covcache") {
   runModels("uncertaintyCovcache")
-} else if (step %in% c("fit", "coarse", "ridge", "assemble")) {
-  runModels(c(fit = "uncertaintyFit", coarse = "uncertaintyCoarse", ridge = "uncertaintyRidge", assemble = "uncertaintyAssemble")[[step]],
+} else if (step %in% c("fit", "coarse", "oof", "ridge", "assemble")) {
+  runModels(c(fit = "uncertaintyFit", coarse = "uncertaintyCoarse", oof = "uncertaintyOof", ridge = "uncertaintyRidge", assemble = "uncertaintyAssemble")[[step]],
             runSpecies = speciesOf())
 } else if (step %in% c("bandpredict", "summarize")) {
   sb <- speciesBand()
@@ -119,6 +120,6 @@ if (step == "preflight") {
       uncertaintyDir = file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else "")),
       uncertaintyOnly = TRUE, uncertaintyProbs = probs, uncertaintyBands = nBands)))
 } else {
-  stop("--step must be one of: preflight, covcache, fit, coarse, ridge, bandpredict, summarize, assemble, community, assembleAll (got: ", step, ")")
+  stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll (got: ", step, ")")
 }
 message("=== done: ", step, " in ", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min ===")
