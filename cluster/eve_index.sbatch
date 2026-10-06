@@ -20,7 +20,8 @@
 
 #SBATCH --job-name=birdmon-index
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=8G
+# 16G per CPU (64G): the first run died at 32G (change maps were all kept in memory; fixed, but the regional index is untested on EVE)
+#SBATCH --mem-per-cpu=16G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/index_%j.out
 #SBATCH --error=logs/index_%j.err
