@@ -55,7 +55,10 @@ parseArgs <- function(args) {
     scale    = getArg("--scale"),
     index    = as.integer(getArg("--index", slurmIdx)),
     runName  = getArg("--run-name", "test1"),
-    repoRoot = getArg("--repo-root", getwd())
+    repoRoot = getArg("--repo-root", getwd()),
+    # habitat only: run chunk i of n of the prediction years (see modelGerHabitat(yearChunk))
+    yearChunk = as.integer(getArg("--year-chunk", NA)),
+    nChunks = as.integer(getArg("--n-chunks", NA))
   )
 }
 
@@ -146,7 +149,7 @@ SpaDES.core::simInitAndSpades(
   paths = list(modulePath = file.path(opt$repoRoot, "modules"),
                inputPath  = file.path(opt$repoRoot, "inputs"),
                outputPath = file.path(opt$repoRoot, "outputs", opt$runName)),
-  params = list(models_Monitor = list(
+  params = list(models_Monitor = c(list(
     runScale = opt$scale,
     runSpecies = species,
     predictionYears = predictionYears,
@@ -156,7 +159,7 @@ SpaDES.core::simInitAndSpades(
     habitatResolutionM = sharedHabitatResolutionM,
     landscapeResolutionM = sharedLandscapeResolutionM,
     resolutionConfig = resolutionConfig
-  ))
+  ), if (!is.na(opt$yearChunk) && !is.na(opt$nChunks)) list(habitatYearChunk = c(opt$yearChunk, opt$nChunks))))
 )
 
 message("=== Done: ", opt$scale, " / ", species, " ===")
