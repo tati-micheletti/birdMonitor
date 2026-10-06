@@ -10,7 +10,7 @@ implementation for several items below, especially #4.
 Not on your original list, but concrete and worth fixing before treating any
 model output as scientifically final:
 
-- **Ridge meta-model allows negative coefficients; the paper's doesn't.**
+- **RESOLVED 2026-10-06 (`fitRidgeCv()`, `lower.limits = 0`; DECISIONS.md): Ridge meta-model allowed negative coefficients; the paper's doesn't.**
   Paper (Results/Methods): *"As the lowest relevancy of a scale was no
   relevancy, we did not allow negative coefficients in the model."* — i.e.
   `glmnet` fit with `lower.limits = 0`. Our `metaModel()`

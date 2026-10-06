@@ -4,8 +4,9 @@
 #
 # How to read it:
 #  * climate / landscape / habitat rows: block cross-validation of that scale's BRT = held-out blocks, honest.
-#  * meta rows: the ridge combiner's own block-CV. Its INPUTS (the three scale predictions at the training records) come
-#    from BRTs fitted on all records, so it is optimistic (improvements.md item 16): do NOT quote it as the final map's accuracy.
+#  * meta rows: the ridge combiner's accuracy. 'meta' = computed on OUT-OF-FOLD scale predictions (honest, metaHonestEval);
+#    'meta (in-sample, optimistic)' = the old number, whose inputs come from BRTs fitted on all records (improvements.md
+#    item 16): do NOT quote that one as the final map's accuracy.
 args <- commandArgs(trailingOnly = TRUE)
 run <- if (length(args)) args[1] else "test4"
 root <- file.path("outputs", run)
@@ -25,7 +26,13 @@ for (s in sp) {
       scale <- c(EU = "climate", landscape = "landscape", habitat = "habitat")[[suffix]]
       rows[[length(rows) + 1]] <- read1(f, sc, scale, TRUE)
     }
-    rows[[length(rows) + 1]] <- read1(file.path(d, paste0(s, "_perf_meta.rds")), sc, "meta (optimistic)", FALSE)
+    for (mf in Sys.glob(file.path(d, paste0(s, "_perf_meta.rds")))) {
+      basis <- tryCatch(readRDS(mf)$evalBasis, error = function(e) NULL)
+      honestMeta <- identical(basis, "out-of-fold inputs")
+      rows[[length(rows) + 1]] <- read1(mf, sc, if (honestMeta) "meta" else "meta (in-sample, optimistic)", honestMeta)
+    }
+    for (mf in Sys.glob(file.path(d, paste0(s, "_perf_meta_inSample.rds"))))
+      rows[[length(rows) + 1]] <- read1(mf, sc, "meta (in-sample, optimistic)", FALSE)
   }
 }
 tab <- do.call(rbind, rows)

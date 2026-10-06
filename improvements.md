@@ -758,6 +758,13 @@ already saved (`<species>_foldModels_<scale>.rds`), so out-of-fold suitability a
 refitting. **Check, don't assume:** compare the ridge coefficients (and block-CV AUC of the final map) with in-sample vs
 out-of-fold training; if they barely differ the issue is immaterial and this item can be closed.
 
+**Update 2026-10-06:** the check was run (`tools/runMetaCheck.R`): the pipeline's meta-model AUC (~0.99) was inflated; the honest
+number is about that of the habitat BRT alone. Two parts of this item exist:
+(a) the REPORTED ACCURACY -- DONE: `metaModel()` now reports the out-of-fold accuracy (`metaHonestEval`, default TRUE), the old
+    number stays in `<species>_perf_meta_inSample.rds`;
+(b) the WEIGHTS (ridge trained on out-of-fold inputs) -- still open, decision planned for 2026-10-07, work 2026-10-08 if the
+    uncertainty run and the index are done. The maps change slightly with (b); they do not with (a).
+
 ---
 
 *Some of these have started -- for discussion once the current run's

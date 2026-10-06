@@ -1227,3 +1227,20 @@ very different from each other; check `replicate_log.csv` and, if needed, the se
   against a real model run.
 - **Per-species covariate resolution** (`resolution_m` column) -- captured in
   the config CSV, no consuming code yet. See `improvements.md` item 4.
+
+## 2026-10-06 -- Meta-model: no negative weights; accuracy reported on out-of-fold inputs
+
+**Non-negative weights.** Every ridge fit now goes through `fitRidgeCv()` (`glmnet`, `lower.limits = 0`): a scale can get
+weight 0 but never a negative weight. Why it was missing: the original (pre-SpaDES) script had no constraint, the port kept it
+faithfully, and TODO.md section 0 listed it as "needs an explicit decision" -- nobody made it until now. Wiedenroth et al. do
+constrain it ("we did not allow negative coefficients in the model"). Consequence: maps change where a weight was negative
+(e.g. Lanius climate); `fitDevRatio()` / variable importance, the trend bootstrap, the out-of-fold check and the uncertainty
+replicates' ridge (`uncRidgeSpecies()`) use the same constraint, so replicate 0 still equals the baseline.
+
+**Accuracy on out-of-fold inputs.** `metaModel()` (`honestCfg`, parameter `metaHonestEval`) reports in `<species>_perf_meta.rds`
+the accuracy of the combiner when every habitat record is predicted by models that never saw its block (`metaOutOfFoldCheck()`:
+habitat = fold model of the record's fold; landscape/climate = fold model of the nearest record's fold, an approximation because
+the blocks were not saved). The old in-sample number is kept in `<species>_perf_meta_inSample.rds` (AUC ~0.99, flattered). The
+binary-map threshold still comes from the in-sample evaluation (not to change maps for a reporting fix). Wiedenroth validate
+with out-of-fold habitat predictions too; the weights of the final model are trained on in-sample inputs in both
+(improvements.md item 16 (b) remains open).
