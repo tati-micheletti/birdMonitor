@@ -20,9 +20,9 @@
 
 #SBATCH --job-name=birdmon-index
 #SBATCH --cpus-per-task=4
-# 10G per CPU (40G): the first run died at 32G (change maps were all kept in memory; fixed). A guess with head-room, because the
-# regional index has never run on EVE -- read the real peak afterwards: sacct -j <jobid> --format=MaxRSS, and tighten this.
-#SBATCH --mem-per-cpu=10G
+# 16G per CPU (64G), by choice: the first run died at 32G (change maps were all kept in memory; fixed) and a crash costs more than the
+# larger request. The regional index has never run on EVE -- read the real peak afterwards (sacct -j <jobid> --format=MaxRSS).
+#SBATCH --mem-per-cpu=16G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/index_%j.out
 #SBATCH --error=logs/index_%j.err
