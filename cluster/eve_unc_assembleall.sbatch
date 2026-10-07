@@ -12,4 +12,4 @@ set -euo pipefail
 mkdir -p logs
 source "${SLURM_SUBMIT_DIR}/cluster/eve_unc_common.sh"
 export BIRDMONITOR_UNC_CORES="${SLURM_CPUS_PER_TASK:-1}"
-Rscript tools/runUncertaintyTask.R --step assembleAll
+unc_run Rscript tools/runUncertaintyTask.R --step assembleAll

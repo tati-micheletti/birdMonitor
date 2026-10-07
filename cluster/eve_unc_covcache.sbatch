@@ -16,5 +16,5 @@ source "${SLURM_SUBMIT_DIR}/cluster/eve_unc_common.sh"
 export BIRDMONITOR_UNC_CORES="${SLURM_CPUS_PER_TASK:-1}"
 # Pre-flight first: when the chain is queued behind the baseline (UNC_AFTER) the inputs do not exist yet at submit time,
 # so the check runs here, once they do. A failed check stops the job and, through the dependencies, the whole chain.
-Rscript tools/runUncertaintyTask.R --step preflight
-Rscript tools/runUncertaintyTask.R --step covcache
+unc_run Rscript tools/runUncertaintyTask.R --step preflight
+unc_run Rscript tools/runUncertaintyTask.R --step covcache

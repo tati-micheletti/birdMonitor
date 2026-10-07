@@ -14,5 +14,5 @@ mkdir -p logs
 source "${SLURM_SUBMIT_DIR}/cluster/eve_unc_common.sh"
 export BIRDMONITOR_UNC_CORES="${SLURM_CPUS_PER_TASK:-1}"
 for step in fit coarse oof ridge; do
-  Rscript tools/runUncertaintyTask.R --step ${step} --index "${SLURM_ARRAY_TASK_ID}"
+  unc_run Rscript tools/runUncertaintyTask.R --step ${step} --index "${SLURM_ARRAY_TASK_ID}"
 done

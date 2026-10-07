@@ -123,3 +123,7 @@ if (step == "preflight") {
   stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll (got: ", step, ")")
 }
 message("=== done: ", step, " in ", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min ===")
+# Tell the SLURM wrapper (cluster/eve_unc_common.sh, unc_run) that the work is COMPLETE: R/terra can crash with a segmentation
+# fault while shutting down, after everything was written, which SLURM would otherwise count as a failed task.
+marker <- Sys.getenv("UNC_DONE_MARKER", "")
+if (nzchar(marker)) writeLines("ok", marker)
