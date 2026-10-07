@@ -1274,3 +1274,26 @@ tasmin 2022-01 = 273.3 K, tasmin 2022-04 = 276.5 K (was zeros), tasmax 2025-04/0
 **To redo (needs Tati's go-ahead):** re-download the 2022-2025 daily temperature (about 3,000 small files), rebuild the four bioclim windows
 (old window files moved aside, not deleted), then climate predictions 2022-2025, meta-model, uncertainty (coarse climate, out-of-fold, ridge, band,
 summarize...), index. Precipitation was not affected.
+
+## 2026-10-07 -- Multi-algorithm ensemble (branch feature/ensemble): registry, BRT as a member, any member set
+
+Built after Tati's requests ("more models, e.g. a NN; BRT part of it; easy to turn on and off; choose which ones enter the ensemble to test
+one out, two out"). Design:
+- `algoRegistry()` (models_Monitor R/algoModels.R): glm, gam, rf, nn, each = fit / refit / predict; `ALGO_MEMBERS = c("brt","glm","gam","rf","nn")`.
+  Adding a model = one registry entry + its name. glm/gam/rf follow Wiedenroth et al. (04c): GLM linear+quadratic with AIC `step()`, GAM `mgcv`
+  `s(x, k = 4)`, random forest = REGRESSION forest with 1000 trees but run with `ranger` (several times faster, uses all cores; defaults matched
+  to `randomForest`: mtry = max(floor(p/3), 1), min.node.size 5) -- a documented deviation. `nn` = `nnet`, 1 hidden layer (10 units), decay 0.1,
+  standardised inputs, mean of 5 starts: first version, hyper-parameters NOT tuned, beyond Wiedenroth et al.
+- The BRT is a member like the others: its out-of-fold predictions are rebuilt from its saved fold models (`brtMemberRun()`); not refitted.
+- Every model uses the SAME predictors and spatial folds as the BRT of that scale. Files: `<sp>_<algo>_<scale>.rds`, `_perf_`, `_cvpred_`, `_oofhab_`,
+  `_pred_<algo>_<scale>_<year>.tif` next to the BRT outputs (new names only).
+- Ensemble = arithmetic mean of the chosen members' maps (NA where any member is NA); named by `ensTag(members)`: "ens" for brt+glm+gam+rf,
+  otherwise "ens_<members>" (e.g. "ens_brt-gam"); each name has its own perf/cvpred/oofhab/maps, meta-model folder
+  `metamodel_<label>_<name>` (`metaModel(scaleSource = <name>)`, honest weights from the members' out-of-fold predictions at the habitat records,
+  `metaOutOfFoldEnsemble()`), and index folders (`annual_report_<name>`, `regional_index_<name>` via runIndex_Monitor `outputTag`).
+- Averaging maps is cheap, so ensembles can be compared without refitting: `cluster/submit_eve_ensemble.sh` (`ENS_ALGOS` = what to fit,
+  `ENS_VARIANTS` = member sets).
+- Cost (single core, one habitat-scale year of 14.9M cells): BRT 420 s, random forest (ranger, 1 thread) 1560 s (4 threads ~400 s), GAM 990 s,
+  GLM 4 s. The ensemble BOOTSTRAP (uncertainty with the ensemble inside each replicate) is not built yet.
+Local test (Alauda, block CV AUC): landscape BRT 0.865, GLM 0.878, GAM 0.875, RF 0.871, NN 0.879, ensemble of all five 0.885; habitat BRT 0.936,
+ensemble(brt,glm,gam,rf) 0.946.
