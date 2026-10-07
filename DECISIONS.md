@@ -1274,3 +1274,10 @@ tasmin 2022-01 = 273.3 K, tasmin 2022-04 = 276.5 K (was zeros), tasmax 2025-04/0
 **To redo (needs Tati's go-ahead):** re-download the 2022-2025 daily temperature (about 3,000 small files), rebuild the four bioclim windows
 (old window files moved aside, not deleted), then climate predictions 2022-2025, meta-model, uncertainty (coarse climate, out-of-fold, ridge, band,
 summarize...), index. Precipitation was not affected.
+
+**Addendum 2026-10-07 (root cause of the zeros / 6553.4).** Re-reading April 2022 tasmin with the fixed code, day 6 failed with a GDAL partial-read error
+("Cannot read offset/size for strile", CHELSA_tasmin_06_04_2022_V.2.1.tif). A remote (`/vsicurl/`) read that fails PARTLY returns zeros/fill values
+instead of an error in some setups -- that is where the zeros (tasmin Apr 2022) and 6553.4 (tasmax Apr/May 2025) in our caches came from. It is a
+transient read failure, not CHELSA's data and not the units (the rasters are in Kelvin; 0 K is impossible, so 0 was a fill value). `readDailyCropped()`
+now retries failed reads, sets fill values to NA, and `completeDailyLayers()` re-reads/drops layers with fewer valid cells than the month's median.
+Verified on April 2022 tasmin over the whole European extent: mean 278.0 K (range 249-293), old cache mean 52.5 K.
