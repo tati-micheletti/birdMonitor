@@ -60,7 +60,13 @@ cores <- as.integer(env("BIRDMONITOR_UNC_CORES", Sys.getenv("SLURM_CPUS_PER_TASK
 probs <- as.numeric(strsplit(env("BIRDMONITOR_UNC_PROBS", "0.05,0.95"), ",")[[1]])
 baselineYear <- as.integer(env("BIRDMONITOR_UNC_BASELINE", "2005"))
 currentYear <- max(sharedHabitatYears)
+uncMembers <- if (nzchar(env("BIRDMONITOR_UNC_MEMBERS"))) strsplit(env("BIRDMONITOR_UNC_MEMBERS"), ",")[[1]] else NA_character_
 tag <- env("BIRDMONITOR_UNC_TAG", "")
+ensembleRun <- !all(is.na(uncMembers))
+if (ensembleRun) {                      # ensemble run: its folder name is the ensemble's name (ensTag(), see algoModels.R)
+  invisible(source(file.path(repoRoot, "modules", "models_Monitor", "R", "algoModels.R")))
+  if (!nzchar(tag)) tag <- ensTag(uncMembers)
+}
 habitatYearsAll <- resolveYearsPerSpecies(sharedSpecies, "habitat", habitatYearsConfig, sharedHabitatYears)
 inputRoot <- file.path(repoRoot, "inputs")
 outputRoot <- file.path(repoRoot, "outputs", runName)
@@ -72,7 +78,7 @@ modelParams <- list(
   uncertaintyReps = reps, uncertaintySpecies = sharedSpecies, uncertaintyYears = outYears, uncertaintyBands = nBands,
   uncertaintyRepBatch = as.integer(env("BIRDMONITOR_UNC_REPBATCH", "10")), uncertaintyCores = max(1L, cores),
   uncertaintyBlockMult = as.numeric(env("BIRDMONITOR_UNC_BLOCKMULT", "1")), uncertaintyProbs = probs,
-  uncertaintyTag = tag, uncertaintyBaselineYear = baselineYear, uncertaintyCurrentYear = currentYear)
+  uncertaintyTag = tag, uncertaintyMembers = uncMembers, uncertaintyBaselineYear = baselineYear, uncertaintyCurrentYear = currentYear)
 
 needIndex <- function(n) if (is.na(index) || index < 1 || index > n) stop("--index must be 1..", n, " for step ", step, " (got ", index, ")")
 message("=== uncertainty task: step = ", step, " | run = ", runName, " | replicates ", min(reps), "-", max(reps),
@@ -118,7 +124,8 @@ if (step == "preflight") {
     params = list(runIndex_Monitor = list(
       species = sharedSpecies, allYears = predictionYears, currentYear = currentYear, baselineYear = baselineYear,
       uncertaintyDir = file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else "")),
-      uncertaintyOnly = TRUE, uncertaintyProbs = probs, uncertaintyBands = nBands)))
+      uncertaintyOnly = TRUE, uncertaintyProbs = probs, uncertaintyBands = nBands,
+      outputTag = if (ensembleRun) tag else "")))   # the ensemble's index intervals go to annual_report_<tag>/, the BRT-only ones as before
 } else {
   stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll (got: ", step, ")")
 }
