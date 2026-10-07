@@ -58,7 +58,9 @@ parseArgs <- function(args) {
     repoRoot = getArg("--repo-root", getwd()),
     # habitat only: run chunk i of n of the prediction years (see modelGerHabitat(yearChunk))
     yearChunk = as.integer(getArg("--year-chunk", NA)),
-    nChunks = as.integer(getArg("--n-chunks", NA))
+    nChunks = as.integer(getArg("--n-chunks", NA)),
+    # meta only: "brt" (default) or "ens" = combine the ENSEMBLE maps of the three scales (feature/ensemble)
+    metaSource = getArg("--meta-source", "brt")
   )
 }
 
@@ -159,7 +161,8 @@ SpaDES.core::simInitAndSpades(
     habitatResolutionM = sharedHabitatResolutionM,
     landscapeResolutionM = sharedLandscapeResolutionM,
     resolutionConfig = resolutionConfig
-  ), if (!is.na(opt$yearChunk) && !is.na(opt$nChunks)) list(habitatYearChunk = c(opt$yearChunk, opt$nChunks))))
+  ), if (!is.na(opt$yearChunk) && !is.na(opt$nChunks)) list(habitatYearChunk = c(opt$yearChunk, opt$nChunks)),
+     list(metaScaleSource = opt$metaSource)))
 )
 
 message("=== Done: ", opt$scale, " / ", species, " ===")

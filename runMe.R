@@ -305,7 +305,9 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         cellSizesM = sharedRegionalCellSizesM,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
-        landscapeResolutionM = sharedLandscapeResolutionM
+        landscapeResolutionM = sharedLandscapeResolutionM,
+        # "" (default) = BRT meta-model; BIRDMONITOR_INDEX_TAG=ens = the ENSEMBLE meta-model (feature/ensemble; own output folders)
+        outputTag = Sys.getenv("BIRDMONITOR_INDEX_TAG", "")
         # indexSpecies: left at module default (NULL -> uses `species`) --
         # set to a subset here for a restricted test report/index.
         # changeThresh / nBoot / nSim / useBootstrapSE / pollIntervalSeconds /
