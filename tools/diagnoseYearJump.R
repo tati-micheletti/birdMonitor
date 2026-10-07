@@ -6,8 +6,9 @@
 #   A. the country mean (inside Germany) and the number of valid cells of each scale's prediction and of the meta-model, per year
 #      -> which scale (climate / landscape / habitat) carries the jump, and does the valid-cell count change?
 #   B. the replicate spread of the area mean per year (uncertainty run) -> do ALL replicates drop, or only a few?
-#   C. for the most influential predictors of each scale (gbm relative influence): the country mean of the covariate per year, and
-#      the share of cells OUTSIDE the range of the training data -> does a covariate change at the jump, does the model extrapolate?
+#   C. for the most influential predictors of each scale (gbm relative influence): the mean of the covariate per year over the cells that
+#      are predicted (inside Germany), and the share of those cells OUTSIDE the range of the training data -> does a covariate change at the
+#      jump, does the model extrapolate?
 args <- commandArgs(trailingOnly = TRUE)
 getArg <- function(flag, default = NULL) { i <- which(args == flag); if (length(i)) args[i + 1] else default }
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
@@ -90,10 +91,15 @@ for (sp in spList) {
     M <- matrix(NA_real_, length(top), length(years), dimnames = list(top, years)); out <- setNames(rep(NA_real_, length(top)), top)
     for (j in seq_along(years)) {
       cov <- covOf(scale, years[j]); if (is.null(cov)) next
+      # ONLY cells where the habitat prediction of that year exists (= inside Germany, all predictors complete). The covariate stacks
+      # also cover sea and neighbouring countries; including them inflated the means and the "outside the training range" shares.
+      hp <- terra::rast(predFile("habitat", years[j]))[[1]]; vm01 <- terra::ifel(is.na(hp), 0, 1)
       for (p in intersect(top, names(cov))) {
-        M[p, j] <- terra::global(cov[[p]], "mean", na.rm = TRUE)[1, 1]
+        x <- cov[[p]]
+        x <- if (scale == "habitat") terra::ifel(vm01 == 1, x, NA) else terra::ifel(terra::resample(vm01, x, method = "average") >= 0.5, x, NA)
+        M[p, j] <- terra::global(x, "mean", na.rm = TRUE)[1, 1]
         if (j == length(years)) { lo <- min(tr[[p]], na.rm = TRUE); hi <- max(tr[[p]], na.rm = TRUE)
-          out[p] <- terra::global((cov[[p]] < lo) | (cov[[p]] > hi), "mean", na.rm = TRUE)[1, 1] }
+          out[p] <- terra::global((x < lo) | (x > hi), "mean", na.rm = TRUE)[1, 1] }
       }
     }
     D <- data.frame(predictor = top, signif(M, 4), outsideTrainingRange = round(out, 4), check.names = FALSE); rownames(D) <- NULL
