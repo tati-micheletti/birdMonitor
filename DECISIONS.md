@@ -1250,3 +1250,27 @@ out-of-fold). The replicates do the same: new step `oof` (`uncOofSpecies()`) ref
 fold to get out-of-fold inputs (about 4x the previous BRT fitting cost per replicate); `ridge` refuses to run without it.
 Verified locally: replicate 0 equals the baseline (area mean relative difference 3e-11). Maps are rebuilt automatically when the
 weights differ from those of the existing maps (`<species>_meta_ridgeid.txt`). improvements.md item 16 is closed by this.
+
+## 2026-10-07 -- Climate layers 2022-2025 were inconsistent with 2005-2021 (found while explaining last-year drops)
+
+**Found while investigating why the index of Anthus pratensis / Lullula arborea drops in 2025** (tools/diagnoseYearJump.R on the local
+mini baseline showed the 2025 climate predictors, e.g. bio1 = 28.7 and bio10 = 87.7 degrees, impossible values).
+Causes, all in `dataPrep_Monitor` (`getMonthlyFile()`), confirmed on the cached monthly rasters (tools/checkClimateMonthly.R) and by
+re-downloading one month of daily CHELSA data (January 2022, Germany, tasmin: old cache 269.2 K, mean of daily minima 273.3 K,
+January 2021 from the monthly product 271.6 K):
+1. **Min/max instead of mean.** From 2022 (`monthlyMaxYr = 2021`) tasmin/tasmax come from DAILY files and were aggregated as the MIN of the
+   daily minima and the MAX of the daily maxima. CHELSA's monthly product (years <= 2021) and the bioclim definition use the MEAN of the daily
+   values. Result: a break at 2022 (Europe mean: tasmin 280.5 -> 276.4 K, tasmax 285.1 -> 290.4 K; temperature seasonality bio4 +30%).
+2. **Fill values kept as data:** tasmin April 2022 contains zeros, tasmax April and May 2025 contain 6553.4 (= 65534 x 0.1). These made the
+   2020-2025 window absurd (bio1 28.7).
+3. 2025 has only January-September (9 months). Unused months simply reduce the number of years averaged for that calendar month.
+**Consequence:** climate-scale predictions for target years 2022-2025 (windows 2017-2022 ... 2020-2025) are unreliable, and these are exactly the
+years the meta-model weights are trained on (the habitat years) -- which probably contributed to the climate weight being 0 for 7 of 11 species.
+Years 2005-2021 are consistent with each other.
+**Fix (dataPrep_Monitor `getMonthlyFile()`):** daily aggregation of tasmin/tasmax = mean; fill values outside 150-350 K (temperature) or
+0-2000 mm (precipitation) set to NA; a month with < 90% of its days is not used; months aggregated from daily data after `monthlyMaxYr` are cached
+under a NEW name (`<var>_<year>_<month>_dmean.tif`), so nothing old is reused and nothing has to be deleted. Tested on real daily data:
+tasmin 2022-01 = 273.3 K, tasmin 2022-04 = 276.5 K (was zeros), tasmax 2025-04/05 = 287.8/289.8 K (was 6553.4).
+**To redo (needs Tati's go-ahead):** re-download the 2022-2025 daily temperature (about 3,000 small files), rebuild the four bioclim windows
+(old window files moved aside, not deleted), then climate predictions 2022-2025, meta-model, uncertainty (coarse climate, out-of-fold, ridge, band,
+summarize...), index. Precipitation was not affected.
