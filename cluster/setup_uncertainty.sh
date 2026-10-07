@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-time, on an EVE login node: installs the one extra R package the uncertainty workflow needs (matrixStats)
+# One-time, on an EVE login node: installs the extra R packages the uncertainty workflow (matrixStats) and the algorithm ensemble (ranger) need
 # into the same personal library the other packages live in. Safe to run again.
 #
 #   cd ~/projects/birdMonitor
@@ -16,8 +16,8 @@ Rscript -e '
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs) == 0) stop("The birdMonitor R library was not found -- run cluster/setup_eve.sh first.")
 .libPaths(c(libs, .libPaths()))
-if (!requireNamespace("matrixStats", quietly = TRUE)) install.packages("matrixStats", lib = libs[1], repos = "https://cloud.r-project.org")
-for (p in c("matrixStats", "gbm", "glmnet", "terra", "sf", "blockCV"))
+for (p in c("matrixStats", "ranger")) if (!requireNamespace(p, quietly = TRUE)) install.packages(p, lib = libs[1], repos = "https://cloud.r-project.org")
+for (p in c("matrixStats", "ranger", "mgcv", "gbm", "glmnet", "terra", "sf", "blockCV"))
   cat(sprintf("%-12s %s
 ", p, if (requireNamespace(p, quietly = TRUE)) as.character(packageVersion(p)) else "MISSING"))
 '
