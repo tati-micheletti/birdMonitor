@@ -4,6 +4,15 @@ libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonito
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
 dir <- file.path("inputs", "predictors", "processed", "scale_50")
+# every target year of the run needs its window: a MISSING window must stop the rerun just like a broken one (found 2026-10-08: the check
+# looked only at the windows that existed, and let a run start before the corrected 2022-2025 windows had been uploaded)
+source("tools/sharedConfig.R")
+expected <- file.path(dir, sprintf("bioclim_%d-%d_scale_50.tif", predictionYears - (sharedClimateWindowLength - 1), predictionYears))
+missingWin <- expected[!file.exists(expected)]
+if (length(missingWin)) { cat("MISSING window(s):
+", paste0("  ", basename(missingWin), collapse = "
+"), "
+"); quit(status = 1) }
 fs <- sort(list.files(dir, pattern = "^bioclim_[0-9]{4}-[0-9]{4}_scale_50[.]tif$", full.names = TRUE))
 de <- ext(4031000, 4672000, 2684000, 3550000)   # rough Germany, EPSG:3035
 chk <- do.call(rbind, lapply(fs, function(f) { r <- crop(rast(f), de)
