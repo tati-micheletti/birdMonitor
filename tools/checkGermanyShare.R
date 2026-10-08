@@ -7,6 +7,7 @@ runName <- if (length(args) >= 1) args[1] else "test4"; yr <- if (length(args) >
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
+source("modules/models_Monitor/R/uncRegional.R")          # uncOutlineLAEA(): the outline without a GDAL/PROJ transformation
 fs <- Sys.glob(file.path("outputs", runName, "metamodel_*", sprintf("*_meta_suitability_%d.tif", yr)))
 fs <- fs[!grepl("_ens_", fs)]
 if (!length(fs)) stop("No meta_suitability files for year ", yr, " under outputs/", runName)
@@ -14,7 +15,7 @@ cat("Checking", length(fs), "species maps of", yr, "\n\n")
 b <- NULL; out <- list()
 for (f in fs) {
   r <- terra::rast(f)[["meta_prob"]]
-  if (is.null(b)) b <- terra::project(geodata::gadm(country = "DEU", level = 0, path = file.path("inputs", "predictors", "raw", "gadm")), terra::crs(r))
+  if (is.null(b)) b <- uncOutlineLAEA(file.path("inputs", "predictors", "raw", "gadm"), terra::crs(r))   # pure-R transform: terra/sf can flip x/y on EVE
   n <- terra::global(!is.na(r), "sum")[1, 1]
   rg <- terra::mask(terra::crop(r, b), b)
   nG <- terra::global(!is.na(rg), "sum")[1, 1]

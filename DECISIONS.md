@@ -1338,3 +1338,13 @@ year and replicate), `regionindex` (once: index per replicate, intervals, change
   but only 64.4% of the window lies inside Germany. The national area means (species indices, combined indices and their intervals) average ALL pixels of
   the window, i.e. including about 35% non-German pixels, whereas the regional indices are masked to Germany. If confirmed on the real maps, the national
   indices should be masked too (a decision for Tati; changes the baseline and the uncertainty area means).
+
+**Addendum 2026-10-08 (night): the German outline is built WITHOUT a GDAL/PROJ transformation.** The first EVE run of `tools/checkGermanyShare.R` stopped for all
+11 species with "[crop] extents do not overlap": in that plain terra job `terra::project(<GADM outline>, crs(raster))` returned the outline with x and y exchanged
+(extent printed as 2684140 3551246 4031313 4672526 while the maps are x 4031221-4672821, y 2683830-3551630) -- the EPSG:3035 axis-order problem of 2026-10-05
+(depends on which geo library initialised first; the baseline index job, a full SpaDES session, projected it correctly). The regional steps would have crashed
+the same way. Fix: `uncOutlineLAEA()` (models_Monitor R/uncRegional.R) transforms the outline's lon/lat vertices with the closed-form LAEA formula (a copy of
+dataPrep_Monitor's `lonLatToLAEA()`), labels them with the raster CRS and stops if the result is not in Germany's box. Local tests: it equals
+`terra::project` to < 5 m where terra behaves; the regional chain and the parity test (replicate 0 vs the baseline code) pass with it. The BASELINE
+`aggregateSpeciesToGrid()` still uses `terra::project(countryBoundary, crs(r))` (works in the full index session; it would stop with the same crop error, not
+give wrong numbers, if the axes ever flipped there).
