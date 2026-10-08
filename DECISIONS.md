@@ -1348,3 +1348,24 @@ dataPrep_Monitor's `lonLatToLAEA()`), labels them with the raster CRS and stops 
 `terra::project` to < 5 m where terra behaves; the regional chain and the parity test (replicate 0 vs the baseline code) pass with it. The BASELINE
 `aggregateSpeciesToGrid()` still uses `terra::project(countryBoundary, crs(r))` (works in the full index session; it would stop with the same crop error, not
 give wrong numbers, if the axes ever flipped there).
+
+## 2026-10-08 -- National indices and maps masked to Germany (branch feature/germany-mask); proper fix planned after the Steering Consortium meeting
+
+**Finding (EVE, `tools/checkGermanyShare.R`, job 63182183, year 2025):** the prediction window is the bounding box of Germany (13.9 M pixels of 200 m, 8.97 M inside
+Germany). Seven species (Alauda, Anthus, Buteo, E. calandra, Perdix, Saxicola, Vanellus) have predictions over the WHOLE window (35.4% of their pixels outside
+Germany), four (E. citrinella, Lanius, Lullula, Sturnus) only inside Germany -- exactly the species whose models use `hedges` / `landscape_heterogeneity`, layers
+that none of the other seven uses (German-only, inferred from the predictor lists, layers not opened). The national area means (species indices, combined
+indices, their intervals) therefore averaged different areas per species; area means differ by up to 55% (Saxicola 0.147 vs 0.095 inside Germany).
+Tati: nothing should be computed or predicted outside Germany; ALL inputs should be cut to the study-area outline at the source, not to a bounding box.
+**Decision: do that properly AFTER the Steering Consortium meeting. For now: mask to Germany and recalculate.**
+
+Quick path (no change to the model or index logic, rectangle results stay untouched for comparison):
+1. `tools/maskMetaModels.R` (`cluster/eve_mask_meta.sbatch`, array over species) writes Germany-only COPIES of every meta-model map to `metamodel_<res>_germany/`
+   (outline from a closed-form transformation, `touches = TRUE`; values inside Germany identical, locally to 0). The baseline index is then run on them with
+   `BIRDMONITOR_INDEX_TAG=germany` -> `annual_report_germany/`, `regional_index_germany/` (`cluster/submit_eve_germany_baseline.sh`).
+2. The regional assemble also writes `<species>/area_mean_replicates_germany.csv` (national mean of the German pixels, per replicate and year, from the cell sums);
+   `computeIndexUncertainty(areaMeanFile = ...)` / module parameter `uncertaintyAreaMeanFile` / env `BIRDMONITOR_UNC_AREAMEAN` select it; the re-run of `assembleAll` with
+   `BIRDMONITOR_INDEX_TAG=germany` writes the Germany-only interval files to `annual_report_germany/`.
+3. `maskmaps` step (`cluster/eve_unc_maskmaps.sbatch`): Germany-only copies of the finished uncertainty maps (`maps_germany/`, `community_germany/`).
+All of it is chained by `cluster/submit_eve_regional.sh` (after the band stage; `UNC_FINAL` = the main chain's last job). Local mini run (Alauda): masked and unmasked
+area means 0.6700 vs 0.6554 (2025), index 98.6 vs 98.4; the 2020-2025 trend of the national mean even changes sign (-1.3% vs +0.1%).

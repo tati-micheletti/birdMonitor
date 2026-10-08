@@ -39,7 +39,7 @@ if (!length(out)) stop("No map could be checked (see the ERROR lines above).")
 res <- do.call(rbind, out); rownames(res) <- NULL
 print(res)
 cat(sprintf("
-Share of the pixels with a value that lies OUTSIDE Germany: %.1f%% (same for every species if the window is the same).
+Share of the pixels with a value that lies OUTSIDE Germany: %.1f%% (this is the mean over the species; it differs by species).
 ", 100 * mean(res$shareOutside)))
 cat("If this is well above 0, the national area means include foreign pixels; the two area-mean columns show how much that changes each species' level.
 ")
