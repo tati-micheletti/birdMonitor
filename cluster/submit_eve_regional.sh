@@ -19,6 +19,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
+# refuse to run twice: a second submission writes the same files at the same time (happened 2026-10-08)
+if [ "${FORCE:-0}" != "1" ] && squeue -u "${USER}" -h -o "%j" | grep -qE "^unc-regionband|unc-regionassemble|unc-regionindex|unc-maskmaps$"; then
+  echo "STOP: jobs of this workflow are already in the queue (see: squeue -u ${USER}). Submitting again would make two runs write the same files." >&2
+  echo "      If you are sure, run it again with FORCE=1 in front of the command." >&2
+  exit 1
+fi
 EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 if ! type module >/dev/null 2>&1; then echo "The 'module' command is missing. Run this script as:  bash --login cluster/submit_eve_regional.sh" >&2; exit 1; fi
 module load ${EVE_R_MODULE}
