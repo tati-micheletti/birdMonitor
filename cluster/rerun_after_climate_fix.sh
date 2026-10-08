@@ -63,7 +63,9 @@ elif [ -d "${NEW}" ]; then echo "  ${OLD} already moved aside; ${NEW} exists"; e
 
 echo "=== 2./3. climate predictions + meta-model (europe array), then the baseline index"
 eur=$(sbatch --parsable modules/models_Monitor/cluster/eve_array_europe.sbatch); echo "europe array: ${eur}"
-idx=$(sbatch --parsable --dependency=afterok:${eur} cluster/eve_index.sbatch); echo "index:        ${idx}"
+# the meta-model does NOT start by itself after a rerun of the europe array (found 2026-10-08): submit its array explicitly
+meta=$(sbatch --parsable --dependency=afterok:${eur} --array=1-11 modules/models_Monitor/cluster/eve_array_meta.sbatch); echo "meta-models:  ${meta}"
+idx=$(sbatch --parsable --dependency=afterok:${meta} cluster/eve_index.sbatch); echo "index:        ${idx}"
 
 echo "=== 4. uncertainty chain (run tag honest2)"
 UNCOUT=$(BIRDMONITOR_UNC_TAG=honest2 UNC_THROTTLE="${UNC_THROTTLE:-100}" bash cluster/submit_eve_uncertainty.sh | tee /dev/stderr)
@@ -71,15 +73,16 @@ UNCIDS=$(echo "${UNCOUT}" | grep -E "^(covcache|prepare|band|summarize|assemble|
 echo
 echo "================================================================================"
 echo "SUBMITTED. What happens, in order:"
-echo "  1. europe array ${eur}: corrected climate predictions + the meta-model of each species (~10-20 min)"
-echo "  2. index ${idx}: baseline index on the corrected maps (~35 min after 1)"
-echo "  3. uncertainty chain (${UNCIDS}): prepare (~1 h), then the band stage (the long part, ~10-13 h), then summaries"
+echo "  1. europe array ${eur}: corrected climate predictions (~10 min)"
+echo "  2. meta-models ${meta}: honest weights per species (~15 min after 1)"
+echo "  3. index ${idx}: baseline index on the corrected maps (~35 min after 2)"
+echo "  4. uncertainty chain (${UNCIDS}): prepare (~1 h), then the band stage (the long part, ~10-13 h), then summaries"
 echo
 echo "CHECK AT ANY TIME (read-only; paste the output to me):"
-echo "  cd ~/projects/birdMonitor && bash cluster/status.sh ${eur} ${idx} ${UNCIDS}"
+echo "  cd ~/projects/birdMonitor && bash cluster/status.sh ${eur} ${meta} ${idx} ${UNCIDS}"
 echo
 echo "CHECK THE META-MODELS ~30 min from now (weights must be >= 0, 'out-of-fold inputs', honest AUC):"
-echo "  for f in logs/europe_${eur}_*.err; do echo \"== \$f\"; grep -E 'Coefficients|Performance \\(' \"\$f\" | tail -2; done"
+echo "  for f in logs/meta_${meta}_*.err; do echo \"== \$f\"; grep -E 'Coefficients|Performance \\(' \"\$f\" | tail -2; done"
 echo "CHECK THE INDEX when it is COMPLETED (peak memory):"
 echo "  sacct -j ${idx} --format=JobID,State,Elapsed,MaxRSS,ReqMem | head -5"
 echo "CHECK THE REPLICATE-0 PARITY when the whole chain is COMPLETED (every species must say RESULT: OK):"
