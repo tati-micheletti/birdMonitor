@@ -8,6 +8,7 @@
 #
 #   Rscript tools/maskMetaModels.R --index <species number 1..11>        (cluster: cluster/eve_mask_meta.sbatch, an array over the species)
 #   [BIRDMONITOR_RUNNAME=test4]  [--species "Genus species"] instead of --index for a local test
+#   MASK_META_TAG=ens_brt-glm-gam-rf-nn  masks the folder of that ensemble instead (output ..._germany, index tag <tag>_germany)
 # The outline comes from a closed-form transformation (no GDAL/PROJ axis problem on EVE, see uncOutlineLAEA()); touches = TRUE like the baseline mask.
 Sys.setenv(OMP_NUM_THREADS = "1")
 args <- commandArgs(trailingOnly = TRUE)
@@ -23,7 +24,8 @@ sp <- getArg("--species")
 if (is.null(sp)) { i <- as.integer(getArg("--index", Sys.getenv("SLURM_ARRAY_TASK_ID", NA))); if (is.na(i) || i < 1 || i > length(sharedSpecies)) stop("--index must be 1..", length(sharedSpecies)); sp <- sharedSpecies[i] }
 spClean <- gsub(" ", "_", sp)
 dirs <- list.dirs(file.path("outputs", runName), recursive = FALSE, full.names = TRUE)
-metaDir <- dirs[grepl("^metamodel_[0-9_]+$", basename(dirs))]
+metaTag <- Sys.getenv("MASK_META_TAG", "")             # "" = the BRT-only meta-model folder; e.g. ens_brt-glm-gam-rf-nn for an ensemble
+metaDir <- dirs[grepl(paste0("^metamodel_[0-9_]+", if (nzchar(metaTag)) paste0("_", metaTag) else "", "$"), basename(dirs))]
 if (length(metaDir) != 1) stop("Expected exactly one metamodel_<resolutions> folder under outputs/", runName, ", found: ", paste(basename(metaDir), collapse = ", "))
 outDir <- paste0(metaDir, "_germany"); dir.create(outDir, showWarnings = FALSE)
 fs <- sort(list.files(metaDir, pattern = paste0("^", spClean, "_meta_suitability_[0-9]{4}[.]tif$"), full.names = TRUE))

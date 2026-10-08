@@ -43,7 +43,8 @@ ra=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSP} --dependency=afterok
 echo "regionassemble: ${ra}"
 ri=$(sbatch --parsable --export=${EXPORTS} --dependency=afterok:${ra} --kill-on-invalid-dep=yes cluster/eve_unc_regionindex.sbatch)
 echo "regionindex:    ${ri}"
-asm2=$(sbatch --parsable --export=ALL,BIRDMONITOR_UNC_AREAMEAN=area_mean_replicates_germany.csv,BIRDMONITOR_INDEX_TAG=germany --dependency=afterok:${ra}${UNC_FINAL:+:${UNC_FINAL}} --kill-on-invalid-dep=yes cluster/eve_unc_assembleall.sbatch)
+GTAG=germany; if [ -n "${BIRDMONITOR_UNC_MEMBERS:-}" ]; then GTAG="${BIRDMONITOR_UNC_TAG}_germany"; fi     # ensemble runs: annual_report_<tag>_germany
+asm2=$(sbatch --parsable --export=ALL,BIRDMONITOR_UNC_AREAMEAN=area_mean_replicates_germany.csv,BIRDMONITOR_INDEX_TAG=${GTAG} --dependency=afterok:${ra}${UNC_FINAL:+:${UNC_FINAL}} --kill-on-invalid-dep=yes cluster/eve_unc_assembleall.sbatch)
 echo "assembleAll (Germany-only area means): ${asm2}"
 mm=$(sbatch --parsable --export=ALL --array=1-$((NSP + 1)) --dependency=afterok:${asm2} --kill-on-invalid-dep=yes cluster/eve_unc_maskmaps.sbatch)
 echo "maskmaps:       ${mm}"

@@ -21,6 +21,7 @@
 #   [UNC_AFTER=62887498]                 job id(s) to wait for first (e.g. the baseline habitat array), colon-separated.
 #                                        The whole chain then queues unattended (e.g. overnight).
 #   [UNC_BAND_TIME=12:00:00]             wall-time limit of one band task
+#   [UNC_PREP_TIME=24:00:00]             wall-time limit of one prepare task (default: the 10 h in eve_unc_prepare.sbatch; the ensemble needs more)
 #     bash --login cluster/submit_eve_uncertainty.sh
 #
 # If a step fails, jobs waiting on it are cancelled automatically (--kill-on-invalid-dep). Fix the cause and run this
@@ -61,7 +62,8 @@ THR=""; if [ -n "${UNC_THROTTLE:-}" ]; then THR="%${UNC_THROTTLE}"; fi
 
 cov=$(sbatch --parsable --export=${EXPORTS} "${AFTER[@]+"${AFTER[@]}"}" --kill-on-invalid-dep=yes cluster/eve_unc_covcache.sbatch)
 echo "covcache:   ${cov}"
-prep=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSP} --dependency=afterok:${cov} --kill-on-invalid-dep=yes cluster/eve_unc_prepare.sbatch)
+PTIME=(); if [ -n "${UNC_PREP_TIME:-}" ]; then PTIME=(--time="${UNC_PREP_TIME}"); fi
+prep=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSP} "${PTIME[@]+"${PTIME[@]}"}" --dependency=afterok:${cov} --kill-on-invalid-dep=yes cluster/eve_unc_prepare.sbatch)
 echo "prepare:    ${prep}"
 band=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSB}${THR} --time="${UNC_BAND_TIME:-12:00:00}" --dependency=afterok:${prep} --kill-on-invalid-dep=yes cluster/eve_unc_band.sbatch)
 echo "band:       ${band}"
