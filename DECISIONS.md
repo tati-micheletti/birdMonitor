@@ -1304,3 +1304,18 @@ instead of an error in some setups -- that is where the zeros (tasmin Apr 2022) 
 transient read failure, not CHELSA's data and not the units (the rasters are in Kelvin; 0 K is impossible, so 0 was a fill value). `readDailyCropped()`
 now retries failed reads, sets fill values to NA, and `completeDailyLayers()` re-reads/drops layers with fewer valid cells than the month's median.
 Verified on April 2022 tasmin over the whole European extent: mean 278.0 K (range 249-293), old cache mean 52.5 K.
+
+## 2026-10-08 -- Bray-Curtis turnover layer in the community change maps (branch feature/community-turnover)
+
+Asked by Tati: expected richness and the community `meanDeltaP` cannot tell a swap of species from no change (5 species at 0.8; four lost and four gained
+gives the same richness and a mean change of 0). Added the Bray-Curtis dissimilarity between the two years of each comparison (2005/5 years ago/last year
+vs the current year): BC = sum over species |p1 - p0| / sum over species (p0 + p1), probabilities standing in for abundances (0 = unchanged, 1 = no shared
+species; a swap of 4 of 5 species gives 0.8).
+- Baseline: 5th layer `turnoverBC` of the community change raster (`computeChangeMaps`, runIndex_Monitor; the first four layers keep their positions).
+- Uncertainty: computed inside each replicate in the community step (`uncCommunityBand`, models_Monitor; piece `bcDissim_<comparison>`), summarised over
+  replicates to 5 layers (mean, sd, lwr, upr, width; no share layers); stitched to `community/community_turnoverBC_unc_<comparison>.tif`
+  (`computeIndexUncertainty`). `meanDeltaP` is unchanged (verified: its pieces are not recomputed; only the missing BC pieces are).
+- No refit and no new predictions: reuses the stored replicate predictions. Memory of a community task about doubles (two matrices per species).
+- Tests: `tests/uncertainty/test_units.R` (swap vs no change on the formula and on the baseline function); local rehearsal on the mini run (Alauda, 2
+  replicates, 40 bands): layers equal an independent recomputation from the stored replicate predictions to 3e-8 (float32 rounding).
+- Not done (stated as a limit): no Baselga split into turnover vs nestedness; BC on probabilities, not on thresholded presences.
