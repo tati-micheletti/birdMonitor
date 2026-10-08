@@ -10,20 +10,35 @@ suppressMessages(library(terra))
 fs <- Sys.glob(file.path("outputs", runName, "metamodel_*", sprintf("*_meta_suitability_%d.tif", yr)))
 fs <- fs[!grepl("_ens_", fs)]
 if (!length(fs)) stop("No meta_suitability files for year ", yr, " under outputs/", runName)
-cat("Checking", length(fs), "species maps of", yr, "\n\n")
+cat("Checking", length(fs), "species maps of", yr, "
+
+")
 b <- NULL; out <- list()
 for (f in fs) {
   r <- terra::rast(f)[["meta_prob"]]
-  if (is.null(b)) b <- terra::project(geodata::gadm(country = "DEU", level = 0, path = file.path("inputs", "predictors", "raw", "gadm")), terra::crs(r))
-  n <- terra::global(!is.na(r), "sum")[1, 1]
-  rg <- terra::mask(terra::crop(r, b), b)
-  nG <- terra::global(!is.na(rg), "sum")[1, 1]
-  out[[basename(f)]] <- data.frame(species = sub("_meta_suitability.*", "", basename(f)), pixelsWithValue = n, insideGermany = nG,
-                                   shareOutside = round(1 - nG / n, 3),
-                                   areaMeanWindow = round(terra::global(r, "mean", na.rm = TRUE)[1, 1], 4),
-                                   areaMeanGermany = round(terra::global(rg, "mean", na.rm = TRUE)[1, 1], 4))
+  cat(sprintf("%s | folder %s | extent %s | crs %s | cells %d
+", basename(f), basename(dirname(f)), paste(round(as.vector(terra::ext(r))), collapse = " "),
+              terra::crs(r, describe = TRUE)$code, terra::ncell(r)))
+  if (is.null(b)) {
+    b <- terra::project(geodata::gadm(country = "DEU", level = 0, path = file.path("inputs", "predictors", "raw", "gadm")), terra::crs(r))
+    cat("German outline, same crs, extent:", paste(round(as.vector(terra::ext(b))), collapse = " "), "
+")
+  }
+  res1 <- tryCatch({
+    n <- terra::global(!is.na(r), "sum")[1, 1]
+    rg <- terra::mask(terra::crop(r, b), b)
+    nG <- terra::global(!is.na(rg), "sum")[1, 1]
+    data.frame(species = sub("_meta_suitability.*", "", basename(f)), pixelsWithValue = n, insideGermany = nG, shareOutside = round(1 - nG / n, 3),
+               areaMeanWindow = round(terra::global(r, "mean", na.rm = TRUE)[1, 1], 4), areaMeanGermany = round(terra::global(rg, "mean", na.rm = TRUE)[1, 1], 4))
+  }, error = function(e) { cat("  ERROR for this map:", conditionMessage(e), "
+"); NULL })
+  if (!is.null(res1)) out[[basename(f)]] <- res1
 }
+if (!length(out)) stop("No map could be checked (see the ERROR lines above).")
 res <- do.call(rbind, out); rownames(res) <- NULL
 print(res)
-cat(sprintf("\nShare of the pixels with a value that lies OUTSIDE Germany: %.1f%% (same for every species if the window is the same).\n", 100 * mean(res$shareOutside)))
-cat("If this is well above 0, the national area means include foreign pixels; the two area-mean columns show how much that changes each species' level.\n")
+cat(sprintf("
+Share of the pixels with a value that lies OUTSIDE Germany: %.1f%% (same for every species if the window is the same).
+", 100 * mean(res$shareOutside)))
+cat("If this is well above 0, the national area means include foreign pixels; the two area-mean columns show how much that changes each species' level.
+")
