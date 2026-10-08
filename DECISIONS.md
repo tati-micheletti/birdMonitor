@@ -1319,3 +1319,22 @@ species; a swap of 4 of 5 species gives 0.8).
 - Tests: `tests/uncertainty/test_units.R` (swap vs no change on the formula and on the baseline function); local rehearsal on the mini run (Alauda, 2
   replicates, 40 bands): layers equal an independent recomputation from the stored replicate predictions to 3e-8 (float32 rounding).
 - Not done (stated as a limit): no Baselga split into turnover vs nestedness; BC on probabilities, not on thresholded presences.
+
+## 2026-10-08 -- Regional index (10/20/50 km) with uncertainty (branch feature/regional-uncertainty)
+
+Priority item from Tati. Built as three steps that read the stored per-replicate predictions (nothing is refitted, the running chain is not touched):
+`regionband` (species x band: sums of the replicate predictions of the German 200 m pixels per coarse cell), `regionassemble` (species: cell means per
+year and replicate), `regionindex` (once: index per replicate, intervals, change, trend, shares decreasing/increasing, coverage, parity with the baseline).
+- Decisions by Tati: the German outline is applied to the 200 m pixels BEFORE averaging (no foreign pixels in border cells; nothing cropped earlier);
+  **no smoothing inside replicates, smoothing only on the final raw result** (so the smoothed map has no interval of its own); both cold AND hot spots
+  (shareDecrease and shareIncrease).
+- Same arithmetic as the baseline (`computeGriddedCombinedIndex`): 100 x cell mean / baseline cell mean, geometric mean over species, floor `minBaseline`
+  = 1e-6. The floor / DDA-style cap question is OPEN and must be decided once and applied to both the baseline and this step (parameter `minBaseline`).
+- Tests: the matrix version equals `computeGriddedCombinedIndex` on synthetic rasters (including a species dropped by the floor); on the local mini run
+  (Alauda), replicate 0 built from its own pixels reproduces the baseline regional machinery (3872 cells at 10 km incl. border cells) to 0.002 index points.
+  NB the local `outputs/utest` baseline maps are NEWER than its stored replicate predictions (rebuilt 2026-10-08), so replicate 0 does not match them; this is
+  stale test data, not a code difference (checked pixel by pixel).
+- Found on the way (to verify on EVE with `tools/checkGermanyShare.R`): the meta-model maps have values for 99.8% of the pixels of the prediction window,
+  but only 64.4% of the window lies inside Germany. The national area means (species indices, combined indices and their intervals) average ALL pixels of
+  the window, i.e. including about 35% non-German pixels, whereas the regional indices are masked to Germany. If confirmed on the real maps, the national
+  indices should be masked too (a decision for Tati; changes the baseline and the uncertainty area means).

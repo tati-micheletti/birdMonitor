@@ -20,6 +20,9 @@
 #'   assemble        per species: stitch pieces into maps, area means, parity check    [uncertaintyAssemble]
 #'   community      per band (index = band): expected richness / mean change           [uncertaintyCommunity]
 #'   assembleAll     once: index intervals, combined indices per replicate, community maps  [runIndex_Monitor]
+#'   regionband      per species x band (index as bandpredict): cell sums for the regional index  [models_Monitor/R/uncRegional.R]
+#'   regionassemble  per species: add the bands up -> regional_means_<km>km.rds
+#'   regionindex     once: regional index per replicate + intervals, change, trend, parity  [runIndex_Monitor]
 #'
 #' Settings come from environment variables:
 #'   BIRDMONITOR_RUNNAME (baseline run folder, default test4), BIRDMONITOR_UNC_REPS (replicate ids of this run, default 0:50;
@@ -97,14 +100,18 @@ speciesBand <- function() {
   list(sp = sharedSpecies[(index - 1L) %/% nBands + 1L], k = (index - 1L) %% nBands + 1L)
 }
 
-if (step == "preflight") {
+# the uncertainty configuration, for the steps that call the module's functions directly (no SpaDES event)
+makeCfg <- function() {
   for (f in sort(list.files("modules/models_Monitor/R", pattern = "[.]R$", full.names = TRUE))) source(f)
-  cfg <- uncCfgFromParams(inputRoot = inputRoot, outputRoot = outputRoot, species = sharedSpecies, predictionYears = predictionYears,
-                          habitatYears = habitatYearsAll, resolutionConfig = resolutionConfig, climateResolutionM = sharedClimateResolutionM,
-                          habitatResolutionM = sharedHabitatResolutionM, landscapeResolutionM = sharedLandscapeResolutionM,
-                          climateWindowLength = sharedClimateWindowLength, reps = reps, outYears = outYears, nBands = nBands,
-                          tag = tag, baselineYear = baselineYear, currentYear = currentYear, codeRoot = repoRoot)
-  uncPreflight(cfg)
+  uncCfgFromParams(inputRoot = inputRoot, outputRoot = outputRoot, species = sharedSpecies, predictionYears = predictionYears,
+                   habitatYears = habitatYearsAll, resolutionConfig = resolutionConfig, climateResolutionM = sharedClimateResolutionM,
+                   habitatResolutionM = sharedHabitatResolutionM, landscapeResolutionM = sharedLandscapeResolutionM,
+                   climateWindowLength = sharedClimateWindowLength, reps = reps, outYears = outYears, nBands = nBands,
+                   tag = tag, baselineYear = baselineYear, currentYear = currentYear, codeRoot = repoRoot)
+}
+
+if (step == "preflight") {
+  uncPreflight(makeCfg())
 } else if (step == "covcache") {
   runModels("uncertaintyCovcache")
 } else if (step %in% c("fit", "coarse", "oof", "ridge", "assemble")) {
@@ -126,8 +133,25 @@ if (step == "preflight") {
       uncertaintyDir = file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else "")),
       uncertaintyOnly = TRUE, uncertaintyProbs = probs, uncertaintyBands = nBands,
       outputTag = if (ensembleRun) tag else "")))   # the ensemble's index intervals go to annual_report_<tag>/, the BRT-only ones as before
+} else if (step %in% c("regionband", "regionassemble")) {
+  # regional index (10/20/50 km) with uncertainty: per-replicate cell means of the German 200 m pixels (models_Monitor/R/uncRegional.R)
+  cfg <- makeCfg()
+  sp <- if (step == "regionband") speciesBand()$sp else speciesOf()
+  ub <- uncBands(cfg, sp); bProj <- uncGermanyBoundary(cfg, terra::crs(ub$window))
+  if (step == "regionband") {
+    message("species: ", sp, " | band ", speciesBand()$k, " of ", nBands)
+    uncRegionalBand(cfg, sp, ub$bands[[speciesBand()$k]], ub$window, bProj, sharedRegionalCellSizesM)
+  } else uncRegionalAssemble(cfg, sp, ub$window, bProj, sharedRegionalCellSizesM)
+} else if (step == "regionindex") {
+  # once: regional index per replicate and its intervals (runIndex_Monitor/R/computeRegionalIndexUncertainty.R)
+  source("modules/runIndex_Monitor/R/computeRegionalIndexUncertainty.R")
+  uncDir <- file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else ""))
+  computeRegionalIndexUncertainty(
+    species = sharedSpecies, uncertaintyDir = uncDir, outputDir = file.path(uncDir, "regional"), baselineYear = baselineYear,
+    currentYear = currentYear, cellSizesM = sharedRegionalCellSizesM, probs = probs, minBaseline = 1e-6,
+    baselineRegionalDir = file.path(outputRoot, paste0("regional_index", if (ensembleRun) paste0("_", tag) else "")))
 } else {
-  stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll (got: ", step, ")")
+  stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll, regionband, regionassemble, regionindex (got: ", step, ")")
 }
 message("=== done: ", step, " in ", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min ===")
 # Tell the SLURM wrapper (cluster/eve_unc_common.sh, unc_run) that the work is COMPLETE: R/terra can crash with a segmentation
