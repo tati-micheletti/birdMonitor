@@ -71,4 +71,8 @@ for members in "${VARIANTS[@]}"; do
   echo "index ${tag}: ${idx}"
 done
 echo
-echo "Submitted. Monitor with: squeue -u \$USER   |   logs in ./logs/ens-*"
+echo "Submitted. Logs in ./logs/ens-*"
+echo "CHECK AT ANY TIME (read-only):  cd ~/projects/birdMonitor && bash cluster/status.sh \$(sacct -u \$USER -S \$(date +%Y-%m-%d) -X -n --format=JobID%16,JobName%16 | grep -E 'ens-' | awk '{print \$1}' | grep -v '_' | sort -u | tr '\\n' ' ')"
+echo "CHECK THE ENSEMBLE RESULTS when the 'ens-meta' jobs are COMPLETED (block-CV AUC of every member and of the ensemble, per scale):"
+echo "  grep -h 'ensemble block-CV' logs/ens-mean_*.err | cut -c1-230"
+echo "CHECK THE ENSEMBLE META-MODEL weights (>= 0, out-of-fold):  grep -h -E 'Coefficients|Performance \\(' logs/meta_*.err | tail -22"

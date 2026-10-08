@@ -74,4 +74,6 @@ echo "community:  ${com}"
 fin=$(sbatch --parsable --export=${EXPORTS} --dependency=afterok:${asm}:${com} --kill-on-invalid-dep=yes cluster/eve_unc_assembleall.sbatch)
 echo "assembleall: ${fin}"
 echo
-echo "Submitted. Monitor with: squeue -u \$USER   |   logs in ./logs/unc-*"
+echo "Submitted. Logs in ./logs/unc-*"
+echo "CHECK AT ANY TIME (read-only):  cd ~/projects/birdMonitor && bash cluster/status.sh ${cov} ${prep} ${band} ${summ} ${asm} ${com} ${fin}"
+echo "CHECK THE PARITY when everything is COMPLETED (every species: RESULT: OK):  grep -H RESULT outputs/${BIRDMONITOR_RUNNAME}/uncertainty*/*/parity_check.txt"

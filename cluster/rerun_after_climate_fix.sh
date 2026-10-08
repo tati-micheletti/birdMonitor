@@ -66,6 +66,22 @@ eur=$(sbatch --parsable modules/models_Monitor/cluster/eve_array_europe.sbatch);
 idx=$(sbatch --parsable --dependency=afterok:${eur} cluster/eve_index.sbatch); echo "index:        ${idx}"
 
 echo "=== 4. uncertainty chain (run tag honest2)"
-BIRDMONITOR_UNC_TAG=honest2 UNC_THROTTLE="${UNC_THROTTLE:-100}" bash cluster/submit_eve_uncertainty.sh
+UNCOUT=$(BIRDMONITOR_UNC_TAG=honest2 UNC_THROTTLE="${UNC_THROTTLE:-100}" bash cluster/submit_eve_uncertainty.sh | tee /dev/stderr)
+UNCIDS=$(echo "${UNCOUT}" | grep -E "^(covcache|prepare|band|summarize|assemble|community|assembleall):" | awk '{print $2}' | tr '\n' ' ')
 echo
-echo "Submitted. Check later with the status block I give you; the baseline maps and index come first (about an hour), the uncertainty layers after about 10-13 h."
+echo "================================================================================"
+echo "SUBMITTED. What happens, in order:"
+echo "  1. europe array ${eur}: corrected climate predictions + the meta-model of each species (~10-20 min)"
+echo "  2. index ${idx}: baseline index on the corrected maps (~35 min after 1)"
+echo "  3. uncertainty chain (${UNCIDS}): prepare (~1 h), then the band stage (the long part, ~10-13 h), then summaries"
+echo
+echo "CHECK AT ANY TIME (read-only; paste the output to me):"
+echo "  cd ~/projects/birdMonitor && bash cluster/status.sh ${eur} ${idx} ${UNCIDS}"
+echo
+echo "CHECK THE META-MODELS ~30 min from now (weights must be >= 0, 'out-of-fold inputs', honest AUC):"
+echo "  for f in logs/europe_${eur}_*.err; do echo \"== \$f\"; grep -E 'Coefficients|Performance \\(' \"\$f\" | tail -2; done"
+echo "CHECK THE INDEX when it is COMPLETED (peak memory):"
+echo "  sacct -j ${idx} --format=JobID,State,Elapsed,MaxRSS,ReqMem | head -5"
+echo "CHECK THE REPLICATE-0 PARITY when the whole chain is COMPLETED (every species must say RESULT: OK):"
+echo "  grep -H RESULT outputs/${RUN}/uncertainty_honest2/*/parity_check.txt"
+echo "================================================================================"
