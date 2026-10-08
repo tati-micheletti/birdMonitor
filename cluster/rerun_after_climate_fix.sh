@@ -31,15 +31,35 @@ bash cluster/setup_uncertainty.sh || echo "WARNING: package setup failed -- the 
 echo "=== 0. climate windows"
 Rscript tools/checkClimateWindows.R || { echo "STOP: a climate window looks broken (see above). Nothing was submitted." >&2; exit 1; }
 
-echo "=== 1. copy replicate models etc. -> ${NEW}"
-[ -d "${OLD}" ] || { echo "STOP: ${OLD} not found" >&2; exit 1; }
-for d in "${OLD}"/*/; do
-  sp=$(basename "${d}"); [ -d "${d}/models" ] || continue
-  mkdir -p "${NEW}/${sp}"
-  if [ -e "${NEW}/${sp}/models" ]; then echo "  ${sp}: already copied"; continue; fi
-  cp -a "${d}/models" "${d}/coarse" "${d}/blocksize.rds" "${d}/replicate_log.csv" "${NEW}/${sp}/"
-  echo "  ${sp}: copied"
+STALE="outputs/${RUN}/_old_before_climate_fix_2026-10-07"
+mkdir -p "${STALE}"
+echo "=== 0c. move aside (never delete) everything made with the buggy 2022-2025 climate"
+# (a) the climate-scale predictions of the target years 2022-2025 (all species)
+mkdir -p "${STALE}/scale_50"
+for f in outputs/${RUN}/scale_50/*_pred_EU_202[2-5].tif; do if [ -e "${f}" ]; then mv "${f}" "${STALE}/scale_50/"; fi; done
+# (b) the meta-models (their weights were trained on the buggy climate) and everything built from them: maps, indices, performance tables
+for d in outputs/${RUN}/metamodel_* outputs/${RUN}/annual_report outputs/${RUN}/regional_index outputs/${RUN}/meta_check outputs/${RUN}/performance_table.csv; do
+  if [ -e "${d}" ]; then mv "${d}" "${STALE}/"; echo "  moved ${d}"; fi
 done
+echo "  (the climate MODEL itself and its training table are NOT affected: trained on the atlas window 2012-2017)"
+
+echo "=== 1. copy replicate models etc. -> ${NEW}"
+if [ -d "${OLD}" ]; then
+  for d in "${OLD}"/*/; do
+    sp=$(basename "${d}"); [ -d "${d}/models" ] || continue
+    mkdir -p "${NEW}/${sp}"
+    if [ -e "${NEW}/${sp}/models" ]; then echo "  ${sp}: already copied"; continue; fi
+    cp -a "${d}/models" "${d}/coarse" "${d}/blocksize.rds" "${d}/replicate_log.csv" "${NEW}/${sp}/"
+    # the copied coarse CLIMATE predictions of 2022-2025 came from the buggy windows: move the COPIES aside (the step would also recompute them)
+    mkdir -p "${NEW}/${sp}/_old_climate_bug"
+    for f in "${NEW}/${sp}"/coarse/*/climate_202[2-5].tif; do if [ -e "${f}" ]; then mv "${f}" "${NEW}/${sp}/_old_climate_bug/"; fi; done
+    echo "  ${sp}: copied"
+  done
+  # the previous uncertainty run is contaminated as a whole (climate inputs, out-of-fold inputs, ridge weights, maps): put it aside
+  if [ -d "${NEW}" ] && [ "$(ls -d ${NEW}/*/ 2>/dev/null | wc -l)" -ge 1 ]; then
+    mv "${OLD}" "${STALE}/uncertainty_honest" && echo "  previous run ${OLD} moved to ${STALE}/"
+  fi
+elif [ -d "${NEW}" ]; then echo "  ${OLD} already moved aside; ${NEW} exists"; else echo "STOP: neither ${OLD} nor ${NEW} found" >&2; exit 1; fi
 
 echo "=== 2./3. climate predictions + meta-model (europe array), then the baseline index"
 eur=$(sbatch --parsable modules/models_Monitor/cluster/eve_array_europe.sbatch); echo "europe array: ${eur}"
