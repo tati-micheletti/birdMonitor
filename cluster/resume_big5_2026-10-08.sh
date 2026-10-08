@@ -24,6 +24,8 @@ L_GLM=63196422; L_GAM_OLD=63196423; L_RF=63196424; L_NN=63196425
 H_GLM=63196426; H_GAM_OLD=63196427; H_RF=63196428; H_NN=63196429
 OLD_DOWNSTREAM="63196430 63196431 63196432 63196433 63196434 63196435 63196436 $(seq 63196530 63196541 | tr '\n' ' ')"
 
+# GC / GL / GH = the GAM jobs of an earlier run of this script that stopped at step 3: then steps 1-2 are skipped (nothing is cancelled or resubmitted)
+if [ -z "${GC:-}" ]; then
 echo "=== 1. clean up: old GAM arrays and everything that depended on them"
 scancel ${L_GAM_OLD} ${H_GAM_OLD} ${OLD_DOWNSTREAM} 2>/dev/null || true
 sleep 10
@@ -34,11 +36,26 @@ gc=$(ENS_SCALE=climate ENS_ALGO=gam sbatch --parsable --export=ALL --job-name=en
 gl=$(ENS_SCALE=landscape ENS_ALGO=gam sbatch --parsable --export=ALL --job-name=ens-landscape-gam --array=1-11%11 --cpus-per-task=1 --mem-per-cpu=8G --time=06:00:00 cluster/eve_ens_algo.sbatch)
 gh=$(ENS_SCALE=habitat ENS_ALGO=gam sbatch --parsable --export=ALL --job-name=ens-habitat-gam --array=1-11%11 --cpus-per-task=1 --mem-per-cpu=12G --time=12:00:00 cluster/eve_ens_algo.sbatch)
 echo "fit climate/gam: ${gc} | landscape/gam: ${gl} | habitat/gam: ${gh}"
+else gc="${GC}"; gl="${GL}"; gh="${GH}"; echo "=== 1-2 skipped: using the GAM jobs ${gc} ${gl} ${gh}"; fi
+
+# Slurm forgets finished jobs after a few minutes, and a dependency on a forgotten job is refused ("Job dependency problem"). So: wait only for jobs it still knows;
+# a job it no longer knows must have finished, and the accounting must say that every task COMPLETED (otherwise stop here).
+mkdep() {
+  local out="" id bad
+  for id in "$@"; do
+    if [ -n "$(squeue -h -j "${id}" 2>/dev/null)" ]; then out="${out:+${out}:}${id}"
+    else
+      bad=$(sacct -j "${id}" -X -n -o State 2>/dev/null | grep -v -E "^\s*COMPLETED\s*$" | head -1 || true)
+      if [ -n "${bad}" ]; then echo "ERROR: job ${id} is no longer queued and not all its tasks COMPLETED (${bad}). Stopping: look at it first." >&2; exit 1; fi
+    fi
+  done
+  echo "${out}"
+}
 
 echo; echo "=== 3. big 5 baseline: ensemble means -> honest meta-model -> index"
-mc=$(ENS_SCALE=climate ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-climate --dependency=afterok:${C_GLM}:${gc}:${C_RF}:${C_NN} --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
-ml=$(ENS_SCALE=landscape ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-landscape --dependency=afterok:${L_GLM}:${gl}:${L_RF}:${L_NN} --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
-mh=$(ENS_SCALE=habitat ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-habitat --dependency=afterok:${H_GLM}:${gh}:${H_RF}:${H_NN} --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
+mc=$(ENS_SCALE=climate ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-climate --dependency=afterok:$(mkdep ${C_GLM} ${gc} ${C_RF} ${C_NN}) --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
+ml=$(ENS_SCALE=landscape ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-landscape --dependency=afterok:$(mkdep ${L_GLM} ${gl} ${L_RF} ${L_NN}) --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
+mh=$(ENS_SCALE=habitat ENS_MEMBERS="${MEM}" sbatch --parsable --export=ALL --job-name=ens-mean-habitat --dependency=afterok:$(mkdep ${H_GLM} ${gh} ${H_RF} ${H_NN}) --kill-on-invalid-dep=yes cluster/eve_ens_ens.sbatch)
 echo "ensemble means: climate ${mc} | landscape ${ml} | habitat ${mh}"
 meta=$(BIRDMONITOR_META_SOURCE="${TAG}" sbatch --parsable --export=ALL --job-name="ens-meta-${TAG}" --dependency=afterok:${mc}:${ml}:${mh} --kill-on-invalid-dep=yes modules/models_Monitor/cluster/eve_array_meta.sbatch)
 idx=$(BIRDMONITOR_INDEX_TAG="${TAG}" sbatch --parsable --export=ALL --job-name="ens-index-${TAG}" --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_index.sbatch)
