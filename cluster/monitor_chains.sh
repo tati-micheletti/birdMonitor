@@ -25,6 +25,8 @@ else
   sacct -S today -X -n -o JobID%22,JobName%22,State%14 2>/dev/null | awk -v f="${first}" '
     { split($1, a, "_"); if (a[1] + 0 >= f + 0) { st = $3; sub(/\+$/, "", st); k = a[1] "|" $2 "|" st; c[k]++; if (!(k in o)) o[k] = ++n } }
     END { for (k in c) { split(k, b, "|"); printf "%d  %-10s %-22s %-14s %d task(s)\n", o[k], b[1], b[2], b[3], c[k] } }' | sort -n | cut -d' ' -f3-
+  echo "  --- still waiting in the queue (a waiting job array is listed once, not per task):"
+  squeue -u "${USER}" -h -o "%A %j %T" | awk -v f="${first}" '$1 + 0 >= f + 0 && $3 == "PENDING" { printf "  %-10s %-22s %s\n", $1, $2, $3 }' | sort -u
 fi
 echo; echo "=== problems today (failed, out of memory, time limit):"
 sacct -S today -X -n --format=JobID%16,JobName%24,State%14,Elapsed | grep -E "FAILED|TIMEOUT|OUT_OF_MEMORY|NODE_FAIL" | grep -vE "preval|germany-share|63196419_4|63117587_1|63196765" || echo "none new"
