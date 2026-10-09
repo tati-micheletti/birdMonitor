@@ -16,8 +16,13 @@ stage "fit GLM landscape" 63196422; stage "fit RF landscape" 63196424; stage "fi
 stage "fit GLM habitat" 63196426; stage "fit RF habitat" 63196428; stage "fit NN habitat" 63196429
 stage "ensemble mean climate" 63196758; stage "ensemble mean landscape" 63196759; stage "ensemble mean habitat" 63196760
 stage "meta-model" 63196761; stage "index (whole box)" 63196762; stage "mask Germany" 63196763; stage "index (Germany only)" 63196764
-echo; echo "=== 4. THE BIG 5, uncertainty (25 replicates)"
-stage "covcache" 63196765; stage "prepare" 63196766; stage "band" 63196767; stage "summarize" 63196768; stage "assemble" 63196769; stage "community" 63196770; stage "assembleAll" 63196771
-stage "regionband" 63196772; stage "regionassemble" 63196773; stage "regionindex" 63196774; stage "assembleAll (Germany)" 63196775; stage "maskmaps" 63196776
+echo; echo "=== 4. THE BIG 5, uncertainty (25 replicates): the LATEST chain, found by itself (from the newest covcache job onwards)"
+first=$(sacct -S today -X -n --name=unc-covcache -o JobID 2>/dev/null | awk '{print $1}' | sed 's/_.*//' | sort -un | tail -1)
+if [ -z "${first}" ]; then echo "  no covcache job found today: the big 5 uncertainty chain has not been submitted"; else
+  echo "  (newest covcache job: ${first}; every line below was submitted at or after it)"
+  sacct -S today -X -n -o JobID%22,JobName%22,State%14 2>/dev/null | awk -v f="${first}" '{split($1,a,"_"); if (a[1]+0 >= f+0) { st=$3; sub(/\+$/,"",st); k=a[1] " " $2 " " st; c[k]++; if (!(k in o)) { o[k]=++n } } } END { for (k in c) printf "%s	%s	%s
+", o[k], k, c[k] }' | sort -n | awk -F'	' '{split($2,b," "); printf "  %-10s %-22s %-14s %s task(s)
+", b[1], b[2], b[3], $3}'
+fi
 echo; echo "=== problems today (failed, out of memory, time limit):"
 sacct -S today -X -n --format=JobID%16,JobName%24,State%14,Elapsed | grep -E "FAILED|TIMEOUT|OUT_OF_MEMORY|NODE_FAIL" | grep -vE "preval|germany-share|63196419_4|63117587_1" || echo "none new"
