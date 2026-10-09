@@ -60,11 +60,17 @@ AFTER=()
 if [ -n "${UNC_AFTER:-}" ]; then AFTER=(--dependency=afterok:"${UNC_AFTER}"); fi
 THR=""; if [ -n "${UNC_THROTTLE:-}" ]; then THR="%${UNC_THROTTLE}"; fi
 
-cov=$(sbatch --parsable --export=${EXPORTS} "${AFTER[@]+"${AFTER[@]}"}" --kill-on-invalid-dep=yes cluster/eve_unc_covcache.sbatch)
-echo "covcache:   ${cov}"
-PTIME=(); if [ -n "${UNC_PREP_TIME:-}" ]; then PTIME=(--time="${UNC_PREP_TIME}"); fi
-prep=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSP} "${PTIME[@]+"${PTIME[@]}"}" --dependency=afterok:${cov} --kill-on-invalid-dep=yes cluster/eve_unc_prepare.sbatch)
-echo "prepare:    ${prep}"
+if [ -n "${UNC_PREPARE_JOB:-}" ]; then
+  # reuse a prepare job that is already queued or running (nothing is resubmitted for covcache / prepare): only the stages after it are submitted
+  cov="(reused)"; prep="${UNC_PREPARE_JOB}"
+  echo "covcache:   ${cov}"; echo "prepare:    ${prep}  (reused)"
+else
+  cov=$(sbatch --parsable --export=${EXPORTS} "${AFTER[@]+"${AFTER[@]}"}" --kill-on-invalid-dep=yes cluster/eve_unc_covcache.sbatch)
+  echo "covcache:   ${cov}"
+  PTIME=(); if [ -n "${UNC_PREP_TIME:-}" ]; then PTIME=(--time="${UNC_PREP_TIME}"); fi
+  prep=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSP} "${PTIME[@]+"${PTIME[@]}"}" --dependency=afterok:${cov} --kill-on-invalid-dep=yes cluster/eve_unc_prepare.sbatch)
+  echo "prepare:    ${prep}"
+fi
 band=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSB}${THR} --time="${UNC_BAND_TIME:-12:00:00}" --dependency=afterok:${prep} --kill-on-invalid-dep=yes cluster/eve_unc_band.sbatch)
 echo "band:       ${band}"
 summ=$(sbatch --parsable --export=${EXPORTS} --array=1-${NSB} --dependency=afterok:${band} --kill-on-invalid-dep=yes cluster/eve_unc_summarize.sbatch)
