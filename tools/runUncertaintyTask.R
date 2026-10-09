@@ -112,7 +112,8 @@ makeCfg <- function() {
 }
 
 if (step == "preflight") {
-  uncPreflight(makeCfg())
+  cfg <- makeCfg()          # (makeCfg() sources the module functions: it must run BEFORE uncPreflight is looked up)
+  uncPreflight(cfg)
 } else if (step == "covcache") {
   runModels("uncertaintyCovcache")
 } else if (step %in% c("fit", "coarse", "oof", "ridge", "assemble")) {
