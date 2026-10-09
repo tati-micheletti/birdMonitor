@@ -1369,3 +1369,14 @@ Quick path (no change to the model or index logic, rectangle results stay untouc
 3. `maskmaps` step (`cluster/eve_unc_maskmaps.sbatch`): Germany-only copies of the finished uncertainty maps (`maps_germany/`, `community_germany/`).
 All of it is chained by `cluster/submit_eve_regional.sh` (after the band stage; `UNC_FINAL` = the main chain's last job). Local mini run (Alauda): masked and unmasked
 area means 0.6700 vs 0.6554 (2025), index 98.6 vs 98.4; the 2020-2025 trend of the national mean even changes sign (-1.3% vs +0.1%).
+
+## 2026-10-10 -- Replicate ridge meta-models use the BASELINE's penalty rule (ten random folds); block folds kept as a sensitivity analysis
+
+**Finding (BRT-only run honest2, Germany only, 2025):** the baseline combined index (95.6) fell OUTSIDE the 90% interval of its own 50 replicates (mean 97.5, interval 96.1-99.0); Perdix perdix baseline 91.1 vs replicates 99.0-100,
+Vanellus 90.8 vs 91.3-96.3. `tools/diagnoseReplicateBias.R`: the replicate ridge penalties were 2-3 x the baseline's (e.g. Buteo 0.17 vs 0.075, E. calandra 0.16 vs 0.042) and the weights shrunk (E. calandra habitat 1.78 vs 2.75);
+for Perdix the penalty was 38.7 and ALL replicate weights exactly 0 (constant probability, index exactly 100). Cause: replicates chose the penalty (lambda.1se) with spatial BLOCK folds, the baseline with ten RANDOM folds.
+A bootstrap must repeat the SAME procedure on resampled data (otherwise the interval is centred on a different estimator). **Change:** `uncRidgeSpecies()` now uses `fitRidgeCv(X, y, nfolds = 10)` for every replicate
+(BIRDMONITOR_UNC_RIDGEFOLDS=block restores the old rule). Caveat to state: random folds can under-regularise (spatial autocorrelation and, in resamples, duplicated blocks leak between folds); the penalty (and with it the
+size of the trends) depends on this choice -- the old block-fold replicates are kept as the sensitivity analysis (`_old_ridge_blockfolds_2026-10-10/`, interval tables copied there).
+Also found earlier the same day: climate models of three species refitted on 2026-10-08 differed from the replicate-0 copy (tree count) -- fixed by `cluster/refresh_climate_3species_2026-10-09.sh`; all 11 species and the regional grids then passed parity.
+Redo: big 5 -- `cluster/ridge_rule_big5_2026-10-10.sh` (ridge step only, before its band stage, which had not started); BRT-only -- `cluster/refresh_ridge_rule_brt_2026-10-10.sh` (band stage again, ~14 h wall).

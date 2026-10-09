@@ -22,6 +22,7 @@
 #'   assembleAll     once: index intervals, combined indices per replicate, community maps  [runIndex_Monitor]
 #'   regionband      per species x band (index as bandpredict): cell sums for the regional index  [models_Monitor/R/uncRegional.R]
 #'   regionassemble  per species: add the bands up -> regional_means_<km>km.rds
+#'   ridgeredo       per species: move the replicate ridge file aside and recompute it with the current penalty rule
 #'   maskmaps        index 1..11 = species, 12 = community: Germany-only copies of the finished maps (maps_germany/, community_germany/)
 #'   regionindex     once: regional index per replicate + intervals, change, trend, parity  [runIndex_Monitor]
 #'
@@ -145,6 +146,15 @@ if (step == "preflight") {
     message("species: ", sp, " | band ", speciesBand()$k, " of ", nBands)
     uncRegionalBand(cfg, sp, ub$bands[[speciesBand()$k]], ub$window, bProj, sharedRegionalCellSizesM)
   } else uncRegionalAssemble(cfg, sp, ub$window, bProj, sharedRegionalCellSizesM)
+} else if (step == "ridgeredo") {
+  # recompute the replicate ridge meta-models of one species with the CURRENT rule (the baseline's penalty rule), moving an existing ridge file aside first (nothing is deleted)
+  cfg <- makeCfg(); sp <- speciesOf()
+  f <- file.path(uncSpDir(cfg, sp, "ridge"), paste0("ridge_", cfg$repLabel, ".rds"))
+  if (file.exists(f)) {
+    dst <- file.path(uncRoot(cfg), "_old_ridge_blockfolds_2026-10-10", gsub(" ", "_", sp)); dir.create(dst, recursive = TRUE, showWarnings = FALSE)
+    file.rename(f, file.path(dst, basename(f))); message("moved aside: ", f, " -> ", dst)
+  }
+  uncRidgeSpecies(cfg, sp)
 } else if (step == "maskmaps") {
   # Germany-only copies of the finished uncertainty maps: index 1..nSpecies = species maps, nSpecies + 1 = community maps
   needIndex(length(sharedSpecies) + 1L)
@@ -159,7 +169,7 @@ if (step == "preflight") {
     currentYear = currentYear, cellSizesM = sharedRegionalCellSizesM, probs = probs, minBaseline = 1e-6,
     baselineRegionalDir = file.path(outputRoot, paste0("regional_index", if (ensembleRun) paste0("_", tag) else "")))
 } else {
-  stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll, regionband, regionassemble, regionindex, maskmaps (got: ", step, ")")
+  stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll, regionband, regionassemble, regionindex, maskmaps, ridgeredo (got: ", step, ")")
 }
 message("=== done: ", step, " in ", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min ===")
 # Tell the SLURM wrapper (cluster/eve_unc_common.sh, unc_run) that the work is COMPLETE: R/terra can crash with a segmentation
