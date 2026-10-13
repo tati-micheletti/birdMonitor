@@ -814,8 +814,10 @@ Consortium meeting; supersedes the interim Germany-only masking).** All predicti
 - **Consequences:** about a third of the predictions of seven species are outside the study area (wasted compute and storage); the national means averaged
   different areas for different species (area means differed by up to 55%; fixed for now by Germany-only copies, `tools/maskMetaModels.R`,
   `area_mean_replicates_germany.csv`, `maskmaps`); predictions outside Germany are extrapolations of models trained on German records.
-- **To do:** (1) find out where the box comes from (the 200 m reference grid is the solar-radiation raster cropped to the habitat prediction window; where
-  that window is defined was not traced); (2) cut every input to the outline at the source (climate, elevation, land use, land cover, derived layers), through a
+- **Origin of the box (project lead, 2026-10-13):** Lisa's code used a bounding box instead of a German shapefile, and it stayed. In the code the 200 m
+  reference grid is the solar-radiation raster cropped to the habitat prediction window; the exact place where that window is defined still has to be
+  found when this item is done.
+- **To do:** (1) find the place in the code where the window is defined and replace it; (2) cut every input to the outline at the source (climate, elevation, land use, land cover, derived layers), through a
   `studyArea` parameter (see item 6); (3) decide the scope of the climate scale, which is trained on EBBA2 data for Europe (cropping its predictions is
   mechanical, cropping its training data is a modelling change); (4) check that `inputs_Monitor`, the band prediction and `runIndex_Monitor` carry no
   bounding-box assumption; (5) recompute baseline, big 5 and uncertainty once; sanity test: the new national means must equal the interim Germany-only
