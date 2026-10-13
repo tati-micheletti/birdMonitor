@@ -766,6 +766,43 @@ number is about that of the habitat BRT alone. Two parts of this item exist:
 
 ---
 
+## 17. Bootstrap replicates with a constant map (Perdix perdix): report a second interval without them
+
+**Noted 2026-10-13 (decision: do it AFTER the Steering Consortium meeting; for now the replicates stay in the interval and the issue is
+stated as a caveat in the methods document).** In the BRT-only run (`uncertainty_honest2`, penalty rule = the baseline's, ten random folds,
+`lambda.1se`) 9 of the 50 replicates of *Perdix perdix* have an index of exactly 100 in every year (replicates 5, 11, 16, 18, 21, 29, 33, 37,
+42): the replicate map is constant, i.e. the meta-model found no usable signal in that resample and the index is fixed at 100 by construction,
+not by evidence. Perdix has the largest ridge penalty of all species also in the main model (0.264 against 0.04 to 0.15), so its meta-model is
+weak to begin with. The effect on the combined index is small (Perdix is one of 11 species); on the Perdix interval it is large (84.7 to 100.0).
+- **What to do:** run `tools/sensitivityConstantReplicates.R` (already written and pushed; read-only; `Rscript tools/sensitivityConstantReplicates.R test4 honest2`).
+  It (1) counts, for EVERY species, the replicates whose index is constant over all years (we only know Perdix so far; confirm that it is the
+  only species), (2) gives the interval of each affected species with and without them, and (3) gives the combined SBI interval three ways
+  (all replicates; constant species-replicate cells dropped; replicates with a constant species dropped). Report this second interval next
+  to the main one (sensitivity analysis, not a change of the rule).
+- **Also check:** (a) that the all-zero weights are the cause (read the replicate ridge files: `diagnoseReplicateBias.R` prints only the
+  share of zero climate weights); (b) the same count for the big 5 run (`... test4 ens_brt-glm-gam-rf-nn`).
+- **Not recommended:** choosing `lambda.min` instead of `lambda.1se` in the replicates, because it breaks the principle that a bootstrap
+  repeats the main procedure on resampled data (DECISIONS.md, 2026-10-10).
+
+---
+
+## 18. Regional index: floor and cap on extreme ratios (to discuss later, not needed for now)
+
+**Noted 2026-10-13 (decision: not a point for the Steering Consortium now; to be discussed later, possibly with the DDA).** The regional index of
+a species in a grid cell is 100 x (cell mean in year t) / (cell mean in the baseline year 2005). Where a species is almost absent in 2005 the ratio
+can explode. At the moment a species is left out of a cell only when its baseline cell mean is below `minBaseline` = 1e-6 (set in two places:
+`computeGriddedCombinedIndex()` for the baseline and the `minBaseline` argument of the `regionindex` step for the uncertainty run).
+- **Check on the current data (2026-10-09, Germany-only maps, 2005 against 2025 only; `tools/floorCounts.R`):** no baseline cell mean is below
+  0.001 except 7 cells of Lullula arborea at 10 km; the ratio between 2005 and 2025 exceeds 10 in no species at any grid size; the largest regional
+  index value is 122 and no cell lies above 200 or below 50; a floor of 0.01 would remove only 7 species-cells at 10 km and 2 at 20 and 50 km.
+  Intermediate years were not counted.
+- **Options:** (A) raise the floor (candidates 1e-4, 1e-3, 1e-2); (B) a cap on extreme ratios or a truncation of very small values (Soldaat et al.
+  2017 truncate small index values at a small positive value; whether and how the DDA caps ratios was NOT verified); (C) both; (D) keep as is.
+- **Recommendation so far:** keep 1e-6 for these results and add a documented truncation of ratios above 10 as an inactive safeguard, so that other
+  species or later runs cannot produce explosive cells. If the floor changes it must be changed in both places.
+
+---
+
 *Some of these have started -- for discussion once the current run's
 models are complete. See also `TODO.md` item 6/7 (unrelated: raster-processing
 performance, EVE cluster) and item 0 (methodology-fidelity gaps already found
