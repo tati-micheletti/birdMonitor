@@ -879,6 +879,7 @@ statements that all checks pass. (2) Internal consistency: the MSI combined inde
 maps -> area means -> species index -> combined index -> interval from the replicates, for two species and three years by default, for the BRT-only run and the big 5.
 - **Run:** `bash --login -c 'module load GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28 && Rscript tools/checkReportedNumbers.R test4 honest2'`
   and the same with `ens_brt-glm-gam-rf-nn`; add more species or years as arguments.
+- **Result so far (13 October):** BRT-only run, Alauda arvensis and Saxicola rubetra, 2005, 2015 and 2025: 18 of 18 comparisons OK (maps -> area means -> species index -> combined index 95.575 -> interval over 50 replicates 94.04 to 98.17). Still to do: the big 5 run, and the other nine species.
 - **Limit:** these checks show that the arithmetic and the transfer of the numbers are right; they do not show that the model is right (item 21).
 
 ---
