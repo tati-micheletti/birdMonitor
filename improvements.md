@@ -843,6 +843,46 @@ has never been validated.
 
 ---
 
+## 21. Test the hindcast and the model assumptions
+
+**Noted 2026-10-13 (project lead: "could we test these? if so, how?"; to do after the Steering Consortium meeting).** The intervals do not cover the hindcast
+assumption (that each species responded to habitat in 2005-2021 as it does in 2022-2025) or the model assumptions. Some of them can be tested; each test says
+what it can and cannot show.
+- **T1. Temporal hold-out and leave-one-year-out (cheap, partly in item 10).** Refit the habitat BRT without one habitat year (2022-2024 train, 2025 test; then
+  every year in turn) and compare the AUC and the calibration. Shows whether the model transfers between years, a one-year-forward test only, not a test of 2005.
+  About 2-3 days.
+- **T2. Independent historical data (the strongest test, depends on data).** (a) DDA territory-mapping data exist for 2005-2024 and trained only the landscape
+  scale: compare the habitat-based hindcast (2005-2021) with the territory counts or presences per 1 km cell and year (rank correlation, AUC per year, does the
+  fit get worse the further back we go?). (b) Compare the national species indices with the published trends of the DDA / PECBMS for 2005-2021 (rank correlation
+  of the 11 species trends, sign agreement; Kamp et al. 2021 for the DDA). (c) Compare with the MhB point counts before 2022, with the caveat that these records
+  were judged inconsistent. Effort depends on the data; (b) needs only published numbers (1 day).
+- **T3. Extrapolation per year (cheap).** Share of pixels in each hindcast year whose covariates lie outside the range of the 2022-2025 training data (MESS or
+  similar; `tools/diagnoseYearJump.R` already reports a share of cells outside the training range per top predictor). If the share is small the hindcast is an
+  interpolation in covariate space. About 1 day.
+- **T4. What drives the trend (cheap).** Counterfactual maps: predict 2025 with the landscape covariates of 2005 (or with the climate of 2005) to split the
+  trend into the part due to land use, land cover and climate. Shows whether the "decline" is a landscape change under fixed preferences, which is exactly what
+  the hindcast statement says. About 2 days.
+- **T5. Simulation with virtual species (tests the machinery and the interval, not the real birds).** Generate species with a known habitat response on the real
+  covariate layers (2005-2025), a known true trend, and sample them like the survey data; run the whole chain and see (i) whether the true trend is recovered and
+  (ii) whether the 90% interval covers the truth in about 90% of the cases (the coverage test of item 20). With a drift in the habitat preference after 2021 it
+  also quantifies the bias that the hindcast assumption can cause. Weeks of work, the most informative test of the method.
+- **T6. Calibration.** Reliability plots of the out-of-fold probabilities per species (do 0.3 predictions occur about 30% of the time?). Indices are ratios of mean
+  probabilities, so a stable calibration matters more than the AUC. About 1 day from the saved out-of-fold files.
+- **Not testable with the present data:** whether habitat preferences really did not change before 2022; only T2 can speak to it.
+
+## 22. Independent check of every reported number
+
+**Noted 2026-10-13 (project lead: yes, add it).** Three levels. (1) Document against source: done on 13 October by hand for the species and combined-index tables of
+the executive summary (12 rows, no mismatch); still to do for the main-model column, the AUC and weight tables of the handover (sections 7.5 and 7.8) and the
+statements that all checks pass. (2) Internal consistency: the MSI combined index equals the geometric mean of the 11 species means in both runs (93.621222 and
+96.218287); baseline 2005 = 100; lower <= mean <= upper; 50 and 25 replicates. (3) Independent recomputation from the maps: `tools/checkReportedNumbers.R` (read-only):
+maps -> area means -> species index -> combined index -> interval from the replicates, for two species and three years by default, for the BRT-only run and the big 5.
+- **Run:** `bash --login -c 'module load GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28 && Rscript tools/checkReportedNumbers.R test4 honest2'`
+  and the same with `ens_brt-glm-gam-rf-nn`; add more species or years as arguments.
+- **Limit:** these checks show that the arithmetic and the transfer of the numbers are right; they do not show that the model is right (item 21).
+
+---
+
 *Some of these have started -- for discussion once the current run's
 models are complete. See also `TODO.md` item 6/7 (unrelated: raster-processing
 performance, EVE cluster) and item 0 (methodology-fidelity gaps already found
