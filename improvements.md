@@ -803,6 +803,44 @@ can explode. At the moment a species is left out of a cell only when its baselin
 
 ---
 
+## 19. Predict only inside Germany: replace the bounding box by the study-area outline at the source
+
+**Noted 2026-10-13 (project lead: "we are SUPPOSED to predict only for Germany for now ... we REALLY need to address this"; to be done after the Steering
+Consortium meeting; supersedes the interim Germany-only masking).** All predictions are made on a rectangle, the bounding box of Germany, not on Germany.
+- **Numbers (job 63182183, year 2025):** the window has 13.9 million pixels of 200 m, 8.97 million inside Germany. Seven species (Alauda, Anthus, Buteo,
+  Emberiza calandra, Perdix, Saxicola, Vanellus) have predictions over the whole window (35.4% outside Germany); four (Emberiza citrinella, Lanius,
+  Lullula, Sturnus) only inside Germany (0.1% outside), because their models use `hedges` / `landscape_heterogeneity`, which appear to exist for Germany
+  only (from the predictor lists; the layers were not opened). So a model predicts only where all of its predictor layers have a value.
+- **Consequences:** about a third of the predictions of seven species are outside the study area (wasted compute and storage); the national means averaged
+  different areas for different species (area means differed by up to 55%; fixed for now by Germany-only copies, `tools/maskMetaModels.R`,
+  `area_mean_replicates_germany.csv`, `maskmaps`); predictions outside Germany are extrapolations of models trained on German records.
+- **To do:** (1) find out where the box comes from (the 200 m reference grid is the solar-radiation raster cropped to the habitat prediction window; where
+  that window is defined was not traced); (2) cut every input to the outline at the source (climate, elevation, land use, land cover, derived layers), through a
+  `studyArea` parameter (see item 6); (3) decide the scope of the climate scale, which is trained on EBBA2 data for Europe (cropping its predictions is
+  mechanical, cropping its training data is a modelling change); (4) check that `inputs_Monitor`, the band prediction and `runIndex_Monitor` carry no
+  bounding-box assumption; (5) recompute baseline, big 5 and uncertainty once; sanity test: the new national means must equal the interim Germany-only
+  means to rounding error; (6) build the outline with the closed-form `uncOutlineLAEA()` (two places still project it with terra: `metaModel()` and
+  `aggregateSpeciesToGrid()`).
+
+---
+
+## 20. Bootstrap: check how much the intervals depend on the block size, and the other weak points
+
+**Noted 2026-10-13 (project lead: "definitely; we will have to check this afterwards"; after the Steering Consortium meeting).** The uncertainty is a cluster (block)
+bootstrap: blocks are drawn with replacement, all records of a drawn block enter (`uncRowIndex()`). It is standard, but it is an approximate interval and its coverage
+has never been validated.
+- **Check 1, block size:** repeat the intervals (BRT-only, a few species and years are enough) with half and double the block size, with the existing switch
+  `BIRDMONITOR_UNC_BLOCKMULT` (0.5, 1, 2) and compare interval widths of the combined index and of a few species indices.
+- **Weak points to keep in mind or test:** (a) the climate scale has only about 13 blocks for Europe (capped at 1500 km), too few for a reliable cluster bootstrap;
+  (b) the block size comes from the autocorrelation range of the predictors, not of the residuals; (c) blocks are treated as independent although neighbouring blocks are
+  correlated, so intervals may be somewhat too narrow; (d) percentile intervals are not bias-corrected (replicate mean 96.1 against main model 95.6 for the combined
+  index 2025); (e) model settings are fixed in the replicates, which narrows the interval; (f) inside a replicate the ridge penalty is chosen with ten random folds over
+  rows that contain duplicated blocks, so copies of one record can sit on both sides of a split (the out-of-fold step keeps duplicates in the same fold); (g) 50 replicates
+  give noisy 5th and 95th percentiles (25 for the big 5); (h) with a weak meta-model some replicates collapse to a constant map (item 17).
+- **Optional:** a small simulation (a known truth, repeated sampling) to see whether the nominal 90% interval covers about 90%.
+
+---
+
 *Some of these have started -- for discussion once the current run's
 models are complete. See also `TODO.md` item 6/7 (unrelated: raster-processing
 performance, EVE cluster) and item 0 (methodology-fidelity gaps already found
