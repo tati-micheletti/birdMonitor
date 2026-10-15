@@ -4,7 +4,7 @@
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
 #   Rscript tools/makeStCoFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
-#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 5,10,20] [--alpha 0.05] [--out <folder>]
+#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 3,5,10,15] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
 # Sections follow the methods figure (pdf_export/birdMonitor_schematic.png):
@@ -37,7 +37,7 @@ baseYear   <- as.integer(getArg("--base-year", 2005))
 curYear    <- as.integer(getArg("--year", 2025))
 mapYears   <- as.integer(strsplit(getArg("--map-years", paste(baseYear, 2015, curYear, sep = ",")), ",")[[1]])
 hindcastEnd <- as.numeric(getArg("--hindcast-end", 2021.5))             # the habitat model has real data from 2022; earlier years are hindcast
-spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", "5,10,20"), ",")[[1]])   # cold/hot spot: regional index change of at least this many index points (one figure per value)
+spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", "3,5,10,15"), ",")[[1]])   # cold/hot spot: regional index change of at least this many index points (one figure per value)
 spotMain <- if (10 %in% spotPointsVec) 10 else spotPointsVec[1]
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
