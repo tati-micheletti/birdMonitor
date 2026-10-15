@@ -1,11 +1,9 @@
 # Reference data (not produced by birdMonitor)
 
-## eurostat_farmland_bird_index_EU27.csv
-European farmland bird indicator for the comparison figure `S3_vs_european_farmland_index` (tools/makeStCoFigures.R).
+## pecbms_farmland_bird_index_1980base.csv
+The European Farmland Bird Index of the Pan-European Common Bird Monitoring Scheme (PECBMS / EBCC), used by the comparison figure `S3_vs_european_farmland_index` (tools/makeStCoFigures.R).
 
-- Source: Eurostat dataset `sdg_15_60` "Common bird index by type of species - EU aggregate" (DOI 10.2908/SDG_15_60), fetched 2026-10-15 from
-  `https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/sdg_15_60?format=JSON&lang=EN` (dataset last updated 2026-02-16). Original data: European Bird Census Council (EBCC) / PECBMS,
-  BirdLife, RSPB, CSO. Annual values 1990-2024, EU27 aggregate, SMOOTHED estimates (statinfo SME).
-- What it is: multi-species indicator of abundance, 39 common farmland species (comspec CO_FARM); also all common species (168) and forest species (34).
-- Columns: `<group>_I00` = index with 2000 = 100, `<group>_I90` = index with 1990 = 100 (both as published); `CO_FARM_rebased_2005` = farmland I00 divided by its 2005 value x 100 (added here).
-- NOT the same thing as the 60% decline 1980-2021 quoted by BirdLife (Europe-wide, 30 countries, from 1980), and NOT the German Agrarland indicator of the DDA.
+- Source: PECBMS, "Wild Bird Indices for Europe and the EU produced by the PECBMS in 2025", file `indicators-europeeu-till2024.xlsx`
+  (https://pecbms.info/wp-content/uploads/2025/12/indicators-europeeu-till2024.xlsx; sheet "Indicators", base year 1980, indicator "Farmland Bird Index"), downloaded 2026-10-15. Methods: https://pecbms.info/methods/3-multispecies-indicators/
+- Contents: regions `Europe` and `EU`, years 1980-2024, 1980 = 100. Columns: `smoothed` (smoothed indicator), `lowerCL` and `upperCL` (confidence limits of the smoothed indicator), `unsmoothed`. Species and country lists are on the other sheets of the original file.
+- It is an index of ABUNDANCE of common farmland species (counts from national breeding bird schemes), Europe-wide; it is not the German indicator of the DDA and not made from our probability-of-occurrence maps.

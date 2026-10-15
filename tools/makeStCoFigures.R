@@ -363,23 +363,27 @@ if ("S3" %in% sections) {
     par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
     mtext("Multi-species indicator for 11 farmland bird species
 in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
-  # (b3) our combined index (MSI) next to the European farmland bird indicator (abundance, EBCC/PECBMS via Eurostat), both re-based to the same year
-  refFile <- file.path("data", "reference", "eurostat_farmland_bird_index_EU27.csv")
-  if (file.exists(refFile) && length(okc)) figure("S3_indices", "S3_vs_european_farmland_index", sprintf("Our combined index (MSI) against the European farmland bird indicator, %d = 100", baseYear),
-         sprintf("Our MSI for the 11 species in Germany (mean predicted probability of occurrence; line = estimate, band = 90%% interval) next to the EU27 common farmland bird indicator (39 species, abundance, EBCC/PECBMS via Eurostat, smoothed), both set to 100 in %d. The two are different quantities: the comparison shows how much more the abundance indicator falls over the same years.", baseYear),
-         paste(refFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = paste(okc, collapse = "+"), w = 10.5, h = 6.6, draw = function() {
-    ref <- read.csv(refFile); ref <- ref[ref$year >= baseYear, ]; ref$idx <- 100 * ref$CO_FARM_I00 / ref$CO_FARM_I00[ref$year == baseYear]
-    ours <- lapply(okc, function(k) { x <- IDX[[k]]$comb; x <- x[x$method == "MSI", ]; x[order(x$year), ] }); names(ours) <- okc
-    yl <- range(ref$idx, unlist(lapply(ours, function(x) c(x$lwr, x$upr))), 100, na.rm = TRUE); yl <- c(floor(yl[1] / 5) * 5 - 2, 104)
-    par(mar = c(4.2, 4.6, 3, 1), oma = c(4, 0, 1, 0)); plot(NA, xlim = c(baseYear, max(ref$year, unlist(lapply(ours, function(x) x$year)))), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", baseYear), bty = "l", las = 1)
-    abline(h = 100, lty = 3, col = "grey40")
-    for (k in okc) { x <- ours[[k]]; polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[k]], 0.2), border = NA); lines(x$year, x$estimate, col = varCol[[k]], lwd = 3) }
-    lines(ref$year, ref$idx, lwd = 3.5, col = "black", lty = 1)
-    lab <- c(sprintf("EU27 common farmland species, 39 species, abundance (%.0f in %d)", ref$idx[nrow(ref)], max(ref$year)),
-             sapply(okc, function(k) { x <- ours[[k]]; sprintf("Our MSI, %s, 11 species, occurrence (%.0f in %d)", V[[k]]$label, x$estimate[nrow(x)], max(x$year)) }))
-    legend("bottomleft", lab, col = c("black", varCol[okc]), lwd = 3, bty = "n", cex = 0.95)
-    mtext("EU27: Eurostat sdg_15_60 (EBCC/PECBMS), 39 common farmland species, abundance, smoothed.
-Ours: Germany only, 11 species, probability of occurrence (not abundance); band = 90% interval over the replicates.", outer = TRUE, side = 1, line = 1.6, cex = 0.85, col = "grey30") })
+  # (b3) our combined index (MSI) next to the European Farmland Bird Index (PECBMS/EBCC, abundance, from 1980). Ours is anchored to the European value in the base year.
+  refFile <- file.path("data", "reference", "pecbms_farmland_bird_index_1980base.csv")
+  if (file.exists(refFile) && length(okc)) figure("S3_indices", "S3_vs_european_farmland_index", "Our combined index (MSI) against the European Farmland Bird Index, 1980-2025",
+         sprintf("European Farmland Bird Index (PECBMS/EBCC; abundance; smoothed line, its confidence limits and the unsmoothed values; 1980 = 100) with our MSI for the 11 species in Germany (probability of occurrence) from %d. Our index is set to the European value of %d, so the two lines show the same years on one scale. They are different quantities.", baseYear, baseYear),
+         paste(refFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = paste(okc, collapse = "+"), w = 11.5, h = 6.8, draw = function() {
+    ref <- read.csv(refFile); ref <- ref[ref$region == "Europe", ]; ref <- ref[order(ref$year), ]; anchor <- ref$smoothed[ref$year == baseYear]
+    ours <- lapply(okc, function(k) { x <- IDX[[k]]$comb; x <- x[x$method == "MSI", ]; x <- x[order(x$year), ]; for (cn in c("estimate", "lwr", "upr")) x[[cn]] <- x[[cn]] * anchor / 100; x }); names(ours) <- okc
+    yl <- range(ref$lowerCL, ref$upperCL, ref$unsmoothed, unlist(lapply(ours, function(x) c(x$lwr, x$upr))), na.rm = TRUE); yl <- c(floor(yl[1] / 5) * 5 - 2, 105)
+    par(mar = c(4.2, 4.6, 3, 1), oma = c(5, 0, 1, 0)); plot(NA, xlim = c(min(ref$year), max(ref$year, unlist(lapply(ours, function(x) x$year)))), ylim = yl, xlab = "Year", ylab = "Index (Europe: 1980 = 100)", bty = "l", las = 1)
+    abline(h = 100, lty = 3, col = "grey40"); abline(v = baseYear, lty = 2, col = "grey60")
+    polygon(c(ref$year, rev(ref$year)), c(ref$lowerCL, rev(ref$upperCL)), col = adjustcolor("black", 0.15), border = NA)
+    lines(ref$year, ref$unsmoothed, col = "grey55", lwd = 1.2); lines(ref$year, ref$smoothed, lwd = 3.5, col = "black")
+    for (k in okc) { x <- ours[[k]]; polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[k]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[k]], lwd = 3) }
+    text(baseYear, yl[2], sprintf("our index starts in %d", baseYear), col = "grey35", cex = 0.85, adj = c(-0.05, 1))
+    lab <- c(sprintf("European Farmland Bird Index (PECBMS), abundance (%.0f in %d)", ref$smoothed[nrow(ref)], max(ref$year)), "  its confidence limits (shaded) and unsmoothed values (grey)",
+             sapply(okc, function(k) { x <- ours[[k]]; sprintf("Our MSI, %s, Germany, 11 species, occurrence (%.0f in %d)", V[[k]]$label, x$estimate[nrow(x)], max(x$year)) }))
+    legend("bottomleft", lab, col = c("black", "grey55", varCol[okc]), lwd = c(3.5, 1.5, rep(3, length(okc))), bty = "n", cex = 0.9)
+    mtext(sprintf("Our index is set to the European value of %d (%.1f) so that both fit on one scale.
+Our band: 90%% interval over our replicates; theirs: confidence limits of the smoothed indicator.
+Europe: PECBMS/EBCC 2025 update, abundance, 1980-2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, anchor),
+          outer = TRUE, side = 1, line = 1.6, cex = 0.8, col = "grey30") })
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
     figure("S3_indices", sprintf("S3_combined_replicates_%s", k), sprintf("Combined index of every replicate (%s)", V[[k]]$label),
@@ -640,6 +644,14 @@ if ("S8" %in% sections) {
       drawMap(ger(lay(r, "mean", 1)), "Mean over the replicates", palRich, zl); drawMap(ger(lay(r, "lwr", 3)), "5th percentile (lower end)", palRich, zl)
       drawMap(ger(lay(r, "upr", 4)), "95th percentile (upper end)", palRich, zl); drawMap(ger(lay(r, "width", 5)), "Width of the 90% interval", palSeq)
       bigTitle(sprintf("Expected richness of the %d species, %d (%s)", nSp, curYear, v$label)) })
+    if (!is.null(IDX[[k]]$rep)) figure("S2_maps", sprintf("S8_richness_national_%s", k), sprintf("Expected richness of Germany per year with its 90%% interval (%s)", v$label),
+           "Mean expected richness over German pixels (sum over the species of each species' area mean probability), main model (line) and the 5th-95th percentile over the replicates (band), for every year. Grey = hindcast years.",
+           paste0(v$unc, "/<Sp>/area_mean_replicates_germany.csv"), variant = k, w = 9.5, h = 6, draw = function() {
+      r <- IDX[[k]]$rep; r0 <- IDX[[k]]$rep0; sr <- aggregate(areaMean ~ replicate + year, r, sum); sr0 <- aggregate(areaMean ~ replicate + year, r0, sum); yrs <- sort(unique(sr$year))
+      q <- do.call(rbind, lapply(split(sr, sr$year), function(d) data.frame(year = d$year[1], lwr = quantile(d$areaMean, 0.05), upr = quantile(d$areaMean, 0.95)))); yl <- range(q$lwr, q$upr, sr0$areaMean)
+      par(mar = c(4.2, 4.6, 3, 1)); plot(NA, xlim = range(yrs), ylim = yl, xlab = "Year", ylab = "Expected richness (species per pixel)", main = v$full, bty = "l", las = 1); hindcastBox(yrs, yl)
+      polygon(c(q$year, rev(q$year)), c(q$lwr, rev(q$upr)), col = adjustcolor(varCol[[k]], 0.25), border = NA); sr0 <- sr0[order(sr0$year), ]; lines(sr0$year, sr0$areaMean, lwd = 3, col = "black")
+      legend("bottomleft", c("Main model", "90% interval over the replicates"), lwd = c(3, 8), col = c("black", adjustcolor(varCol[[k]], 0.4)), bty = "n") })
     figure("S5_community", sprintf("S8_richness_change_%s", k), sprintf("Change in expected richness %d vs %d, in number of species (%s)", curYear, baseYear, v$label),
            sprintf("Change of expected richness between %d and %d in number of species (mean change in probability over the species times %d). Left: every pixel (red = fewer species expected). Right: only where the 90%% interval over the replicates excludes zero; grey = it includes zero.", baseYear, curYear, nSp),
            fmean, variant = k, w = 12, h = 6.6, draw = function() {
