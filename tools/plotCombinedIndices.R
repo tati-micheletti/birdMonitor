@@ -29,13 +29,12 @@ draw <- function() {
       if (m == "SBI") polygon(c(d$year, rev(d$year)), c(d$lwr, rev(d$upr)), col = adjustcolor(cols[m], .20), border = NA)
       else { lines(d$year, d$lwr, col = cols[m], lty = lty[m], lwd = 1.6); lines(d$year, d$upr, col = cols[m], lty = lty[m], lwd = 1.6) }
     }
-    for (m in c("SBI", "MSI", "Chain")) { d <- x[x$method == m, ]; d <- d[order(d$year), ]; lines(d$year, d$estimate, col = cols[m], lty = lty[m], lwd = if (m == "SBI") 3 else 2.2) }
-    mm <- main[[k]]; lines(mm$year, mm$sbi, col = "black", lty = 5, lwd = 1.8)
-    if (k == 1) legend("bottomleft", c("SBI (band = 90% interval)", "MSI (lines = 90% interval)", "Chain / LPI-style (lines = 90% interval)", "main model (SBI)"),
-                       col = c(cols["SBI"], cols["MSI"], cols["Chain"], "black"), lty = c(lty["SBI"], lty["MSI"], lty["Chain"], 5), lwd = c(3, 2.2, 2.2, 1.8), bty = "n", cex = .95)
+    mm <- main[[k]]; lines(mm$year, mm$sbi, col = "black", lty = 1, lwd = 3)
+    if (k == 1) legend("bottomleft", c("Best estimate (main model; the same for SBI, MSI and chain)", "90% interval, SBI (percentiles over the replicates)", "90% interval, chain index (identical to the SBI)", "90% interval, MSI (Monte Carlo)"),
+                       col = c("black", adjustcolor(cols["SBI"], .5), cols["Chain"], cols["MSI"]), lty = c(1, 1, lty["Chain"], lty["MSI"]), lwd = c(3, 8, 1.6, 1.6), bty = "n", cex = .9)
   }
   mtext("Combined multi-species indices, 11 species, Germany only", outer = TRUE, side = 3, line = .6, font = 2, cex = 1.5)
-  mtext("The lines are the mean over the replicates; intervals are the 5th to 95th percentile (SBI, Chain) or Monte Carlo (MSI). SBI and Chain coincide as long as no species is missing in any year.",
+  mtext("Black line: the main model (fitted once on all training data). Intervals: how much the index changes when the models are trained on resampled data. SBI and chain coincide when no species is missing in any year.",
         outer = TRUE, side = 1, line = 1.8, cex = .85, col = "grey30")
 }
 png(file.path(out, "combined_indices.png"), width = 15, height = 6.6, units = "in", res = 200, type = "cairo"); draw(); invisible(dev.off())
