@@ -357,16 +357,16 @@ if ("S3" %in% sections) {
                            col = c("black", adjustcolor(cmbCol[["SBI"]], 0.5), cmbCol[["Chain"]], cmbCol[["MSI"]]), lty = c(1, 1, cmbLty[["Chain"]], cmbLty[["MSI"]]), lwd = c(3, 8, 1.6, 1.6), bty = "n", cex = 0.9)
   }
   okc <- variants[sapply(variants, function(k) !is.null(IDX[[k]]$comb) && !is.null(IDX[[k]]$sbi))]
-  txtCmb <- "Black line: main model (fitted once on all training data). Bands/lines: 90% interval over the replicates (SBI, chain) or Monte Carlo (MSI). SBI and chain coincide when no species is missing."
+  txtCmb <- "Black line: main model (fitted once on all training data).\nBands/lines: 90% interval over the replicates (SBI, chain) or Monte Carlo (MSI).\nSBI and chain coincide when no species is missing."
   for (sel in list(okc, "big5", "brt")) { sel <- intersect(sel, okc); if (!length(sel) || (length(sel) == 1 && length(okc) == 1 && !identical(sel, okc))) next
     id <- if (length(sel) == 2) "S3_combined_both" else paste0("S3_combined_", sel)
     if (length(sel) == 1 && length(okc) == 1 && id %in% sapply(manifest, function(m) m$id)) next
     figure("S3_indices", id, paste("Combined multi-species index (SBI, MSI, chain):", paste(sapply(sel, function(k) V[[k]]$label), collapse = " and ")),
            "The combined index of the 11 species: geometric mean of the species indices, three ways of drawing the 90% interval. Black = main model.",
            "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = paste(sel, collapse = "+"), w = if (length(sel) == 2) 15 else 9.5, h = 6.6, draw = function() {
-      par(mfrow = c(1, length(sel)), mar = c(4.2, 4.6, 3.2, 1), oma = c(3.2, 0, 2.6, 0))
+      par(mfrow = c(1, length(sel)), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.6, 0))
       for (i in seq_along(sel)) combPanel(sel[i], i == 1)
-      bigTitle("Combined multi-species indices, 11 species, Germany only"); footnote(txtCmb)
+      bigTitle("Combined multi-species indices, 11 species, Germany only"); mtext(txtCmb, outer = TRUE, side = 1, line = 2.2, cex = 0.85, col = "grey30")
     })
   }
   # (b2) the same combined index on the full axis (0 to 102): how small the movement is against the range of the index
