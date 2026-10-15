@@ -324,11 +324,12 @@ if ("S3" %in% sections) {
            "annual_report_germany and annual_report_<ens>_germany: species_index(_uncertainty).csv", variant = "both", w = 14, h = 9, draw = function() speciesGrid(c("brt", "big5"), "Species indices, Germany: BRT only against big 5")
     )
   # (b) combined indices (same as tools/plotCombinedIndices.R, from the annual report files)
-  combPanel <- function(k, showLegend) {
+  combPanel <- function(k, showLegend, ylim = NULL, title = NULL) {
     ix <- IDX[[k]]; x <- ix$comb; yrs <- sort(unique(x$year))
     rng <- range(x$lwr[x$method %in% names(cmbCol)], x$upr[x$method %in% names(cmbCol)], ix$sbi$sbi, na.rm = TRUE) + c(-0.4, 0.4)
-    plot(NA, xlim = range(yrs), ylim = rng, xlab = "Year", ylab = "Index (2005 = 100)", main = V[[k]]$full, cex.main = 1.3, bty = "l", las = 1)
-    hindcastBox(yrs, rng); text(mean(c(min(yrs), hindcastEnd)), rng[2] - 0.05, "hindcast 2005-2021", col = "grey45", cex = 0.95, adj = c(0.5, 1)); abline(h = 100, lty = 3, col = "grey40")
+    if (!is.null(ylim)) rng <- ylim
+    plot(NA, xlim = range(yrs), ylim = rng, xlab = "Year", ylab = "Index (2005 = 100)", main = if (is.null(title)) V[[k]]$full else title, cex.main = 1.3, bty = "l", las = 1)
+    hindcastBox(yrs, rng); text(mean(c(min(yrs), hindcastEnd)), if (is.null(ylim)) rng[2] - 0.05 else 50, "hindcast 2005-2021", col = "grey45", cex = 0.95, adj = c(0.5, 1)); abline(h = 100, lty = 3, col = "grey40")
     for (m in names(cmbCol)) { d <- x[x$method == m, ]; d <- d[order(d$year), ]
       if (m == "SBI") polygon(c(d$year, rev(d$year)), c(d$lwr, rev(d$upr)), col = adjustcolor(cmbCol[[m]], 0.2), border = NA)
       else { lines(d$year, d$lwr, col = cmbCol[[m]], lty = cmbLty[[m]], lwd = 1.6); lines(d$year, d$upr, col = cmbCol[[m]], lty = cmbLty[[m]], lwd = 1.6) } }
@@ -349,6 +350,13 @@ if ("S3" %in% sections) {
       bigTitle("Combined multi-species indices, 11 species, Germany only"); footnote(txtCmb)
     })
   }
+  # (b2) the same combined index on the full axis (0 to 102): how small the movement is against the range of the index
+  for (k in intersect(c("big5", "brt"), okc)) figure("S3_indices", sprintf("S3_combined_%s_axis0", k), sprintf("Combined multi-species index on the full axis 0-102 (%s)", V[[k]]$label),
+         "The same combined index (main model, 90% intervals) with the y axis running from 0 to 102 instead of being cut to the data. A decline of about 7 index points is small against the full range of the scale.",
+         "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = k, w = 9.5, h = 6.6, draw = function() {
+    par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
+    mtext("Multi-species indicator for 11 farmland bird species
+in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
     figure("S3_indices", sprintf("S3_combined_replicates_%s", k), sprintf("Combined index of every replicate (%s)", V[[k]]$label),
