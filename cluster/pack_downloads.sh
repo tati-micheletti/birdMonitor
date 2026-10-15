@@ -29,7 +29,7 @@ listA() {
     emit "$O/regional_index${tag}_germany"/*.tif
     emit "$O/metamodel_02_1_50${tag}"/*_perf_meta.rds "$O/metamodel_02_1_50${tag}"/*_varimp_meta.rds "$O/metamodel_02_1_50${tag}"/*_ridge_meta.rds "$O/metamodel_02_1_50${tag}"/*_meta_ridgeid.txt
   done
-  for sd in scale_50 scale_1 scale_02; do emit "$O/$sd"/*_perf_*.rds "$O/$sd"/*_expl_dev_*.rds; done
+  for sd in $(cd "$O" 2>/dev/null && ls -d scale_* 2>/dev/null); do emit "$O/$sd"/*_perf_*.rds "$O/$sd"/*_expl_dev_*.rds; done
   for u in "uncertainty_${UNC_BRT}" "uncertainty_${ENS}"; do
     emit "$O/$u"/*.csv "$O/$u"/regional "$O/$u"/*.txt
     for d in "$O/$u"/*/; do emit "$d"area_mean_replicates*.csv "$d"species_index_uncertainty.csv "$d"replicate_log.csv "$d"parity_check.txt "$d"blocksize.rds "$d"run_info_*.txt "$d"ridge "$d"refit_fallbacks.csv "$d"models/refit_fallbacks.csv; done
@@ -44,10 +44,10 @@ listB() {
     emit "$O/$u/community_germany"
     for d in "$O/$u"/*/; do emit "${d}maps_germany"; done
   done
-  for sd in scale_50 scale_1 scale_02; do emit "$O/$sd"/*_pred_*_2025.tif "$O/$sd"/*_sd_*_2025.tif; done
+  for sd in $(cd "$O" 2>/dev/null && ls -d scale_* 2>/dev/null); do emit "$O/$sd"/*_pred_*_2025.tif "$O/$sd"/*_sd_*_2025.tif; done
 }
 listC() {
-  for sd in scale_50 scale_1 scale_02; do emit "$O/$sd"/*.rds; done
+  for sd in $(cd "$O" 2>/dev/null && ls -d scale_* 2>/dev/null); do emit "$O/$sd"/*.rds; done
   for tag in "" "_${ENS}"; do emit "$O/metamodel_02_1_50${tag}"/*.rds; done
 }
 

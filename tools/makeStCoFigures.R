@@ -167,6 +167,15 @@ areaShares <- function(lwr, upr) {                                       # exact
 readCsv <- function(f) { need(f); read.csv(f, check.names = FALSE, stringsAsFactors = FALSE) }
 hindcastBox <- function(yrs, ylim) { rect(min(yrs) - 0.5, ylim[1] - 50, hindcastEnd, ylim[2] + 50, col = "#ececec", border = NA) }
 
+## ---- per-species scale folders: the folder name comes from each species' own resolution in data/speciesConfig_general.csv (e.g. Lanius collurio landscape 700 m -> scale_07, Buteo buteo 5 km -> scale_5)
+speciesCfg <- tryCatch(read.csv("data/speciesConfig_general.csv", stringsAsFactors = FALSE), error = function(e) NULL)
+scaleLabelOf <- function(resolutionM) paste0("scale_", sub(".", "", as.character(resolutionM / 1000), fixed = TRUE))
+scaleDirOf <- function(sp, sc) {
+  r <- if (is.null(speciesCfg)) NA else speciesCfg$resolution_m[speciesCfg$species == sp & speciesCfg$scale == sc]
+  lab <- if (length(r) && !is.na(r[1])) scaleLabelOf(r[1]) else c(climate = "scale_50", landscape = "scale_1", habitat = "scale_02")[[sc]]
+  file.path(root, lab)
+}
+
 ## ---- the index tables (read once; used by S3, S6, S7) ------------------------------------------------------------------------------------
 loadIdx <- function(k) {
   v <- V[[k]]; o <- list()
@@ -202,13 +211,12 @@ varCol <- c(brt = "#1f4e79", big5 = "#c4551f")
 ## =================================================================================================================================================
 if ("S1" %in% sections) {
   say("--- S1 ---")
-  scaleDirs <- c(climate = "scale_50", landscape = "scale_1", habitat = "scale_02")
   scaleTag  <- c(climate = "EU", landscape = "landscape", habitat = "habitat")
   for (k in variants) for (sp in species) {
     v <- V[[k]]; yr <- curYear
-    f <- c(climate = if (k == "brt") file.path(root, "scale_50", sprintf("%s_pred_EU_%d.tif", spc(sp), yr)) else file.path(root, "scale_50", sprintf("%s_pred_%s_climate_%d.tif", spc(sp), v$tag, yr)),
-           landscape = if (k == "brt") file.path(root, "scale_1", sprintf("%s_pred_landscape_%d.tif", spc(sp), yr)) else file.path(root, "scale_1", sprintf("%s_pred_%s_landscape_%d.tif", spc(sp), v$tag, yr)),
-           habitat = if (k == "brt") file.path(root, "scale_02", sprintf("%s_pred_habitat_%d.tif", spc(sp), yr)) else file.path(root, "scale_02", sprintf("%s_pred_%s_habitat_%d.tif", spc(sp), v$tag, yr)),
+    f <- c(climate = if (k == "brt") file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_EU_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_%s_climate_%d.tif", spc(sp), v$tag, yr)),
+           landscape = if (k == "brt") file.path(scaleDirOf(sp, "landscape"), sprintf("%s_pred_landscape_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "landscape"), sprintf("%s_pred_%s_landscape_%d.tif", spc(sp), v$tag, yr)),
+           habitat = if (k == "brt") file.path(scaleDirOf(sp, "habitat"), sprintf("%s_pred_habitat_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "habitat"), sprintf("%s_pred_%s_habitat_%d.tif", spc(sp), v$tag, yr)),
            final = file.path(v$metaGer, sprintf("%s_meta_suitability_%d.tif", spc(sp), yr)))
     figure("S1_models", sprintf("S1_scales_%s_%s", spc(sp), k), sprintf("%s: the three scale models and the final map, %d (%s)", nm(sp), yr, V[[k]]$label),
            "Step 1 of the methods figure: probability of occurrence from the climate (50 km), landscape (1 km) and habitat (200 m) models and the final map the meta-model makes from them. Same colour scale in all four panels.",
@@ -222,8 +230,8 @@ if ("S1" %in% sections) {
   # accuracy: block-CV AUC of each scale (BRT and, if present, the big 5 ensemble) and the honest AUC of the meta-model
   aucTab <- do.call(rbind, lapply(species, function(sp) do.call(rbind, lapply(c("climate", "landscape", "habitat", "meta"), function(sc) do.call(rbind, lapply(variants, function(k) {
     f <- if (sc == "meta") file.path(V[[k]]$metaBase %||% "", sprintf("%s_perf_meta.rds", spc(sp)))
-         else if (k == "brt") file.path(root, scaleDirs[[sc]], sprintf("%s_perf_%s.rds", spc(sp), scaleTag[[sc]]))
-         else file.path(root, scaleDirs[[sc]], sprintf("%s_perf_%s_%s.rds", spc(sp), V[[k]]$tag, sc))
+         else if (k == "brt") file.path(scaleDirOf(sp, sc), sprintf("%s_perf_%s.rds", spc(sp), scaleTag[[sc]]))
+         else file.path(scaleDirOf(sp, sc), sprintf("%s_perf_%s_%s.rds", spc(sp), V[[k]]$tag, sc))
     if (!file.exists(f)) return(NULL)
     p <- readRDS(f); if (sc == "meta" && !identical(p$evalBasis, "out-of-fold inputs")) return(NULL)
     data.frame(species = sp, scale = sc, variant = k, AUC = p$AUC[1], TSS = p$TSS[1], file = f) }))))))
@@ -618,8 +626,8 @@ if ("S7" %in% sections) {
     drawClasses(agree, "Same cold/hot class in both runs?", c("same class", "different class"), c("#cfe3d6", "#b22222"))
     bigTitle(sprintf("BRT only against big 5, regional change %d vs %d (%d km)", curYear, baseYear, km)) })
   for (sp in species) {
-    fs <- c(climate = file.path(root, "scale_50", sprintf("%s_sd_%s_climate_%d.tif", spc(sp), ensTag, curYear)), landscape = file.path(root, "scale_1", sprintf("%s_sd_%s_landscape_%d.tif", spc(sp), ensTag, curYear)),
-            habitat = file.path(root, "scale_02", sprintf("%s_sd_%s_habitat_%d.tif", spc(sp), ensTag, curYear)))
+    fs <- c(climate = file.path(scaleDirOf(sp, "climate"), sprintf("%s_sd_%s_climate_%d.tif", spc(sp), ensTag, curYear)), landscape = file.path(scaleDirOf(sp, "landscape"), sprintf("%s_sd_%s_landscape_%d.tif", spc(sp), ensTag, curYear)),
+            habitat = file.path(scaleDirOf(sp, "habitat"), sprintf("%s_sd_%s_habitat_%d.tif", spc(sp), ensTag, curYear)))
     figure("S7_robustness", sprintf("S7_algorithm_spread_%s", spc(sp)), sprintf("%s: disagreement among the five algorithms, %d", nm(sp), curYear),
            "Standard deviation of the predicted probability across BRT, GLM, GAM, random forest and neural network, at each scale (before the meta-model). Dark = the algorithms disagree.",
            paste(fs, collapse = "; "), variant = "big5", w = 14, h = 5.6, draw = function() {
