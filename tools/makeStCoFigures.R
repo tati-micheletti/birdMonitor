@@ -409,6 +409,28 @@ Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurr
     vsFigure("S3_vs_european_farmland_index_from2005", sprintf("Our combined index (MSI) and the European Farmland Bird Index, both %d = 100", baseYear),
              sprintf("The same comparison on our axis: both indices set to 100 in %d, y axis from 40 to 102. European Farmland Bird Index (PECBMS/EBCC, abundance, smoothed with confidence limits and unsmoothed values) against our MSI for the 11 species in Germany (probability of occurrence, %s). Grey = our hindcast years.", baseYear, V[[vsK]]$label), FALSE)
   }
+  # (b4) the same comparison with the German farmland indicator (UBA/BfN Agrarland, abundance of selected farmland birds, to 2023) added; all three set to 100 in the base year
+  gerFile <- file.path("data", "reference", "uba_agrarland_subindex_Germany.csv")
+  if (file.exists(refFile) && file.exists(gerFile) && length(okc)) figure("S3_indices", "S3_vs_german_and_european_index", sprintf("Our combined index (MSI) against the German and the European farmland bird indicators, %d = 100", baseYear),
+         sprintf("Three series set to 100 in %d: our MSI for the 11 species in Germany (probability of occurrence; band = 90%% interval), the German national indicator Agrarland (UBA/BfN, DDA; abundance of selected farmland birds; to 2023) and the European Farmland Bird Index (PECBMS/EBCC; abundance of 39 species; to 2024). Different quantities and species sets.", baseYear),
+         paste(refFile, gerFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = vsK, w = 11.5, h = 6.8, draw = function() {
+    ref <- read.csv(refFile); ref <- ref[ref$region == "Europe" & ref$year >= baseYear, ]; ref <- ref[order(ref$year), ]; a0 <- ref$smoothed[ref$year == baseYear]
+    for (cn in c("smoothed", "lowerCL", "upperCL")) ref[[cn]] <- 100 * ref[[cn]] / a0
+    ger <- read.csv(gerFile); ger <- ger[ger$year >= baseYear, ]; ger$idx <- 100 * ger$agrarland_pct_of_target / ger$agrarland_pct_of_target[ger$year == baseYear]
+    x <- IDX[[vsK]]$comb; x <- x[x$method == "MSI", ]; x <- x[order(x$year), ]
+    yl <- c(40, 102); par(mar = c(4.2, 4.6, 3, 1), oma = c(5, 0, 1, 0))
+    plot(NA, xlim = c(baseYear, max(ref$year, ger$year, x$year)), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", baseYear), bty = "l", las = 1)
+    abline(h = 100, lty = 3, col = "grey40")
+    polygon(c(ref$year, rev(ref$year)), c(ref$lowerCL, rev(ref$upperCL)), col = adjustcolor("black", 0.12), border = NA); lines(ref$year, ref$smoothed, lwd = 3.5, col = "black")
+    lines(ger$year, ger$idx, lwd = 3.5, col = "#6a3d9a", lty = 1)
+    polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[vsK]], lwd = 3)
+    lab <- c(sprintf("European Farmland Bird Index (PECBMS), abundance, 39 species (%.0f in %d)", ref$smoothed[nrow(ref)], max(ref$year)),
+             sprintf("German farmland indicator Agrarland (UBA/BfN), abundance (%.0f in %d)", ger$idx[nrow(ger)], max(ger$year)),
+             sprintf("Our MSI, Germany, 11 species, occurrence (%.0f in %d)", x$estimate[nrow(x)], max(x$year)))
+    legend("bottomleft", lab, col = c("black", "#6a3d9a", varCol[[vsK]]), lwd = 3.5, bty = "n", cex = 0.9)
+    mtext(sprintf("All series set to 100 in %d. German indicator: percent of target value (UBA/BfN 2025, DDA data), divided by its %d value; about ten selected species.
+Europe: PECBMS/EBCC 2025 update, smoothed, with confidence limits. Ours: probability of occurrence, 11 species, Germany only, band = 90%% interval over the replicates.", baseYear, baseYear),
+          outer = TRUE, side = 1, line = 1.6, cex = 0.8, col = "grey30") })
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
     figure("S3_indices", sprintf("S3_combined_replicates_%s", k), sprintf("Combined index of every replicate (%s)", V[[k]]$label),

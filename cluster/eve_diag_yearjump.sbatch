@@ -13,4 +13,4 @@
 set -euo pipefail
 mkdir -p logs
 source "${SLURM_SUBMIT_DIR}/cluster/eve_unc_common.sh"
-Rscript tools/diagnoseYearJump.R "Vanellus vanellus,Perdix perdix,Alauda arvensis" --tag honest2 --years 2019:2025 --top 6
+Rscript tools/diagnoseYearJump.R "Vanellus vanellus,Perdix perdix,Alauda arvensis" --tag honest2 --top 6
