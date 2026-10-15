@@ -363,6 +363,23 @@ if ("S3" %in% sections) {
     par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
     mtext("Multi-species indicator for 11 farmland bird species
 in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
+  # (b3) our combined index (MSI) next to the European farmland bird indicator (abundance, EBCC/PECBMS via Eurostat), both re-based to the same year
+  refFile <- file.path("data", "reference", "eurostat_farmland_bird_index_EU27.csv")
+  if (file.exists(refFile) && length(okc)) figure("S3_indices", "S3_vs_european_farmland_index", sprintf("Our combined index (MSI) against the European farmland bird indicator, %d = 100", baseYear),
+         sprintf("Our MSI for the 11 species in Germany (mean predicted probability of occurrence; line = estimate, band = 90%% interval) next to the EU27 common farmland bird indicator (39 species, abundance, EBCC/PECBMS via Eurostat, smoothed), both set to 100 in %d. The two are different quantities: the comparison shows how much more the abundance indicator falls over the same years.", baseYear),
+         paste(refFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = paste(okc, collapse = "+"), w = 10.5, h = 6.6, draw = function() {
+    ref <- read.csv(refFile); ref <- ref[ref$year >= baseYear, ]; ref$idx <- 100 * ref$CO_FARM_I00 / ref$CO_FARM_I00[ref$year == baseYear]
+    ours <- lapply(okc, function(k) { x <- IDX[[k]]$comb; x <- x[x$method == "MSI", ]; x[order(x$year), ] }); names(ours) <- okc
+    yl <- range(ref$idx, unlist(lapply(ours, function(x) c(x$lwr, x$upr))), 100, na.rm = TRUE); yl <- c(floor(yl[1] / 5) * 5 - 2, 104)
+    par(mar = c(4.2, 4.6, 3, 1), oma = c(4, 0, 1, 0)); plot(NA, xlim = c(baseYear, max(ref$year, unlist(lapply(ours, function(x) x$year)))), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", baseYear), bty = "l", las = 1)
+    abline(h = 100, lty = 3, col = "grey40")
+    for (k in okc) { x <- ours[[k]]; polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[k]], 0.2), border = NA); lines(x$year, x$estimate, col = varCol[[k]], lwd = 3) }
+    lines(ref$year, ref$idx, lwd = 3.5, col = "black", lty = 1)
+    lab <- c(sprintf("EU27 common farmland species, 39 species, abundance (%.0f in %d)", ref$idx[nrow(ref)], max(ref$year)),
+             sapply(okc, function(k) { x <- ours[[k]]; sprintf("Our MSI, %s, 11 species, occurrence (%.0f in %d)", V[[k]]$label, x$estimate[nrow(x)], max(x$year)) }))
+    legend("bottomleft", lab, col = c("black", varCol[okc]), lwd = 3, bty = "n", cex = 0.95)
+    mtext("EU27: Eurostat sdg_15_60 (EBCC/PECBMS), 39 common farmland species, abundance, smoothed.
+Ours: Germany only, 11 species, probability of occurrence (not abundance); band = 90% interval over the replicates.", outer = TRUE, side = 1, line = 1.6, cex = 0.85, col = "grey30") })
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
     figure("S3_indices", sprintf("S3_combined_replicates_%s", k), sprintf("Combined index of every replicate (%s)", V[[k]]$label),

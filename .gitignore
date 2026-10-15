@@ -62,6 +62,7 @@ inputs
 !/data/speciesCanonical.csv
 !/data/speciesConfig_general.csv
 !/data/speciesConfig_predictors.csv
+!/data/reference/
 
 # All pipeline run outputs, regardless of runName
 /outputs
