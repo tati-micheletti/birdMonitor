@@ -712,70 +712,75 @@ if ("S8" %in% sections) {
 ## =================================================================================================================================================
 ## S9  observed trends from the DDA territory data (2005-2024): abundance against occupancy, and against our modelled index (needs inputs/response/processed/territories_csv;
 ##     run locally: Rscript tools/makeStCoFigures.R --run test4 --variants big5 --sections S9 --out outputs/test4/figures_fullreport)
+##     Rules as in Kamp et al. 2021 (J Ornithol 162): only plots surveyed in at least two years, the first year of each plot series is dropped, the reference year is 2006.
+##     Not done: the observer correction (no observer id in the file) and the TRIM-GEE error model; the model here is a plain log-linear model with plot and year effects.
 ## =================================================================================================================================================
 if ("S9" %in% sections) {
   say("--- S9 ---")
   vsK <- if ("big5" %in% variants) "big5" else variants[1]
+  obsBase <- as.integer(getArg("--obs-base-year", 2006))
   vf <- file.path("inputs", "response", "processed", "territories_csv", "dda_visits.csv"); df <- file.path("inputs", "response", "processed", "territories_csv", "dda_data.csv")
   if (!all(file.exists(vf, df)) || !requireNamespace("data.table", quietly = TRUE)) note("S9", "needs data.table and the csv copies of the DDA territory files in inputs/response/processed/territories_csv") else {
     suppressMessages(library(data.table))
     vis <- fread(vf); dat <- fread(df); dat[, year := as.integer(substr(Countdate, 1, 4))]
-    plotYears <- unique(vis[, .(plot = ROUTENCODE, year = Jahr)]); yrsObs <- sort(unique(plotYears$year)); plots <- sort(unique(plotYears$plot))
-    # TRIM-like model without covariates: expected value of plot p in year y = a_p * b_y (fitted by iterative scaling, surveyed plot-years only); index = b_y / b_first year.
-    # Run on the territory counts (abundance) and on presence/absence (occupancy) with the same model, so that the two indices differ only by the data.
+    plotYears <- unique(vis[, .(plot = ROUTENCODE, year = Jahr)])
+    nSurveyed <- plotYears[, .N, by = plot]; plotYears <- plotYears[plot %in% nSurveyed[N >= 2, plot]]                  # only plots surveyed in at least two years
+    plotYears <- merge(plotYears, plotYears[, .(first = min(year)), by = plot], by = "plot")[year > first, .(plot, year)]   # the first year of each plot series is dropped (observer learning)
+    yrsObs <- sort(unique(plotYears$year)); plots <- sort(unique(plotYears$plot)); bi <- match(obsBase, yrsObs)
+    # TRIM-like model without covariates: expected value of plot p in year y = a_p * b_y (iterative scaling over the surveyed plot-years); index = 100 * b_y / b_reference year.
+    # Run on the territory counts (abundance) and on presence/absence (occupancy) with the same model, so that the two differ only by the data.
     ipf <- function(M, S) {
-      M0 <- M; M0[!S] <- 0; b <- rep(1, ncol(M)); a <- rep(1, nrow(M))
-      keep <- rowSums(M0) > 0; M0 <- M0[keep, , drop = FALSE]; Sk <- S[keep, , drop = FALSE] * 1; a <- a[keep]
-      for (it in 1:1000) { a <- rowSums(M0) / as.vector(Sk %*% b); b2 <- colSums(M0) / as.vector(t(Sk) %*% a); b2 <- b2 / b2[1]; if (max(abs(b2 - b)) < 1e-9) { b <- b2; break }; b <- b2 }
+      M0 <- M; M0[!S] <- 0; b <- rep(1, ncol(M))
+      keep <- rowSums(M0) > 0; M0 <- M0[keep, , drop = FALSE]; Sk <- S[keep, , drop = FALSE] * 1
+      for (it in 1:2000) { a <- rowSums(M0) / as.vector(Sk %*% b); b2 <- colSums(M0) / as.vector(t(Sk) %*% a); b2 <- b2 / b2[bi]; if (max(abs(b2 - b)) < 1e-9) { b <- b2; break }; b <- b2 }
       100 * b
     }
-    chain <- function(M, S) {                                           # matched plots, year to year, chained (robustness check)
+    chain <- function(M, S) {                                           # matched plots, year to year, chained from the first year, then set to 100 in the reference year (robustness check)
       idx <- numeric(ncol(M)); idx[1] <- 100
       for (j in 2:ncol(M)) { m <- S[, j - 1] & S[, j]; r <- if (sum(m) > 0 && mean(M[m, j - 1]) > 0) mean(M[m, j]) / mean(M[m, j - 1]) else 1; idx[j] <- idx[j - 1] * r }
-      idx
+      100 * idx / idx[bi]
     }
     S <- matrix(FALSE, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); S[cbind(match(plotYears$plot, plots), match(plotYears$year, yrsObs))] <- TRUE
-    obs <- list(); seriesRows <- list()
+    seriesRows <- list()
     for (sp in allSpecies) {
       e <- speciesCanonical$euring_code[speciesCanonical$latin_name == sp]; d <- dat[EURING == e, .(n = sum(Reviere)), by = .(plot = ROUTENCODE, year)]
-      d <- d[!is.na(match(d$plot, plots)) & !is.na(match(d$year, yrsObs)), ]                  # a few records belong to plot-years that are not in the visit list
+      d <- d[!is.na(match(d$plot, plots)) & !is.na(match(d$year, yrsObs)), ]
       Mn <- matrix(0, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mn[cbind(match(d$plot, plots), match(d$year, yrsObs))] <- d$n; Mn[!S] <- NA
       Mp <- (Mn > 0) * 1
-      r <- data.frame(species = sp, year = yrsObs, abundance = ipf(Mn, S), occupancy = ipf(Mp, S), abundanceChain = chain(Mn, S), occupancyChain = chain(Mp, S), plotsSurveyed = colSums(S))
-      obs[[sp]] <- r; seriesRows[[sp]] <- r
+      seriesRows[[sp]] <- data.frame(species = sp, year = yrsObs, abundance = ipf(Mn, S), occupancy = ipf(Mp, S), abundanceChain = chain(Mn, S), occupancyChain = chain(Mp, S), plotsSurveyed = colSums(S))
     }
     ser <- do.call(rbind, seriesRows); rownames(ser) <- NULL
-    ours <- IDX[[vsK]]$main                                              # main-model species index, species x years (2005 = 100)
-    ser$modelled <- mapply(function(sp, y) ours[sp, as.character(y)], ser$species, ser$year)
+    ours <- IDX[[vsK]]$main                                              # main-model species index, species x years (2005 = 100); set to 100 in the reference year here
+    ser$modelled <- mapply(function(sp, y) 100 * ours[sp, as.character(y)] / ours[sp, as.character(obsBase)], ser$species, ser$year)
     geo <- function(v) exp(mean(log(pmax(v, 1e-3))))
     comb <- function(spp) do.call(rbind, lapply(yrsObs, function(y) { d <- ser[ser$year == y & ser$species %in% spp, ]
       data.frame(year = y, abundance = geo(d$abundance), occupancy = geo(d$occupancy), modelled = geo(d$modelled)) }))
     germanList <- c("Saxicola rubetra", "Alauda arvensis", "Emberiza citrinella", "Emberiza calandra", "Lullula arborea", "Vanellus vanellus", "Lanius collurio")   # species of the German indicator that are also in our 11
     c11 <- comb(allSpecies); c7 <- comb(germanList)
     ser$english <- english[ser$species]; tableOut(ser[, c("species", "english", "year", "abundance", "occupancy", "abundanceChain", "occupancyChain", "modelled", "plotsSurveyed")], "S9_observed_vs_modelled_series")
-    last <- max(yrsObs); sm <- do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp & ser$year == last, ]; data.frame(species = sp, english = english[[sp]], year = last, observedAbundance = d$abundance, observedOccupancy = d$occupancy, modelled = d$modelled) }))
-    sm <- rbind(sm, data.frame(species = "COMBINED (11 species)", english = "Combined (11 species)", year = last, observedAbundance = c11$abundance[c11$year == last], observedOccupancy = c11$occupancy[c11$year == last], modelled = c11$modelled[c11$year == last]),
-                    data.frame(species = "COMBINED (7 species of the German indicator)", english = "Combined (7 species of the German indicator)", year = last, observedAbundance = c7$abundance[c7$year == last], observedOccupancy = c7$occupancy[c7$year == last], modelled = c7$modelled[c7$year == last]))
-    tableOut(sm, "S9_observed_vs_modelled_species_last_year")
+    at <- function(y) { do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp & ser$year == y, ]; data.frame(species = sp, english = english[[sp]], year = y, observedAbundance = d$abundance, observedOccupancy = d$occupancy, modelled = d$modelled) })) }
+    addComb <- function(tb, y) rbind(tb, data.frame(species = "COMBINED (11 species)", english = "Combined (11 species)", year = y, observedAbundance = c11$abundance[c11$year == y], observedOccupancy = c11$occupancy[c11$year == y], modelled = c11$modelled[c11$year == y]),
+                                          data.frame(species = "COMBINED (7 species of the German indicator)", english = "Combined (7 species of the German indicator)", year = y, observedAbundance = c7$abundance[c7$year == y], observedOccupancy = c7$occupancy[c7$year == y], modelled = c7$modelled[c7$year == y]))
+    last <- max(yrsObs); tableOut(addComb(at(last), last), "S9_observed_vs_modelled_species_last_year"); tableOut(addComb(at(2018), 2018), "S9_observed_vs_modelled_species_2018")
     gerFile <- file.path("data", "reference", "uba_agrarland_subindex_Germany.csv"); gerCol <- "#6a3d9a"
     col3 <- c(abundance = "black", occupancy = "#2d8a4e", modelled = varCol[[vsK]])
     figure("S3_indices", "S9_observed_vs_modelled_combined", sprintf("Observed abundance and occupancy (DDA territory data) against our modelled index, %d-%d", min(yrsObs), last),
-           "From the DDA territory data (2,425 plots, 2005 to 2024): the same plot-based model (TRIM-like, plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our 11 species. Right: the 7 of them that are in the German farmland indicator, with that indicator. All set to 100 in 2005.",
+           sprintf("From the DDA territory data (%s plots): the same plot-based model (plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our 11 species. Right: the 7 of them that are in the German farmland indicator, with that indicator. All set to 100 in %d.", format(length(plots), big.mark = ","), obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 6.6, draw = function() {
       par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.4, 0))
       for (pn in 1:2) { cb <- if (pn == 1) c11 else c7; yl <- c(40, max(110, max(cb[, c("abundance", "occupancy", "modelled")], na.rm = TRUE) + 3))
-        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = "Index (2005 = 100)", main = if (pn == 1) "11 species" else "7 species of the German indicator", bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
+        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), main = if (pn == 1) "11 species" else "7 species of the German indicator", bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
         for (n in names(col3)) lines(cb$year, cb[[n]], lwd = 3, col = col3[[n]])
-        if (pn == 2 && file.exists(gerFile)) { g <- read.csv(gerFile); g <- g[g$year >= min(yrsObs) & g$year <= last, ]; lines(g$year, 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == min(yrsObs)], lwd = 2.5, col = gerCol, lty = 2) }
+        if (pn == 2 && file.exists(gerFile)) { g <- read.csv(gerFile); g <- g[g$year >= obsBase & g$year <= last, ]; lines(g$year, 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == obsBase], lwd = 2.5, col = gerCol, lty = 2) }
         legend("bottomleft", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index", if (pn == 2) "German indicator Agrarland (UBA/BfN)"), col = c(col3, if (pn == 2) gerCol), lwd = c(3, 3, 3, if (pn == 2) 2.5), lty = c(1, 1, 1, if (pn == 2) 2), bty = "n", cex = 0.9) }
       bigTitle("Observed and modelled trends")
-      mtext("DDA territory data (2005: 305 plots, 2024: 1,400 plots); model with plot and year effects, no covariates. Our index: main model, probability of occurrence. The landscape scale of our model is fitted on part of these data.\nThe German indicator is percent of a target value divided by its 2005 value.", outer = TRUE, side = 1, line = 2.2, cex = 0.8, col = "grey30") })
+      mtext(sprintf("DDA territory data: plots surveyed in at least two years, first year of each plot dropped, reference year %d (as Kamp et al. 2021); plain log-linear model with plot and year effects, no observer correction.\nOur index: main model, probability of occurrence; its landscape scale is fitted on part of these data. The German indicator is percent of a target value divided by its %d value.", obsBase, obsBase), outer = TRUE, side = 1, line = 2.2, cex = 0.8, col = "grey30") })
     figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
-           "The same three series for each of the 11 species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in 2005 (2005 has the fewest surveyed plots, so the first years are noisy).",
+           sprintf("The same three series for each of the 11 species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in %d.", obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 9, draw = function() {
       par(mfrow = c(3, 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
       for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
-        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = "Index (2005 = 100)", main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
+        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
         for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]]) }
       plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index"), col = col3, lwd = 3, bty = "n", cex = 1.05)
       bigTitle("Observed and modelled index, per species") })
