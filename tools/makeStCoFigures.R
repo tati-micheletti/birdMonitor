@@ -67,7 +67,7 @@ metaFolder <- function(tag, germany) {                                  # metamo
 `%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
 V <- list(
   brt  = list(id = "brt",  label = "BRT only",  full = "BRT only (50 replicates)",       tag = "",     unc = firstExisting(file.path(root, paste0("uncertainty_", brtTag)), file.path(root, "uncertainty"))),
-  big5 = list(id = "big5", label = "Big 5",     full = "Big 5 ensemble (25 replicates)", tag = ensTag, unc = file.path(root, paste0("uncertainty_", ensTag))))
+  big5 = list(id = "big5", label = "Model ensemble", full = "Model ensemble (25 replicates)", tag = ensTag, unc = file.path(root, paste0("uncertainty_", ensTag))))
 for (k in names(V)) {
   v <- V[[k]]
   V[[k]]$metaGer  <- metaFolder(v$tag, TRUE)
@@ -96,7 +96,12 @@ saveBook <- function() {                                                  # rows
   if (!is.null(s) && nrow(s)) write.csv(s, file.path(out, "skipped.csv"), row.names = FALSE) else if (file.exists(file.path(out, "skipped.csv"))) file.remove(file.path(out, "skipped.csv"))
 }
 need <- function(...) { p <- c(...); bad <- p[is.na(p) | !file.exists(p)]; if (length(bad)) stop("missing: ", paste(unique(bad), collapse = " | "), call. = FALSE); invisible(p) }
+dropLab <- function(s) {                                                  # with one run only, the run is not named in titles and explanations
+  if (length(variants) != 1) return(s); l <- V[[variants]]$label
+  s <- gsub(paste0("[[:space:]]*[(]", l, "[)]"), "", s); s <- gsub(paste0(",[[:space:]]*", l, "(?=[)])"), "", s, perl = TRUE); gsub(paste0("[,:][[:space:]]*", l, "[[:space:]]*$"), "", s)
+}
 figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, variant = "") {
+  title <- dropLab(title); what <- dropLab(what)
   dir.create(file.path(out, section), showWarnings = FALSE)
   f <- file.path(out, section, paste0(id, ".png"))
   ok <- tryCatch({
@@ -146,7 +151,7 @@ drawClasses <- function(r, main, labels, cols, sub = NULL, legendPos = NULL) {  
   legendBelow(r, labels, cols)
   if (!is.null(sub)) mtext(sub, side = 1, line = -0.4, cex = 0.8, col = "grey30")
 }
-bigTitle <- function(s) mtext(s, outer = TRUE, side = 3, line = 0.4, font = 2, cex = 1.45)
+bigTitle <- function(s) mtext(dropLab(s), outer = TRUE, side = 3, line = 0.4, font = 2, cex = 1.45)
 footnote <- function(s) mtext(s, outer = TRUE, side = 1, line = 0.6, cex = 0.85, col = "grey30")
 # "clear" classes from a 90% replicate interval: 1 = whole interval below zero, 2 = whole interval above zero, 3 = interval includes zero
 clearClass <- function(lwr, upr) ifel(is.na(upr), NA, ifel(upr < 0, 1, ifel(lwr > 0, 2, 3)))
@@ -238,8 +243,8 @@ if ("S1" %in% sections) {
   if (!is.null(aucTab) && nrow(aucTab)) {
     tableOut(aucTab[, c("species", "scale", "variant", "AUC", "TSS")], "S1_auc_by_scale")
     figure("S1_models", "S1_auc_by_scale", "Accuracy (AUC) of each scale model and of the meta-model, per species",
-           "Held-out (block cross-validation) AUC of the climate, landscape and habitat models, and the honest AUC of the final combined map (out-of-fold inputs). Circle = BRT only, triangle = big 5 ensemble. Higher is better; 0.5 = no skill.",
-           "scale_*/<Sp>_perf_*.rds, metamodel_*/<Sp>_perf_meta.rds", w = 14, h = 6.2, draw = function() {
+           paste0("Held-out (block cross-validation) AUC of the climate, landscape and habitat models, and the honest AUC of the final combined map (out-of-fold inputs).", if (length(variants) > 1) " Circle = BRT only, triangle = model ensemble." else "", " Higher is better; 0.5 = no skill."),
+           "scale_*/<Sp>_perf_*.rds, metamodel_*/<Sp>_perf_meta.rds", variant = paste(variants, collapse = "+"), w = 14, h = 6.2, draw = function() {
       par(mfrow = c(1, 4), mar = c(4, 11, 3, 1), oma = c(1, 0, 2.6, 0))
       ord <- rev(seq_along(species)); yl <- c(0.5, length(species) + 0.5)
       for (sc in c("climate", "landscape", "habitat", "meta")) {
@@ -261,7 +266,7 @@ if ("S1" %in% sections) {
     tableOut(wt, "S1_scale_weights")
     figure("S1_models", "S1_scale_weights", "How much each scale contributes to the final map (meta-model), per species",
            "Share of each of the three scale models in the meta-model (importance, sums to 1 per species). The habitat model carries most species; a large climate share means the final map follows the coarse Europe-wide model.",
-           "metamodel_*/<Sp>_varimp_meta.rds", w = 13, h = 6, draw = function() {
+           "metamodel_*/<Sp>_varimp_meta.rds", variant = paste(variants, collapse = "+"), w = 13, h = 6, draw = function() {
       par(mfrow = c(1, length(unique(wt$variant))), mar = c(4, 11, 3, 1), oma = c(1, 0, 2.6, 0))
       for (k in unique(wt$variant)) { d <- wt[wt$variant == k, ]; d <- d[match(rev(species), d$species), ]; d <- d[!is.na(d$species), ]
         m <- t(as.matrix(d[, c("climate", "landscape", "habitat")])); colnames(m) <- english[d$species]
@@ -437,8 +442,8 @@ Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurr
     tab <- rbind(rowsLast, cmb); tab$english <- ifelse(tab$species %in% names(english), english[tab$species], tab$species); tab$declinePct <- round(100 - tab$main, 1)
     tableOut(tab, sprintf("S3_species_index_%d", curYear))
     figure("S3_indices", sprintf("S3_species_%d_summary", curYear), sprintf("Index %d for every species and the combined index, with 90%% interval", curYear),
-           "Main-model index in the last year (dot) with the 5th-95th percentile over the replicates (line), for both runs. Below 100 = lower than in 2005. The combined index is the bottom row.",
-           "species_index.csv, species_index_uncertainty.csv, combined_index_uncertainty.csv", variant = "both", w = 10, h = 7, draw = function() {
+           "Main-model index in the last year (dot) with the 5th-95th percentile over the replicates (line). Below 100 = lower than in 2005. The combined index is the bottom row.",
+           "species_index.csv, species_index_uncertainty.csv, combined_index_uncertainty.csv", variant = paste(variants, collapse = "+"), w = 10, h = 7, draw = function() {
       ord <- order(tab$main[tab$variant == variants[length(variants)] & tab$species != "COMBINED (SBI)"]); sps <- tab$species[tab$variant == variants[length(variants)] & tab$species != "COMBINED (SBI)"][ord]
       sps <- c(rev(sps), "COMBINED (SBI)"); sps <- rev(sps)                    # combined at the bottom
       par(mar = c(4, 11, 1, 1), oma = c(0, 0, 2.6, 0)); plot(NA, xlim = range(tab$lwr, tab$upr, 100, na.rm = TRUE), ylim = c(0.5, length(sps) + 0.5), yaxt = "n", xlab = sprintf("Index %d (2005 = 100)", curYear), ylab = "", main = "")
