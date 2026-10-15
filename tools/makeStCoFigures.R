@@ -371,27 +371,39 @@ if ("S3" %in% sections) {
     par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
     mtext("Multi-species indicator for 11 farmland bird species
 in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
-  # (b3) our combined index (MSI) next to the European Farmland Bird Index (PECBMS/EBCC, abundance, from 1980). Ours is anchored to the European value in the base year.
+  # (b3) our combined index (MSI, big 5) next to the European Farmland Bird Index (PECBMS/EBCC, abundance). Two versions: the European axis from 1980 with our index anchored to the
+  #      European value of the base year, and our axis (base year = 100, from 40 to 102) with the European index re-based to the base year.
   refFile <- file.path("data", "reference", "pecbms_farmland_bird_index_1980base.csv")
-  if (file.exists(refFile) && length(okc)) figure("S3_indices", "S3_vs_european_farmland_index", "Our combined index (MSI) against the European Farmland Bird Index, 1980-2025",
-         sprintf("European Farmland Bird Index (PECBMS/EBCC; abundance; smoothed line, its confidence limits and the unsmoothed values; 1980 = 100) with our MSI for the 11 species in Germany (probability of occurrence) from %d. Our index is set to the European value of %d, so the two lines show the same years on one scale. They are different quantities.", baseYear, baseYear),
-         paste(refFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = paste(okc, collapse = "+"), w = 11.5, h = 6.8, draw = function() {
-    ref <- read.csv(refFile); ref <- ref[ref$region == "Europe", ]; ref <- ref[order(ref$year), ]; anchor <- ref$smoothed[ref$year == baseYear]
-    ours <- lapply(okc, function(k) { x <- IDX[[k]]$comb; x <- x[x$method == "MSI", ]; x <- x[order(x$year), ]; for (cn in c("estimate", "lwr", "upr")) x[[cn]] <- x[[cn]] * anchor / 100; x }); names(ours) <- okc
-    yl <- range(ref$lowerCL, ref$upperCL, ref$unsmoothed, unlist(lapply(ours, function(x) c(x$lwr, x$upr))), na.rm = TRUE); yl <- c(floor(yl[1] / 5) * 5 - 2, 105)
-    par(mar = c(4.2, 4.6, 3, 1), oma = c(5, 0, 1, 0)); plot(NA, xlim = c(min(ref$year), max(ref$year, unlist(lapply(ours, function(x) x$year)))), ylim = yl, xlab = "Year", ylab = "Index (Europe: 1980 = 100)", bty = "l", las = 1)
-    abline(h = 100, lty = 3, col = "grey40"); abline(v = baseYear, lty = 2, col = "grey60")
+  vsK <- if ("big5" %in% okc) "big5" else okc[1]
+  vsFigure <- function(id, title, what, from1980) figure("S3_indices", id, title, what, paste(refFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = vsK, w = 11.5, h = 6.8, draw = function() {
+    ref <- read.csv(refFile); ref <- ref[ref$region == "Europe", ]; ref <- ref[order(ref$year), ]; a0 <- ref$smoothed[ref$year == baseYear]
+    x <- IDX[[vsK]]$comb; x <- x[x$method == "MSI", ]; x <- x[order(x$year), ]
+    if (from1980) { for (cn in c("estimate", "lwr", "upr")) x[[cn]] <- x[[cn]] * a0 / 100 }
+    else { ref <- ref[ref$year >= baseYear, ]; for (cn in c("smoothed", "lowerCL", "upperCL", "unsmoothed")) ref[[cn]] <- 100 * ref[[cn]] / a0 }
+    yl <- if (from1980) { r <- range(ref$lowerCL, ref$upperCL, ref$unsmoothed, x$lwr, x$upr, na.rm = TRUE); c(floor(r[1] / 5) * 5 - 2, 105) } else c(40, 102)
+    par(mar = c(4.2, 4.6, 3, 1), oma = c(5, 0, 1, 0)); plot(NA, xlim = c(min(ref$year), max(ref$year, x$year)), ylim = yl, xlab = "Year", ylab = if (from1980) "Index (Europe: 1980 = 100)" else sprintf("Index (%d = 100)", baseYear), bty = "l", las = 1)
+    if (!from1980) { rect(baseYear - 0.5, yl[1] - 5, hindcastEnd, yl[2] + 5, col = "#ececec", border = NA); text(mean(c(baseYear, hindcastEnd)), 60, "our hindcast years", col = "grey45", cex = 0.9) }
+    abline(h = 100, lty = 3, col = "grey40"); if (from1980) abline(v = baseYear, lty = 2, col = "grey60")
     polygon(c(ref$year, rev(ref$year)), c(ref$lowerCL, rev(ref$upperCL)), col = adjustcolor("black", 0.15), border = NA)
     lines(ref$year, ref$unsmoothed, col = "grey55", lwd = 1.2); lines(ref$year, ref$smoothed, lwd = 3.5, col = "black")
-    for (k in okc) { x <- ours[[k]]; polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[k]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[k]], lwd = 3) }
-    text(baseYear, yl[2], sprintf("our index starts in %d", baseYear), col = "grey35", cex = 0.85, adj = c(-0.05, 1))
+    polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[vsK]], lwd = 3)
+    if (from1980) text(baseYear, yl[2], sprintf("our index starts in %d", baseYear), col = "grey35", cex = 0.85, adj = c(-0.05, 1))
     lab <- c(sprintf("European Farmland Bird Index (PECBMS), abundance (%.0f in %d)", ref$smoothed[nrow(ref)], max(ref$year)), "  its confidence limits (shaded) and unsmoothed values (grey)",
-             sapply(okc, function(k) { x <- ours[[k]]; sprintf("Our MSI, %s, Germany, 11 species, occurrence (%.0f in %d)", V[[k]]$label, x$estimate[nrow(x)], max(x$year)) }))
-    legend("bottomleft", lab, col = c("black", "grey55", varCol[okc]), lwd = c(3.5, 1.5, rep(3, length(okc))), bty = "n", cex = 0.9)
-    mtext(sprintf("Our index is set to the European value of %d (%.1f) so that both fit on one scale.
+             sprintf("Our MSI, Germany, 11 species, occurrence (%.0f in %d)", x$estimate[nrow(x)], max(x$year)))
+    legend("bottomleft", lab, col = c("black", "grey55", varCol[[vsK]]), lwd = c(3.5, 1.5, 3), bty = "n", cex = 0.9)
+    mtext(if (from1980) sprintf("Our index is set to the European value of %d (%.1f) so that both fit on one scale.
 Our band: 90%% interval over our replicates; theirs: confidence limits of the smoothed indicator.
-Europe: PECBMS/EBCC 2025 update, abundance, 1980-2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, anchor),
+Europe: PECBMS/EBCC 2025 update, abundance, 1980-2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, a0)
+          else sprintf("The European index is set to 100 in %d (its value that year: %.1f on the 1980 scale); its limits are scaled the same way.
+Our band: 90%% interval over our replicates; theirs: confidence limits of the smoothed indicator.
+Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, a0),
           outer = TRUE, side = 1, line = 1.6, cex = 0.8, col = "grey30") })
+  if (file.exists(refFile) && length(okc)) {
+    vsFigure("S3_vs_european_farmland_index", "Our combined index (MSI) against the European Farmland Bird Index, 1980-2025",
+             sprintf("European Farmland Bird Index (PECBMS/EBCC; abundance; smoothed line, its confidence limits and the unsmoothed values; 1980 = 100) with our MSI for the 11 species in Germany (probability of occurrence, %s) from %d. Our index is set to the European value of %d so that both lines are on one scale. They are different quantities.", V[[vsK]]$label, baseYear, baseYear), TRUE)
+    vsFigure("S3_vs_european_farmland_index_from2005", sprintf("Our combined index (MSI) and the European Farmland Bird Index, both %d = 100", baseYear),
+             sprintf("The same comparison on our axis: both indices set to 100 in %d, y axis from 40 to 102. European Farmland Bird Index (PECBMS/EBCC, abundance, smoothed with confidence limits and unsmoothed values) against our MSI for the 11 species in Germany (probability of occurrence, %s). Grey = our hindcast years.", baseYear, V[[vsK]]$label), FALSE)
+  }
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
     figure("S3_indices", sprintf("S3_combined_replicates_%s", k), sprintf("Combined index of every replicate (%s)", V[[k]]$label),
