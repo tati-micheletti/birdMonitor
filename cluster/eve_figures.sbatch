@@ -1,5 +1,5 @@
 #!/bin/bash -l
-# READ-ONLY: all figures for the Steering Consortium meeting (tools/makeStCoFigures.R). Reads existing outputs, writes only to outputs/<run>/figures_stco/.
+# READ-ONLY: all figures for the Steering Consortium meeting (tools/makeStCoFigures.R). Reads existing outputs, writes only to outputs/<run>/figures_fullreport/.
 #   sbatch cluster/eve_figures.sbatch                                   -> everything (both runs, all sections)
 #   FIG_ARGS="--sections S6 --variants big5" sbatch --export=ALL cluster/eve_figures.sbatch     -> only part of it (same options as the R script)
 #SBATCH --job-name=stco-figures

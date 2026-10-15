@@ -22,7 +22,7 @@ O="outputs/${RUN}"
 emit() { for p in "$@"; do [ -e "$p" ] && echo "$p"; done; return 0; }      # print the paths that exist
 
 listA() {
-  emit "$O/figures_stco" "$O/performance_table.csv" "$O/meta_check"
+  emit "$O/figures_fullreport" "$O/performance_table.csv" "$O/meta_check"
   emit data/speciesCanonical.csv inputs/predictors/raw/gadm logs/meta_*.err
   for tag in "" "_${ENS}"; do
     emit "$O/annual_report${tag}_germany"/*.csv "$O/annual_report${tag}_germany"/*.txt
@@ -37,7 +37,7 @@ listA() {
 }
 listB() {
   for tag in "" "_${ENS}"; do
-    emit "$O/metamodel_02_1_50${tag}_germany"
+    emit "$O/metamodel_02_1_50${tag}_germany" "$O/pixel_trend_test_brt" "$O/pixel_trend_test_big5"
     emit "$O/annual_report${tag}_germany"/*.tif
   done
   for u in "uncertainty_${UNC_BRT}" "uncertainty_${ENS}"; do

@@ -1,17 +1,17 @@
 #!/usr/bin/env Rscript
 # READ-ONLY: every figure we may need to show or answer questions about (Steering Consortium meeting 2026-10-16), made from the files
-# that already exist. Nothing is refitted and nothing in outputs/ is changed; the figures go to outputs/<run>/figures_stco/.
+# that already exist. Nothing is refitted and nothing in outputs/ is changed; the figures go to outputs/<run>/figures_fullreport/.
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
 #   Rscript tools/makeStCoFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
-#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 10] [--out <folder>]
+#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 5,10,20] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
 # Sections follow the methods figure (pdf_export/birdMonitor_schematic.png):
 #   S1  Step 1  the three scale models and the meta-model: scale maps, accuracy (AUC), weights of the scales
 #   S2  Step 1  the result: probability maps per species and year, presence/absence maps, expected richness
 #   S3  Step 3  national indices: species indices, combined indices (SBI, MSI, chain), replicates, BRT-only against big 5
-#   S4  Step 3  per-pixel change and trend maps per species, with "clear" (90% interval excludes zero) cells; area summary
+#   S4  Step 3  per-pixel change and trend maps per species, shown for all pixels and only where the 90% interval excludes zero; Mann-Kendall test (needs pixelTrendTest.R)
 #   S5  Step 3  community maps: richness change, turnover, gain/loss
 #   S6  Step 3  regional index (10/20/50 km): change in index points, cold and hot spots, trend, uncertainty
 #   S7  Step 2  robustness: BRT-only against big 5 (regional pattern), spread among the five algorithms
@@ -37,14 +37,16 @@ baseYear   <- as.integer(getArg("--base-year", 2005))
 curYear    <- as.integer(getArg("--year", 2025))
 mapYears   <- as.integer(strsplit(getArg("--map-years", paste(baseYear, 2015, curYear, sep = ",")), ",")[[1]])
 hindcastEnd <- as.numeric(getArg("--hindcast-end", 2021.5))             # the habitat model has real data from 2022; earlier years are hindcast
-spotPoints <- as.numeric(getArg("--spot-points", 10))                   # cold/hot spot: regional index change of at least this many index points
+spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", "5,10,20"), ",")[[1]])   # cold/hot spot: regional index change of at least this many index points (one figure per value)
+spotMain <- if (10 %in% spotPointsVec) 10 else spotPointsVec[1]
+alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
 sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7"), ",")[[1]])
 variants   <- strsplit(getArg("--variants", "brt,big5"), ",")[[1]]
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
 cellKm     <- as.integer(strsplit(getArg("--cells-km", "10,20,50"), ",")[[1]])
 root       <- file.path("outputs", run)
-out        <- getArg("--out", file.path(root, "figures_stco"))
+out        <- getArg("--out", file.path(root, "figures_fullreport"))
 for (d in c(out, file.path(out, "tables"))) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 logFile <- file.path(out, "figures.log")
 say <- function(...) { m <- paste0(format(Sys.time(), "%H:%M:%S"), " ", ...); message(m); cat(m, "\n", file = logFile, append = TRUE) }
@@ -143,6 +145,15 @@ footnote <- function(s) mtext(s, outer = TRUE, side = 1, line = 0.6, cex = 0.85,
 # "clear" classes from a 90% replicate interval: 1 = whole interval below zero, 2 = whole interval above zero, 3 = interval includes zero
 clearClass <- function(lwr, upr) ifel(is.na(upr), NA, ifel(upr < 0, 1, ifel(lwr > 0, 2, 3)))
 pct <- function(x) sprintf("%.0f%%", 100 * x)
+clearMask <- function(lwr, upr) ifel(is.na(upr), NA, ifel((upr < 0) | (lwr > 0), 1, 0))   # 1 = the 90% interval excludes zero
+# the values drawn only where the interval excludes zero; every other cell inside Germany is light grey
+drawClearOnly <- function(v, clr, main, zlim, extra = NULL, extraCols = NULL) {
+  base <- ifel(is.na(v), NA, 1)
+  plot(base, col = colNone, legend = FALSE, main = main, axes = FALSE, box = FALSE, mar = c(bm, 1, 3, 5.5), cex.main = 1.15)
+  plot(ifel(clr == 1, clampIn(v, zlim[1], zlim[2]), NA), col = palDiv, range = zlim, add = TRUE)
+  if (!is.null(outline)) lines(outline, lwd = 0.9, col = "grey25")
+  legendBelow(base, c("grey: the 90% interval includes zero", extra), c(colNone, extraCols))
+}
 areaShares <- function(lwr, upr) {                                       # exact shares over ALL cells of the file (not the thinned display raster)
   n <- global(!is.na(upr), "sum")[1, 1]
   c(decline = global(upr < 0, "sum", na.rm = TRUE)[1, 1] / n, increase = global(lwr > 0, "sum", na.rm = TRUE)[1, 1] / n, nCells = n)
@@ -398,50 +409,61 @@ if ("S3" %in% sections) {
 }
 
 ## =================================================================================================================================================
-## S4  per-pixel change and trend per species
+## S4  per-pixel change and trend per species (maps of Germany only)
 ## =================================================================================================================================================
 comps <- c(vsBaseline = baseYear, vs5YearsAgo = curYear - 5L, vsLastYear = curYear - 1L)
 compLabel <- c(vsBaseline = sprintf("%d vs %d", curYear, baseYear), vs5YearsAgo = sprintf("%d vs %d", curYear, curYear - 5L), vsLastYear = sprintf("%d vs %d", curYear, curYear - 1L))
-areaRows <- list()
+areaRows <- list(); ttRows <- list()
 if ("S4" %in% sections) {
   say("--- S4 ---")
   for (k in variants) for (sp in species) {
     v <- V[[k]]; md <- uncMapsDir(k, sp)
     for (cp in names(comps)) {
       fu <- if (is.na(md)) NA_character_ else file.path(md, sprintf("%s_unc_change_%s.tif", spc(sp), cp)); fm <- file.path(v$report, sprintf("change_%s_%s.tif", cp, spc(sp)))
-      ok <- figure("S4_species_change", sprintf("S4_change_%s_%s_%s", cp, spc(sp), k), sprintf("%s: change in probability of occurrence, %s (%s)", nm(sp), compLabel[[cp]], v$label),
-             "Left: change in probability of occurrence of the main model (best estimate; red = decline, blue = increase). Right: where the change is clear, i.e. the 90% interval over the replicates lies entirely below (red) or above (blue) zero; grey = interval includes zero.",
-             paste(fm, fu, sep = "; "), variant = k, w = 12, h = 6.2, draw = function() {
-        need(fu); u <- rast(fu); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4); sh <- areaShares(l, up); areaRows[[length(areaRows) + 1]] <<- data.frame(variant = k, species = sp, what = paste0("change_", cp), decline = sh[["decline"]], increase = sh[["increase"]], nCells = sh[["nCells"]])
+      figure("S4_species_change", sprintf("S4_change_%s_%s_%s", cp, spc(sp), k), sprintf("%s: change in probability of occurrence, %s (%s)", nm(sp), compLabel[[cp]], v$label),
+             "Left: change in probability of occurrence of the main model (best estimate), every pixel; red = decline, blue = increase. Right: the same values, coloured only where the change is clear, i.e. the 90% interval over the replicates lies entirely below or entirely above zero; grey = the interval includes zero.",
+             paste(fm, fu, sep = "; "), variant = k, w = 12, h = 6.6, draw = function() {
+        need(fu); u <- rast(fu); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4); sh <- areaShares(l, up)
+        areaRows[[length(areaRows) + 1]] <<- data.frame(variant = k, species = sp, what = paste0("change_", cp), clearDecline = sh[["decline"]], clearIncrease = sh[["increase"]], nCells = sh[["nCells"]])
+        useMain <- file.exists(fm) && isTRUE(compareGeom(rast(fm)[[1]], l, stopOnError = FALSE))
+        d <- ger(if (useMain) lay(rast(fm), "deltaP", 1) else lay(u, "deltaMean", 1)); lim <- symLim(d); clr <- ger(clearMask(l, up))
         par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
-        if (file.exists(fm)) { d <- ger(lay(rast(fm), "deltaP", 1)); drawMap(d, "Main model: change in probability", palDiv, c(-1, 1) * symLim(d), mb = bm) } else { d <- ger(lay(u, "deltaMean", 1)); drawMap(d, "Replicate mean: change in probability", palDiv, c(-1, 1) * symLim(d), mb = bm) }
-        drawClasses(ger(clearClass(l, up)), "Is the change clear?", c(sprintf("clear decline (%s of area)", pct(sh[["decline"]])), sprintf("clear increase (%s)", pct(sh[["increase"]])), "interval includes zero"), c(colDec, colInc, colNone))
+        drawMap(d, if (useMain) "Main model: change in probability" else "Replicate mean: change in probability", palDiv, c(-lim, lim), mb = bm)
+        drawClearOnly(d, clr, "Only where the change is clear", c(-lim, lim))
         bigTitle(sprintf("%s: change %s (%s)", nm(sp), compLabel[[cp]], v$label))
       })
     }
     fu <- if (is.na(md)) NA_character_ else file.path(md, sprintf("%s_unc_trend_per_decade.tif", spc(sp)))
     figure("S4_species_trend", sprintf("S4_trend_%s_%s", spc(sp), k), sprintf("%s: trend per decade at every pixel, %d-%d (%s)", nm(sp), baseYear, curYear, v$label),
-           "Per-pixel linear trend of the probability of occurrence (change per decade), computed in every replicate. Left: mean over replicates (red = decline). Right: where the trend is clear, i.e. the 90% interval of the slope excludes zero.",
-           fu, variant = k, w = 12, h = 6.2, draw = function() {
-      need(fu); u <- rast(fu); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); sh <- areaShares(l, up); areaRows[[length(areaRows) + 1]] <<- data.frame(variant = k, species = sp, what = "trend", decline = sh[["decline"]], increase = sh[["increase"]], nCells = sh[["nCells"]])
-      par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0)); d <- ger(lay(u, "slopeMean", 1)); drawMap(d, "Trend per decade (probability)", palDiv, c(-1, 1) * symLim(d), mb = bm)
-      drawClasses(ger(clearClass(l, up)), "Is the trend clear?", c(sprintf("clear decline (%s of area)", pct(sh[["decline"]])), sprintf("clear increase (%s)", pct(sh[["increase"]])), "interval includes zero"), c(colDec, colInc, colNone))
+           "Per-pixel linear trend of the probability of occurrence (change per decade), computed in every replicate. Left: mean over the replicates, every pixel (red = decline). Right: the same values only where the trend is clear, i.e. the 90% interval of the slope over the replicates excludes zero; grey = it includes zero.",
+           fu, variant = k, w = 12, h = 6.6, draw = function() {
+      need(fu); u <- rast(fu); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); sh <- areaShares(l, up)
+      areaRows[[length(areaRows) + 1]] <<- data.frame(variant = k, species = sp, what = "trend", clearDecline = sh[["decline"]], clearIncrease = sh[["increase"]], nCells = sh[["nCells"]])
+      d <- ger(lay(u, "slopeMean", 1)); lim <- symLim(d); clr <- ger(clearMask(l, up)); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
+      drawMap(d, "Trend per decade (probability), every pixel", palDiv, c(-lim, lim), mb = bm); drawClearOnly(d, clr, "Only where the trend is clear", c(-lim, lim))
       bigTitle(sprintf("%s: trend per decade, %d-%d (%s)", nm(sp), baseYear, curYear, v$label))
     })
-  }
-  ar <- if (length(areaRows)) do.call(rbind, areaRows) else NULL
-  if (!is.null(ar)) {
-    ar$noClear <- 1 - ar$decline - ar$increase; tableOut(ar, "S4_area_clear_change_and_trend")
-    for (k in unique(ar$variant)) figure("S4_species_change", sprintf("S4_area_summary_%s", k), sprintf("Share of Germany with a clear decline or increase, per species (%s)", V[[k]]$label),
-           "Per species the share of German pixels where the change since 2005 (left) or the trend per decade (right) is clear: the 90% interval over the replicates does not include zero. Red = decline, blue = increase, grey = not clear.",
-           "unc_change_vsBaseline.tif and unc_trend_per_decade.tif of every species", variant = k, w = 13, h = 6, draw = function() {
-      par(mfrow = c(1, 2), mar = c(4, 11, 3, 1), oma = c(1, 0, 2.6, 0))
-      for (w in c(paste0("change_vsBaseline"), "trend")) { d <- ar[ar$variant == k & ar$what == w, ]; if (!nrow(d)) { plot.new(); next }
-        d <- d[order(d$decline), ]; m <- t(as.matrix(d[, c("decline", "noClear", "increase")])) * 100; colnames(m) <- english[d$species]
-        barplot(m, horiz = TRUE, las = 1, col = c(colDec, colNone, colInc), border = NA, xlab = "% of German pixels", main = if (w == "trend") "Trend per decade" else sprintf("Change %d vs %d", curYear, baseYear), xlim = c(0, 100)) }
-      legend("bottomright", c("clear decline", "not clear", "clear increase"), fill = c(colDec, colNone, colInc), bty = "n"); bigTitle("Where is the change or the trend clear?")
+    # classical test (Mann-Kendall + Sen slope) from the yearly main-model maps, next to the replicate criterion (needs tools/pixelTrendTest.R to have been run)
+    ft <- file.path(root, paste0("pixel_trend_test_", k), sprintf("%s_pixel_trend_test.tif", spc(sp)))
+    figure("S4_species_trend", sprintf("S4_trendtest_%s_%s", spc(sp), k), sprintf("%s: Mann-Kendall test of the trend at every pixel (%s)", nm(sp), v$label),
+           sprintf("Left: Sen slope per decade of the main model's yearly maps, every pixel. Middle: the same values only where the Mann-Kendall test gives p < %g. Right: agreement with the replicate criterion (90%% interval of the slope excludes zero). The test only compares the predicted values with their own year-to-year variation; it ignores the uncertainty of the model and flags many pixels by construction, so the replicate criterion is the primary one.", alpha),
+           paste(ft, fu, sep = "; "), variant = k, w = 17, h = 6.6, draw = function() {
+      need(ft, fu); tt <- rast(ft); u <- rast(fu); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4)
+      if (!isTRUE(compareGeom(tt[[1]], l, stopOnError = FALSE))) stop("the test maps and the trend maps are not on the same grid")
+      sen <- lay(tt, "senSlope", 1); p <- lay(tt, "pValue", 3); sigF <- ifel(is.na(p), NA, ifel(p < alpha, 1, 0)); clrF <- clearMask(l, up)
+      n <- global(!is.na(p), "sum")[1, 1]
+      ttRows[[length(ttRows) + 1]] <<- data.frame(variant = k, species = sp, alpha = alpha, nCells = n, sigShare = global(sigF == 1, "sum", na.rm = TRUE)[1, 1] / n, replicateClearShare = global(clrF == 1, "sum", na.rm = TRUE)[1, 1] / n,
+                                                  bothShare = global((sigF == 1) & (clrF == 1), "sum", na.rm = TRUE)[1, 1] / n)
+      d <- ger(sen); lim <- symLim(d); sig <- ger(sigF); clr <- ger(clrF); cls <- ifel(is.na(sig) | is.na(clr), NA, ifel((clr == 1) & (sig == 1), 1, ifel(clr == 1, 2, ifel(sig == 1, 3, 4))))
+      par(mfrow = c(1, 3), oma = c(1, 0, 2.6, 0))
+      drawMap(d, "Sen slope per decade, every pixel", palDiv, c(-lim, lim), mb = bm)
+      drawClearOnly(d, sig, sprintf("Only where p < %g", alpha), c(-lim, lim))
+      drawClasses(cls, "Agreement of the two criteria", c("both", "only the replicate interval", "only the Mann-Kendall test", "neither"), c("#4a2c82", colDec, "#e8a33d", colNone))
+      bigTitle(sprintf("%s: trend per decade, two criteria (%s)", nm(sp), v$label))
     })
   }
+  if (length(areaRows)) { ar <- do.call(rbind, areaRows); ar$notClear <- 1 - ar$clearDecline - ar$clearIncrease; tableOut(ar, "S4_area_clear_change_and_trend") }
+  if (length(ttRows)) tableOut(do.call(rbind, ttRows), "S4_trendtest_shares")
 }
 
 ## =================================================================================================================================================
@@ -453,12 +475,12 @@ if ("S5" %in% sections) {
     v <- V[[k]]; cm <- v$uncComm %||% ""; fmean <- file.path(cm, "community_meanDeltaP_unc_vsBaseline.tif"); fturn <- file.path(cm, "community_turnoverBC_unc_vsBaseline.tif")
     fcc <- file.path(v$report, "change_vsBaseline_community.tif")
     figure("S5_community", sprintf("S5_community_change_%s", k), sprintf("Community change %d vs %d: mean change, turnover, gains and losses (%s)", curYear, baseYear, v$label),
-           "Top left: mean change in probability over the 11 species (red = decline) with the cells where it is clear. Top right: Bray-Curtis turnover (0 = same community, 1 = no species in common). Bottom: cells where species are gained / lost (presence/absence maps) and the net.",
+           "Top left: mean change in probability over the 11 species (red = decline). Top middle: the same only where the 90% interval over the replicates excludes zero (grey otherwise). Top right: Bray-Curtis turnover (0 = same community, 1 = no species in common). Bottom: number of species gained, number lost and the net (presence/absence maps).",
            paste(fmean, fturn, fcc, sep = "; "), variant = k, w = 14, h = 9, draw = function() {
       need(fmean); par(mfrow = c(2, 3), oma = c(1, 0, 2.8, 0))
-      u <- rast(fmean); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4); sh <- areaShares(l, up)
-      d <- ger(lay(u, "deltaMean", 1)); drawMap(d, "Mean change in probability", palDiv, c(-1, 1) * symLim(d), mb = bm)
-      drawClasses(ger(clearClass(l, up)), "Is the change clear?", c(sprintf("clear decline (%s)", pct(sh[["decline"]])), sprintf("clear increase (%s)", pct(sh[["increase"]])), "includes zero"), c(colDec, colInc, colNone))
+      u <- rast(fmean); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4)
+      d <- ger(lay(u, "deltaMean", 1)); lim <- symLim(d); drawMap(d, "Mean change in probability", palDiv, c(-lim, lim), mb = bm)
+      drawClearOnly(d, ger(clearMask(l, up)), "Only where the change is clear", c(-lim, lim))
       if (file.exists(fturn)) drawMap(ger(lay(rast(fturn), "mean", 1)), "Turnover (Bray-Curtis)", palSeq, c(0, 1), mb = bm) else plot.new()
       if (file.exists(fcc)) { cc <- rast(fcc); for (n in c("gainCount", "lossCount", "netGainLoss")) { r <- ger(lay(cc, n, 1))
           if (n == "netGainLoss") drawMap(r, "Net gain (+) or loss (-) of species", palDiv, c(-1, 1) * max(symLim(r), 1)) else drawMap(r, c(gainCount = "Number of species gained", lossCount = "Number of species lost")[[n]], palSeq, c(0, max(1, symLim(r, 1)))) } }
@@ -467,7 +489,7 @@ if ("S5" %in% sections) {
     })
     for (sp in species) { fg <- file.path(v$report, sprintf("change_vsBaseline_%s.tif", spc(sp)))
       figure("S5_community", sprintf("S5_gainloss_%s_%s", spc(sp), k), sprintf("%s: gain and loss of presence %d vs %d (%s)", nm(sp), curYear, baseYear, v$label),
-             "Presence/absence maps compared: pixels where the species is predicted lost (red) or gained (blue) between the two years, stable present (green) or stable absent (white).",
+             "Presence/absence maps compared: pixels where the species is predicted lost (red) or gained (blue) between the two years, stable present (green) or stable absent (light grey).",
              fg, variant = k, w = 6.5, h = 6.4, draw = function() {
         need(fg); r <- ger(lay(rast(fg), "gainLoss", 2)) + 1                    # 0..3 -> 1..4
         drawClasses(r, nm(sp), c("stable absent", "loss", "gain", "stable present"), c("#f5f5f5", colDec, colInc, "#2d6a4f")) })
@@ -483,56 +505,65 @@ regionalChange <- function(k, km) {                                      # best 
   b <- as.character(baseYear); y <- as.character(curYear); if (!all(c(b, y) %in% names(r))) stop("years ", b, "/", y, " not in ", basename(f))
   list(chg = r[[y]] - r[[b]], idx = r[[y]], file = f)
 }
-spotClass <- function(chg) ifel(is.na(chg), NA, ifel(chg <= -spotPoints, 1, ifel(chg < 0, 2, ifel(chg < spotPoints, 3, 4))))
+spotClass <- function(chg, thr) ifel(is.na(chg), NA, ifel(chg <= -thr, 1, ifel(chg < 0, 2, ifel(chg < thr, 3, 4))))
 spotCols <- c("#8b1a1a", "#f0a8a0", "#a9c6ea", "#0b3d91")
-spotLabels <- c(sprintf("cold spot (fall of >= %g points)", spotPoints), "smaller decline", "smaller increase", sprintf("hot spot (rise of >= %g points)", spotPoints))
+spotLabels <- function(thr) c(sprintf("cold spot: index fell by %g points or more", thr), "smaller decline", "smaller increase", sprintf("hot spot: index rose by %g points or more", thr))
+regionalClear <- function(k, km, chg, name = "change_vsBaseline") {        # 1 where the 90% interval of the replicate change/trend excludes zero, on the grid of `chg`
+  f <- file.path(V[[k]]$uncReg, sprintf("regional_index_%dkm_unc_%s.tif", km, name)); if (!file.exists(f)) return(NULL)
+  u <- rast(f); l <- lay(u, c("deltaLwr", "slopeLwr"), 3); up <- lay(u, c("deltaUpr", "slopeUpr"), 4)
+  if (!isTRUE(compareGeom(l, chg, stopOnError = FALSE))) { l <- resample(l, chg, "near"); up <- resample(up, chg, "near") }
+  clearMask(l, up)
+}
+lowCoverage <- function(k, km, chg) {
+  f <- file.path(V[[k]]$uncReg, sprintf("regional_index_%dkm_coverage.tif", km)); if (!file.exists(f)) return(NULL)
+  cv <- rast(f)[[1]]; if (!isTRUE(compareGeom(cv, chg, stopOnError = FALSE))) cv <- resample(cv, chg, "near"); p <- as.polygons(ifel(cv < minCoverage, 1, NA), dissolve = FALSE); if (nrow(p)) p else NULL
+}
 spotRows <- list()
 if ("S6" %in% sections) {
   say("--- S6 ---")
   for (k in variants) for (km in cellKm) {
     v <- V[[k]]; fu <- file.path(v$uncReg, sprintf("regional_index_%dkm_unc_change_vsBaseline.tif", km)); fc <- file.path(v$uncReg, sprintf("regional_index_%dkm_coverage.tif", km))
+    src <- paste(file.path(v$regional %||% "", sprintf("regional_index_%dkm_raw.tif", km)), fu, fc, sep = "; ")
     figure("S6_regional", sprintf("S6_regional_index_%dkm_%s", km, k), sprintf("Regional index %d (%d km cells, %s)", curYear, km, v$label),
            "Combined index of the 11 species per grid cell in the last year (main model, 2005 = 100 in every cell). Red = below 2005, blue = above.",
            file.path(v$regional %||% "", sprintf("regional_index_%dkm_raw.tif", km)), variant = k, w = 6.8, h = 6.6, draw = function() {
       rc <- regionalChange(k, km); par(oma = c(1, 0, 2.6, 0)); lim <- max(symLim(rc$idx - 100), 5); drawMap(rc$idx, sprintf("Regional index %d (2005 = 100)", curYear), palDiv, 100 + c(-1, 1) * lim); bigTitle(sprintf("%d km cells (%s)", km, v$label)) })
-    figure("S6_regional", sprintf("S6_coldhot_%dkm_%s", km, k), sprintf("Cold and hot spots of the regional index, %d vs %d (%d km cells, %s)", curYear, baseYear, km, v$label),
-           sprintf("Left: change of the regional index in index points (main model; red = decline). Right: cold spots (index fell by %g points or more) and hot spots (rose by %g or more); dots mark cells where the 90%% interval of the change over the replicates excludes zero. Cells with less than %d%% inside Germany are outlined in grey.", spotPoints, spotPoints, round(100 * minCoverage)),
-           paste(regionalChange(k, km)$file, fu, fc, sep = "; "), variant = k, w = 13, h = 7.4, draw = function() {
-      rc <- regionalChange(k, km); chg <- rc$chg; cls <- spotClass(chg); u <- if (file.exists(fu)) rast(fu) else NULL
-      cnt <- table(factor(values(cls, na.rm = TRUE), levels = 1:4)); tot <- sum(cnt)
-      spotRows[[length(spotRows) + 1]] <<- data.frame(variant = k, km = km, spotPoints = spotPoints, nCells = tot, coldSpot = cnt[[1]], smallerDecline = cnt[[2]], smallerIncrease = cnt[[3]], hotSpot = cnt[[4]],
-                                                      shareCold = cnt[[1]] / tot, shareHot = cnt[[4]] / tot, meanChange = mean(values(chg), na.rm = TRUE))
-      rob <- NULL; if (!is.null(u)) { l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4); if (!isTRUE(compareGeom(l, chg, stopOnError = FALSE))) { l <- resample(l, chg, "near"); up <- resample(up, chg, "near") }
-                                       rob <- as.points(ifel((up < 0) | (l > 0), 1, NA)) }
-      low <- if (file.exists(fc)) { cv <- rast(fc)[[1]]; if (!isTRUE(compareGeom(cv, chg, stopOnError = FALSE))) cv <- resample(cv, chg, "near"); as.polygons(ifel(cv < minCoverage, 1, NA), dissolve = FALSE) } else NULL
-      par(mfrow = c(1, 2), oma = c(2.5, 0, 2.6, 0)); lim <- max(symLim(chg), spotPoints)
-      plot(clampIn(chg, -lim, lim), col = palDiv, range = c(-lim, lim), main = "Change of the regional index (index points)", axes = FALSE, box = FALSE, mar = c(bm, 1, 3, 5.5), cex.main = 1.15)
-      if (!is.null(outline)) lines(outline, lwd = 0.9, col = "grey25"); if (!is.null(low) && nrow(low)) lines(low, col = "grey40", lwd = 1)
-      plot(cls, col = spotCols, breaks = seq(0.5, 4.5, 1), legend = FALSE, main = sprintf("Cold spots (%s of cells) and hot spots (%s)", pct(cnt[[1]] / tot), pct(cnt[[4]] / tot)), axes = FALSE, box = FALSE, mar = c(bm, 1, 3, 1), cex.main = 1.15)
-      if (!is.null(outline)) lines(outline, lwd = 0.9, col = "grey25"); if (!is.null(low) && nrow(low)) lines(low, col = "grey40", lwd = 1)
-      if (!is.null(rob) && nrow(rob)) points(rob, pch = 16, cex = 0.3, col = "black")
-      legendBelow(cls, c(spotLabels, "dot: 90% interval of the change excludes zero"), c(spotCols, "black"), pch = c(rep(NA, 4), 16))
-      bigTitle(sprintf("Regional index (%d km): change %d vs %d (%s)", km, curYear, baseYear, v$label)); footnote("Index points: a cell at 85 has lost 15 points relative to 2005 (= 100). Cell values are the combined index of the 11 species in that cell.") })
+    figure("S6_regional", sprintf("S6_change_%dkm_%s", km, k), sprintf("Regional index: change %d vs %d, every cell and only the clear cells (%d km cells, %s)", curYear, baseYear, km, v$label),
+           "Left: change of the regional index in index points (main model; index 2025 minus index 2005, which is 100 in every cell), every cell. Right: the same values, coloured only in the cells where the 90% interval of the change over the replicates excludes zero; grey = it includes zero. Red = decline, blue = increase.",
+           src, variant = k, w = 12.5, h = 6.8, draw = function() {
+      rc <- regionalChange(k, km); chg <- rc$chg; clr <- regionalClear(k, km, chg); if (is.null(clr)) stop("no replicate change file"); low <- lowCoverage(k, km, chg)
+      lim <- max(symLim(chg), 5); par(mfrow = c(1, 2), oma = c(2.6, 0, 2.6, 0))
+      drawMap(chg, "Change of the regional index (index points)", palDiv, c(-lim, lim), mb = bm); if (!is.null(low)) lines(low, col = "grey40", lwd = 1)
+      drawClearOnly(chg, clr, "Only where the change is clear", c(-lim, lim), if (!is.null(low)) sprintf("grey outline: less than %d%% of the cell inside Germany", round(100 * minCoverage)), if (!is.null(low)) "white")
+      if (!is.null(low)) lines(low, col = "grey40", lwd = 1)
+      bigTitle(sprintf("Regional index (%d km): change %d vs %d (%s)", km, curYear, baseYear, v$label)); footnote("Index points: a cell at 85 in 2025 has lost 15 points relative to its own 2005 value (= 100), i.e. 15% of it.") })
+    for (thr in spotPointsVec) {
+      figure("S6_regional", sprintf("S6_coldhot_%dkm_%s_%gpts", km, k, thr), sprintf("Cold and hot spots of the regional index, change of %g index points or more (%d km cells, %s)", thr, km, v$label),
+             sprintf("Cold spots = cells whose index fell by %g points or more between %d and %d (index 2005 = 100 in every cell, so %g points = %g%% of the cell's 2005 level); hot spots = rose by %g points or more. Left: by size of the change only. Right: only the cells where, in addition, the 90%% interval over the replicates excludes zero are coloured; grey = not clear.", thr, baseYear, curYear, thr, thr, thr),
+             src, variant = k, w = 12.5, h = 7.2, draw = function() {
+        rc <- regionalChange(k, km); chg <- rc$chg; cls <- spotClass(chg, thr); clr <- regionalClear(k, km, chg); low <- lowCoverage(k, km, chg)
+        cnt <- table(factor(values(cls, na.rm = TRUE), levels = 1:4)); tot <- sum(cnt); nClearCold <- NA; nClearHot <- NA
+        cls2 <- NULL; if (!is.null(clr)) { cls2 <- ifel(is.na(cls), NA, ifel(clr == 1, cls, 5)); cc <- table(factor(values(cls2, na.rm = TRUE), levels = 1:5)); nClearCold <- cc[[1]]; nClearHot <- cc[[4]] }
+        spotRows[[length(spotRows) + 1]] <<- data.frame(variant = k, km = km, spotPoints = thr, nCells = tot, coldSpot = cnt[[1]], smallerDecline = cnt[[2]], smallerIncrease = cnt[[3]], hotSpot = cnt[[4]],
+                                                        coldSpotAndClear = nClearCold, hotSpotAndClear = nClearHot, meanChange = mean(values(chg), na.rm = TRUE))
+        par(mfrow = c(1, 2), oma = c(2.6, 0, 2.6, 0))
+        drawClasses(cls, "By size of the change", spotLabels(thr), spotCols); if (!is.null(low)) lines(low, col = "grey40", lwd = 1)
+        if (!is.null(cls2)) { drawClasses(cls2, "Only where the change is also clear", c(spotLabels(thr), "not clear (interval includes zero)"), c(spotCols, colNone)); if (!is.null(low)) lines(low, col = "grey40", lwd = 1) } else plot.new()
+        bigTitle(sprintf("Regional index (%d km): cold and hot spots, %d vs %d (%s)", km, curYear, baseYear, v$label)); footnote(sprintf("Index points: a cell at 90 in 2025 has lost 10 points relative to its own 2005 value (= 100). Threshold in this figure: %g points.", thr)) })
+    }
     ft <- file.path(v$uncReg, sprintf("regional_index_%dkm_unc_trend_per_decade.tif", km))
-    figure("S6_regional", sprintf("S6_trend_%dkm_%s", km, k), sprintf("Regional index: trend per decade and where it is clear (%d km cells, %s)", km, v$label),
-           "Linear trend of the regional index over all years (index points per decade; mean over replicates, red = decline) and where the trend is clear (90% interval of the slope excludes zero).",
-           ft, variant = k, w = 12, h = 6.2, draw = function() {
-      need(ft); u <- rast(ft); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); sh <- areaShares(l, up); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
-      d <- lay(u, "slopeMean", 1); lim <- max(symLim(d), 1); drawMap(d, "Trend per decade (index points)", palDiv, c(-lim, lim), mb = bm); drawClasses(clearClass(l, up), "Is the trend clear?", c(sprintf("clear decline (%s of cells)", pct(sh[["decline"]])), sprintf("clear increase (%s)", pct(sh[["increase"]])), "interval includes zero"), c(colDec, colInc, colNone))
+    figure("S6_regional", sprintf("S6_trend_%dkm_%s", km, k), sprintf("Regional index: trend per decade, every cell and only the clear cells (%d km cells, %s)", km, v$label),
+           "Linear trend of the regional index over all years (index points per decade; mean over the replicates, red = decline). Left: every cell. Right: only the cells where the 90% interval of the slope over the replicates excludes zero; grey = it includes zero.",
+           ft, variant = k, w = 12.5, h = 6.8, draw = function() {
+      need(ft); u <- rast(ft); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); d <- lay(u, "slopeMean", 1); lim <- max(symLim(d), 1); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
+      drawMap(d, "Trend per decade (index points), every cell", palDiv, c(-lim, lim), mb = bm); drawClearOnly(d, clearMask(l, up), "Only where the trend is clear", c(-lim, lim))
       bigTitle(sprintf("Regional index (%d km): trend per decade (%s)", km, v$label)) })
     figure("S6_regional", sprintf("S6_uncertainty_%dkm_%s", km, k), sprintf("Regional index: how uncertain is the change? (%d km cells, %s)", km, v$label),
-           "Left: width of the 90% interval of the change in index points (replicates). Right: share of replicates in which the cell's index is lower than in 2005 (a count of replicates divided by the number of replicates; secondary information).",
-           fu, variant = k, w = 12, h = 6.2, draw = function() {
+           "Left: width of the 90% interval of the change in index points over the replicates (wide = uncertain). Right: the share of replicates in which the cell's index is lower than in 2005 (secondary information).",
+           fu, variant = k, w = 12.5, h = 6.2, draw = function() {
       need(fu); u <- rast(fu); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0)); drawMap(lay(u, "deltaWidth", 5), "Width of the 90% interval (index points)", palSeq)
       drawMap(lay(u, "shareDecrease", 6), "Share of replicates with a decrease", palSeq, c(0, 1)); bigTitle(sprintf("Regional index (%d km): uncertainty of the change (%s)", km, v$label)) })
   }
-  # distribution of the cell changes with the spot thresholds
-  for (k in variants) figure("S6_regional", sprintf("S6_change_distribution_%s", k), sprintf("Distribution of regional changes and the cold/hot spot thresholds (%s)", V[[k]]$label),
-         sprintf("Histogram of the change in the regional index (index points, %d vs %d) over all cells, for the three grid sizes. Dashed lines = the cold/hot spot thresholds (+/- %g points).", curYear, baseYear, spotPoints),
-         "regional_index_<km>km_raw.tif", variant = k, w = 13, h = 4.8, draw = function() {
-    par(mfrow = c(1, length(cellKm)), mar = c(4, 4, 3, 1), oma = c(0, 0, 2.4, 0))
-    for (km in cellKm) { x <- values(regionalChange(k, km)$chg, na.rm = TRUE); hist(x, breaks = 40, col = "grey75", border = "white", main = sprintf("%d km cells (n = %d)", km, length(x)), xlab = "Change in index points"); abline(v = c(-spotPoints, spotPoints), lty = 2, lwd = 2, col = c(colDec, colInc)); abline(v = 0, col = "grey30") }
-    bigTitle(sprintf("How large are the regional changes? (%s)", V[[k]]$label)) })
   if (length(spotRows)) tableOut(do.call(rbind, spotRows), "S6_cold_hot_spot_counts")
 }
 
@@ -542,15 +573,14 @@ if ("S6" %in% sections) {
 if ("S7" %in% sections) {
   say("--- S7 ---")
   if (all(c("brt", "big5") %in% variants)) for (km in cellKm) figure("S7_robustness", sprintf("S7_regional_brt_vs_big5_%dkm", km), sprintf("Does the cold/hot spot pattern depend on the algorithm? (%d km cells)", km),
-        "Regional change 2025 vs 2005 (index points) for BRT only and for the big 5, their difference, and the cell-by-cell agreement. If the pattern is robust the dots lie on the 1:1 line and the classes agree.",
-        "regional_index_<km>km_raw.tif of both runs", variant = "both", w = 14, h = 8.5, draw = function() {
+        sprintf("Regional change %d vs %d (index points) for BRT only and for the big 5, their difference (big 5 minus BRT only), and the cells where the cold/hot class (threshold %g points) is the same in both runs.", curYear, baseYear, spotMain),
+        "regional_index_<km>km_raw.tif of both runs", variant = "both", w = 13, h = 9, draw = function() {
     a <- regionalChange("brt", km)$chg; b <- regionalChange("big5", km)$chg; if (!isTRUE(compareGeom(a, b, stopOnError = FALSE))) b <- resample(b, a, "near")
-    lim <- max(symLim(a), symLim(b), spotPoints); par(mfrow = c(2, 2), oma = c(1, 0, 2.8, 0))
-    for (p in list(list(a, "BRT only"), list(b, "Big 5"))) { plot(clampIn(p[[1]], -lim, lim), col = palDiv, range = c(-lim, lim), main = p[[2]], axes = FALSE, box = FALSE, mar = mapMargin, cex.main = 1.15); if (!is.null(outline)) lines(outline, lwd = 0.9, col = "grey25") }
-    dd <- b - a; dl <- max(symLim(dd), 1); plot(clampIn(dd, -dl, dl), col = palDiv, range = c(-dl, dl), main = "Big 5 minus BRT only (index points)", axes = FALSE, box = FALSE, mar = mapMargin, cex.main = 1.15); if (!is.null(outline)) lines(outline, lwd = 0.9, col = "grey25")
-    x <- values(a)[, 1]; y <- values(b)[, 1]; ok <- is.finite(x) & is.finite(y); ca <- spotClass(a); cb <- spotClass(b); same <- mean(values(ca)[ok, 1] == values(cb)[ok, 1])
-    par(mar = c(4.5, 4.5, 3, 1)); plot(x[ok], y[ok], pch = 16, cex = 0.5, col = adjustcolor("grey25", 0.5), xlab = "BRT only: change (index points)", ylab = "Big 5: change (index points)", main = sprintf("r = %.2f; same cold/hot class in %s of cells", cor(x[ok], y[ok]), pct(same)), las = 1)
-    abline(0, 1, col = "#b22222", lwd = 2); abline(h = c(-spotPoints, spotPoints), v = c(-spotPoints, spotPoints), lty = 3, col = "grey60")
+    lim <- max(symLim(a), symLim(b), spotMain); par(mfrow = c(2, 2), oma = c(1, 0, 2.8, 0))
+    drawMap(a, "BRT only", palDiv, c(-lim, lim)); drawMap(b, "Big 5", palDiv, c(-lim, lim))
+    dd <- b - a; dl <- max(symLim(dd), 1); drawMap(dd, "Big 5 minus BRT only (index points)", palDiv, c(-dl, dl))
+    ca <- spotClass(a, spotMain); cb <- spotClass(b, spotMain); agree <- ifel(is.na(ca) | is.na(cb), NA, ifel(ca == cb, 1, 2))
+    drawClasses(agree, "Same cold/hot class in both runs?", c("same class", "different class"), c("#cfe3d6", "#b22222"))
     bigTitle(sprintf("BRT only against big 5, regional change %d vs %d (%d km)", curYear, baseYear, km)) })
   for (sp in species) {
     fs <- c(climate = file.path(root, "scale_50", sprintf("%s_sd_%s_climate_%d.tif", spc(sp), ensTag, curYear)), landscape = file.path(root, "scale_1", sprintf("%s_sd_%s_landscape_%d.tif", spc(sp), ensTag, curYear)),
