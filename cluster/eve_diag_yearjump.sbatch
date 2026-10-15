@@ -4,9 +4,9 @@
 # Prints, per species and year: A. the country mean of the climate, landscape, habitat and final map (which scale carries the jump?), B. the spread over the replicates
 # (BRT-only run, tag honest2: do all replicates jump?), C. the yearly mean of the most influential predictors and the share of cells outside the training range.
 #SBATCH --job-name=diag-yearjump
-#SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=24G
-#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=32G
+#SBATCH --time=04:00:00
 #SBATCH --output=logs/diag_yearjump_%j.out
 #SBATCH --error=logs/diag_yearjump_%j.err
 
