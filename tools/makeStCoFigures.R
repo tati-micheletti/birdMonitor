@@ -3,7 +3,7 @@
 # that already exist. Nothing is refitted and nothing in outputs/ is changed; the figures go to outputs/<run>/figures_fullreport/.
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
-#   Rscript tools/makeStCoFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
+#   Rscript tools/makeStCoFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
 #                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 3,5,10,15] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
@@ -15,6 +15,7 @@
 #   S5  Step 3  community maps: richness change, turnover, gain/loss
 #   S6  Step 3  regional index (10/20/50 km): change in index points, cold and hot spots, trend, uncertainty
 #   S7  Step 2  robustness: BRT-only against big 5 (regional pattern), spread among the five algorithms
+#   S8  Step 1/3 expected species richness with its uncertainty (2025: mean, 5th and 95th percentile, width) and the change in richness since 2005
 # Files written: <out>/<section>/<id>.png, <out>/figures_manifest.csv (what each figure is and where its numbers come from),
 # <out>/tables/*.csv (the numbers behind the figures), <out>/skipped.csv (what could not be made and why), <out>/figures.log.
 Sys.setenv(OMP_NUM_THREADS = "1")
@@ -41,7 +42,7 @@ spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", "3,5,10,15"), ",")[
 spotMain <- if (10 %in% spotPointsVec) 10 else spotPointsVec[1]
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
-sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7"), ",")[[1]])
+sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7,S8"), ",")[[1]])
 variants   <- strsplit(getArg("--variants", "brt,big5"), ",")[[1]]
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
 cellKm     <- as.integer(strsplit(getArg("--cells-km", "10,20,50"), ",")[[1]])
@@ -84,10 +85,15 @@ nm  <- function(sp) sprintf("%s (%s)", english[[sp]], sp)
 
 ## ---- bookkeeping ---------------------------------------------------------------------------------------------------------------------------
 manifest <- list(); skipped <- list()
+oldManifest <- if (file.exists(file.path(out, "figures_manifest.csv"))) read.csv(file.path(out, "figures_manifest.csv"), stringsAsFactors = FALSE) else NULL
+oldSkipped <- if (file.exists(file.path(out, "skipped.csv"))) read.csv(file.path(out, "skipped.csv"), stringsAsFactors = FALSE) else NULL
 note <- function(what, why) { skipped[[length(skipped) + 1]] <<- data.frame(what = what, why = why); say("SKIPPED ", what, ": ", why) }
-saveBook <- function() {
-  if (length(manifest)) write.csv(do.call(rbind, manifest), file.path(out, "figures_manifest.csv"), row.names = FALSE)
-  if (length(skipped)) write.csv(do.call(rbind, skipped), file.path(out, "skipped.csv"), row.names = FALSE)
+saveBook <- function() {                                                  # rows of earlier runs are kept unless this run made (or failed to make) the same figure again
+  newM <- if (length(manifest)) do.call(rbind, manifest) else NULL; newS <- if (length(skipped)) do.call(rbind, skipped) else NULL
+  m <- rbind(if (!is.null(oldManifest)) oldManifest[!oldManifest$id %in% c(newM$id, newS$what), ], newM)
+  if (!is.null(m) && nrow(m)) write.csv(m, file.path(out, "figures_manifest.csv"), row.names = FALSE)
+  s <- rbind(if (!is.null(oldSkipped)) oldSkipped[!oldSkipped$what %in% c(newM$id, newS$what), ], newS)
+  if (!is.null(s) && nrow(s)) write.csv(s, file.path(out, "skipped.csv"), row.names = FALSE) else if (file.exists(file.path(out, "skipped.csv"))) file.remove(file.path(out, "skipped.csv"))
 }
 need <- function(...) { p <- c(...); bad <- p[is.na(p) | !file.exists(p)]; if (length(bad)) stop("missing: ", paste(unique(bad), collapse = " | "), call. = FALSE); invisible(p) }
 figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, variant = "") {
@@ -599,6 +605,30 @@ if ("S7" %in% sections) {
       need(fs); par(mfrow = c(1, 3), oma = c(1, 0, 2.6, 0)); zl <- c(0, max(sapply(fs, function(f) symLim(ger(rast(f)[[1]], 3e5), 1))))
       for (n in names(fs)) drawMap(ger(rast(fs[[n]])[[1]]), c(climate = "Climate (50 km)", landscape = "Landscape (1 km)", habitat = "Habitat (200 m)")[[n]], palSeq, zl)
       bigTitle(sprintf("%s: spread among algorithms, %d", nm(sp), curYear)) })
+  }
+}
+
+## =================================================================================================================================================
+## S8  expected species richness with uncertainty, and its change
+## =================================================================================================================================================
+if ("S8" %in% sections) {
+  say("--- S8 ---")
+  nSp <- length(allSpecies)                                              # expected richness = sum of the probabilities of ALL species; the mean change in probability times nSp is the change in richness
+  for (k in variants) {
+    v <- V[[k]]; ru <- file.path(v$uncComm %||% "", sprintf("richness_expected_unc_%d.tif", curYear)); fmean <- file.path(v$uncComm %||% "", "community_meanDeltaP_unc_vsBaseline.tif")
+    figure("S2_maps", sprintf("S8_richness_interval_%s", k), sprintf("Expected species richness %d with its 90%% interval (%s)", curYear, v$label),
+           sprintf("Expected richness = the sum of the probabilities of the %d species in each pixel, computed in every replicate. Top left: mean over the replicates. Top right and bottom left: 5th and 95th percentile (the 90%% interval). Bottom right: width of the interval (wide = uncertain). Only %d has an uncertainty layer.", nSp, curYear),
+           ru, variant = k, w = 12, h = 10, draw = function() {
+      need(ru); r <- rast(ru); par(mfrow = c(2, 2), oma = c(1, 0, 2.8, 0)); zl <- c(0, max(values(ger(lay(r, "upr", 4), 5e5), na.rm = TRUE)))
+      drawMap(ger(lay(r, "mean", 1)), "Mean over the replicates", palRich, zl); drawMap(ger(lay(r, "lwr", 3)), "5th percentile (lower end)", palRich, zl)
+      drawMap(ger(lay(r, "upr", 4)), "95th percentile (upper end)", palRich, zl); drawMap(ger(lay(r, "width", 5)), "Width of the 90% interval", palSeq)
+      bigTitle(sprintf("Expected richness of the %d species, %d (%s)", nSp, curYear, v$label)) })
+    figure("S5_community", sprintf("S8_richness_change_%s", k), sprintf("Change in expected richness %d vs %d, in number of species (%s)", curYear, baseYear, v$label),
+           sprintf("Change of expected richness between %d and %d in number of species (mean change in probability over the species times %d). Left: every pixel (red = fewer species expected). Right: only where the 90%% interval over the replicates excludes zero; grey = it includes zero.", baseYear, curYear, nSp),
+           fmean, variant = k, w = 12, h = 6.6, draw = function() {
+      need(fmean); u <- rast(fmean); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4); d <- ger(nSp * lay(u, "deltaMean", 1)); lim <- symLim(d)
+      par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0)); drawMap(d, "Change in expected richness (species)", palDiv, c(-lim, lim), mb = bm); drawClearOnly(d, ger(clearMask(l, up)), "Only where the change is clear", c(-lim, lim))
+      bigTitle(sprintf("Expected richness: change %d vs %d (%s)", curYear, baseYear, v$label)) })
   }
 }
 
