@@ -1,16 +1,16 @@
 # Provenance of the figure "Our combined index and the observed trends of the same 11 species in Germany"
 
-Figure files: `outputs/test4/figures_fullreport/S3_indices/S9_closest_comparison.png` (without the German indicator) and `S9_closest_comparison_german.png` (with it).
-Plotted values: `outputs/test4/figures_fullreport/tables/S9_closest_comparison_values.csv` (one row per year; every number on the figure is in it).
-Made by: section S9 of `tools/makeStCoFigures.R`, run locally (not on EVE): `Rscript tools/makeStCoFigures.R --run test4 --variants big5 --sections S9 --out outputs/test4/figures_fullreport`.
-Code version: git commit `1d5b27e` (main). The run is deterministic: the same inputs give the same numbers.
-Written 2026-10-16. Items marked **OPEN** are not yet verified.
+Figure files (written by `tools/makeStCoFigures.R`, section S9): `S3_indices/S9_closest_comparison.png` (without the German indicator) and `S9_closest_comparison_german.png` (with it).
+Plotted values: `tables/S9_closest_comparison_values.csv` (one row per year; every number on the figure is in it).
+Code version: git commit `64b22e5` (main) or later. The calculation is deterministic (the Monte Carlo uses `set.seed(42)`): the same inputs give the same numbers.
+Final version: to be built on EVE (needs the replicate area means there): `FIG_ARGS="--sections S9 --variants big5" sbatch --export=ALL cluster/eve_figures.sbatch`.
+Written 2026-10-16. Items marked **OPEN** are not yet verified. Numbers marked **to be filled** come from the EVE run.
 
 ## 1. What is plotted (all set to 100 in 2006, geometric means over the same 11 species)
 
 | Line | What it is | Source |
 |---|---|---|
-| Our MSI (orange, band) | Mean predicted probability of occurrence over German pixels, per species, as an index; the 11 species combined | Section 3 |
+| Our MSI (orange, band) | Index of the mean predicted probability of occurrence over German pixels, per species; the 11 species combined the PECBMS way: estimate from the main model, band by Monte Carlo | Section 3 |
 | Observed occupancy (green) | Share of surveyed DDA plots with at least one territory | Section 2 |
 | Observed abundance (black, dashed) | Number of territories on the surveyed DDA plots | Section 2 |
 | German indicator Agrarland (purple; only in the `_german` version) | UBA/BfN sub-index for farmland birds, percent of a target value, divided by its 2006 value | Section 4 |
@@ -18,6 +18,9 @@ Written 2026-10-16. Items marked **OPEN** are not yet verified.
 The 11 species: Vanellus vanellus, Lanius collurio, Lullula arborea, Alauda arvensis, Saxicola rubetra, Emberiza calandra, Emberiza citrinella, Buteo buteo, Sturnus vulgaris, Perdix perdix, Anthus pratensis (`data/speciesCanonical.csv`, column `include`; species matched in the DDA data by EURING code).
 
 ## 2. Observed series (DDA territory data)
+
+Origin: the DDA files were supplied directly by the DDA, a project partner (information from the project lead, 2026-10-16). The data are being built into a continuous pipeline.
+**OPEN:** acknowledgement or permission wording for showing indices derived from these data in the public monitor (to agree with the DDA contact).
 
 Raw files (never modified), `inputs/response/raw/territories/`:
 
@@ -30,7 +33,7 @@ Columns: Data = Nummer, Countdate, EURING, Reviere (territories), Art deutsch, R
 
 Conversion to csv: `tools/convertDdaTerritories.py` (cell for cell; nothing filtered or recoded), output `inputs/response/processed/territories_csv/`:
 `dda_data.csv` sha256 `566e07d4cf5dbca37d63858fd2ed601dc34d72b8c991d6ed6356cdaf6fc1dc2b`, `dda_visits.csv` sha256 `3fee3f754e79b2563b121f1063380c6b0fbfe8457a5d382a46585fc7645f557a`.
-Checked 2026-10-16: the script reproduces both csv files byte for byte.
+Checked 2026-10-16: the script reproduces both csv files byte for byte. On EVE the same csv files are used; compare their sha256 with the values above (`sha256sum`).
 
 Index calculation (S9 block of `tools/makeStCoFigures.R`), the rules of Kamp et al. 2021 (J Ornithol 162):
 - only plots surveyed in at least two years (2,116 plots); the first survey year of each plot is dropped; reference year 2006;
@@ -40,26 +43,21 @@ Index calculation (S9 block of `tools/makeStCoFigures.R`), the rules of Kamp et 
 **This is our own calculation from the raw DDA data, not the index that the DDA publishes.** It has no observer correction (the file has no observer id) and does not use TRIM or its error model.
 Number of plots in the calculation, per year (2006 ... 2024): 267, 506, 657, 745, 789, 835, 896, 951, 958, 1053, 1098, 1114, 1102, 1152, 1289, 1226, 1278, 1137, 1344. The reference year 2006 rests on the fewest plots (267), so the early part of the observed lines is noisy (for example the 107 for occupancy in 2007).
 Plausibility check: for 2006-2019 the observed abundance line follows the German indicator closely (see the `_german` figure).
-**OPEN:** who supplied the DDA files and under which conditions (data agreement, permission to show derived indices publicly, acknowledgement text). Not recorded in the repository.
 
 ## 3. Our modelled series
 
-Files: `outputs/test4/annual_report_ens_brt-glm-gam-rf-nn_germany/` (copied from EVE; the plot uses `combined_index_uncertainty.csv`, rows with `method = MSI`):
+Inputs (on EVE, `outputs/<run>/`; the S9 block reads them through the variant `big5`, the model ensemble):
+- `annual_report_ens_brt-glm-gam-rf-nn_germany/species_index.csv`: species index of the **main model** (2005 = 100), Germany-only pixels. The values on the local copy: file date 2026-10-09 05:50, 4,109 bytes, sha256 `ed6424e037ac6403d0fa2b7f3ddf7900d1cdef4e52038244302fa2fcab8715ae`.
+- `uncertainty_ens_brt-glm-gam-rf-nn/<Species>/area_mean_replicates_germany.csv`: for every species, replicate (0 = main model, 1-25 = bootstrap replicates) and year, the mean predicted probability over German pixels. **To be filled from the EVE run:** sha256 of the 11 files and the number of replicates found (printed in the table column `replicatesForInterval`).
 
-| File | Bytes | File date | sha256 |
-|---|---|---|---|
-| `combined_index_uncertainty.csv` | 6,612 | 2026-10-13 11:12 | `712917373e0b5bbba2b165913da73350b859cc4fd26fea419aae8d372d5923f9` |
-| `species_index_uncertainty.csv` | 33,758 | 2026-10-13 11:12 | `b611e2ed45d8055f8fc2f3ac6ab9fe31bbf97cb887f3bf18410cab258d1bef3e` |
-| `species_index.csv` (main model, for comparison only) | 4,109 | 2026-10-09 05:50 | `ed6424e037ac6403d0fa2b7f3ddf7900d1cdef4e52038244302fa2fcab8715ae` |
-
-How the MSI row is made (`modules/runIndex_Monitor/R/computeIndexUncertainty.R`):
-- per species and replicate: area mean of the predicted probability of occurrence over German pixels (`area_mean_replicates_germany.csv`); species index = 100 x area mean of the year / area mean of 2005, inside each replicate;
-- 25 bootstrap replicates (spatial-block bootstrap; replicate 0, the main model, is not part of it); the model in each replicate is the ensemble of BRT, GLM, GAM, RF and NN at three scales plus the ridge meta-model;
-- MSI estimate = geometric mean over the 11 species of the replicate-mean species indices;
-- band = 5th to 95th percentile of 1,000 Monte Carlo draws (seed 42) of the geometric mean, each species drawn from a normal distribution with the species index as mean and its standard deviation across the 25 replicates as standard error (Soldaat et al. 2017);
-- the figure divides the values by the 2006 estimate to set 2006 = 100.
-The band therefore shows the model uncertainty given the training data. It is not a sampling interval.
-Check of 2026-10-16: the main model alone (`species_index.csv`, geometric mean) gives 93.7 in 2024 (2006 = 100) against 94.1 for the MSI plotted.
+Calculation (`tools/makeStCoFigures.R`, S9; `tools/msiMonteCarlo.R`):
+- main-model species index rebased to 2006: 100 x index(year) / index(2006), per species;
+- standard error of a species index = standard deviation across the replicates of 100 x area mean(year) / area mean(2006), computed replicate by replicate (so it is 0 in 2006);
+- estimate = geometric mean over the 11 species of the main-model indices;
+- band = 5th to 95th percentile of 1,000 Monte Carlo draws (seed 42) of that geometric mean, each species drawn from a normal distribution on the log scale with its index as mean and its standard error (Soldaat et al. 2017, the method of PECBMS).
+This is the rule of the "MSI" rows in `combined_index_uncertainty.csv` (`modules/runIndex_Monitor/R/computeIndexUncertainty.R`), except that this calculation centres on the main model; the pipeline file centres on the replicate mean. `tools/msiMonteCarlo.R` was checked against the pipeline code on synthetic data (identical results).
+The band shows the model uncertainty given the training data. It is not a sampling interval.
+Earlier version of this figure (replicate-mean line, 2006 rebasing of the pipeline's MSI row) gave 94.1 in 2024; the main-model geometric mean is 93.7.
 
 What the model is, and what it is not (state this with the figure):
 - Probability of occurrence (presence/absence), not abundance. Mean over German pixels, so it measures how the average predicted suitability changes.
@@ -67,7 +65,8 @@ What the model is, and what it is not (state this with the figure):
 - Landscape scale (1 km) fitted on DDA territory data 2005-2024 (Buteo buteo and Sturnus vulgaris: point-count data 2022-2025). **The model therefore saw part of the observed data: the comparison is not an independent test.**
 - Climate scale: European atlas data (EBBA2) and climate of a rolling window.
 - Time-varying inputs are land-use shares and climate only; there is no year term.
-**OPEN:** the git commit and package versions of the EVE run. They are written in `run_info_*.txt` in the uncertainty folder of each species on EVE and were not copied to this computer.
+- Ensemble of BRT, GLM, GAM, RF and NN at three scales plus a ridge meta-model; 25 spatial-block bootstrap replicates (replicate 0 = the main model).
+**OPEN:** the git commit and package versions of the EVE run (written in `run_info_*.txt` in the uncertainty folder of each species on EVE). To be read when the final version is set.
 
 ## 4. German indicator (only in the `_german` version)
 
