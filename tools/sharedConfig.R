@@ -94,7 +94,17 @@ sharedLocaleCtype <- "de_DE.UTF-8"
 # held off on 5km since it starts to approach identifying individual
 # localities, which cuts against the reason these grids exist in the
 # first place (a regional picture without pointing at specific areas).
+# BIRDMONITOR_REGIONAL_KM="10" restricts a run to the grid sizes (km, comma-separated) given: the Bird Monitor shows only the 10 km map, so an update of what the
+# Monitor shows can skip the 20 and 50 km grids (the regional steps then take about a third of the time). Unset = all three, as before.
 sharedRegionalCellSizesM <- c(10000, 20000, 50000)
+local({
+  km <- Sys.getenv("BIRDMONITOR_REGIONAL_KM", "")
+  if (nzchar(km)) {
+    want <- as.numeric(strsplit(km, ",")[[1]]) * 1000
+    if (anyNA(want) || !all(want %in% sharedRegionalCellSizesM)) stop("BIRDMONITOR_REGIONAL_KM must be a comma-separated subset of 10,20,50 (got: ", km, ")", call. = FALSE)
+    sharedRegionalCellSizesM <<- sharedRegionalCellSizesM[sharedRegionalCellSizesM %in% want]
+  }
+})
 
 # Your personal CLMS API token for CORINE Land Cover downloads (see the
 # setup steps at the top of dataPrep_Monitor/python/download_landcover.py).

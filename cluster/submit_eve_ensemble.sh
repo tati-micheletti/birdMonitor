@@ -27,6 +27,7 @@ read -r -a SCALES <<< "${ENS_SCALES:-climate landscape habitat}"
 read -r -a ALGOS <<< "${ENS_ALGOS-glm gam rf}"
 IFS=';' read -r -a VARIANTS <<< "${ENS_VARIANTS:-brt,glm,gam,rf}"
 THR="%${ENS_THROTTLE:-40}"
+NSP=$(Rscript -e 'source("tools/sharedConfig.R"); cat(length(sharedSpecies))' 2>/dev/null | tail -1); NSP="${NSP:-11}"      # number of species of the roster (data/speciesCanonical.csv), 11 if R is not available here
 AFTER=()
 if [ -n "${ENS_AFTER:-}" ]; then AFTER=(--dependency=afterok:"${ENS_AFTER}"); fi
 
@@ -44,7 +45,7 @@ for scale in "${SCALES[@]}"; do
       climate:rf)    RES=(--cpus-per-task=2 --mem-per-cpu=4G --time=03:00:00);;
       *)             RES=(--cpus-per-task=1 --mem-per-cpu=8G --time=03:00:00);;
     esac
-    id=$(ENS_SCALE="${scale}" ENS_ALGO="${algo}" sbatch --parsable --export=ALL --job-name="ens-${scale}-${algo}" --array="1-11${THR}" "${RES[@]}" \
+    id=$(ENS_SCALE="${scale}" ENS_ALGO="${algo}" sbatch --parsable --export=ALL --job-name="ens-${scale}-${algo}" --array="1-${NSP}${THR}" "${RES[@]}" \
          "${AFTER[@]+"${AFTER[@]}"}" cluster/eve_ens_algo.sbatch)
     echo "fit ${scale}/${algo}: ${id}"
     fitIds[${scale}]="${fitIds[${scale}]:+${fitIds[${scale}]}:}${id}"
