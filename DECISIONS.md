@@ -1398,3 +1398,16 @@ Cells outside Germany (sea, Poland ...) now get 0 instead of NA; Germany-only pr
 
 **Consequence:** the covariate changes slightly everywhere, so the four species have to be refitted and re-predicted (habitat and landscape scales, then the ridge meta-model, then the 25 replicates); the other seven
 species are not affected. Everything combined over species (MSI, expected richness, regional index) has to be recombined from the stored per-species results. How: `UPDATING_THE_RUNS.md`.
+
+### Addendum 2026-10-20 -- version 2 must not remove the accidental study-area mask (scan of all 36 habitat covariate files, `tools/checkCovariateNA.R`)
+
+Inside Germany only two layers have NA: `landscape_heterogeneity` (version 1) and `hedges` (the whole layer in the 14 years without hedge data, 2005-2016, 2022, 2023; filled on the fly by the loaders).
+Outside Germany (inside the prediction window) the land-use, land-cover and distance-to-woodland layers are NOT NA (filled), elevation/slope are NA over the sea only, and version 1 of
+`landscape_heterogeneity` was NA over 99.7% of it. That NA was the only thing that kept records of neighbouring countries out of the training tables of all species (the log shows
+1,000-3,000 rows removed "with NA covariates" per species and year) and limited the predictions of the four species that use the layer to Germany. A version 2 that returns 0 there would
+have let those records in with zero crop covariates. **Changes (dataPrep_Monitor):** (1) `computeHeterogeneityIndex()` masks the layer to the German outline (`studyArea`, required): NA outside,
+no NA inside (tested on the Oder lagoon window: inside Germany 8,343 NA cells in version 1, 0 in version 2; outside all NA); (2) `occurrencePrepGerHabitat()` removes records outside Germany
+explicitly before the covariates are extracted (`germanyOutlineLAEA()`, `insideGermany()`: the outline is rasterised once, 3 million points in 1.5 s, agreement with the exact polygon test 99.8%, the
+border is accurate to one 200 m cell, cells touched by the outline count as inside as in the masks of the layers). Landscape-scale records are DDA route centroids inside Germany and are not filtered.
+Still to do before the full re-run: complete `hedges` in the layer files instead of on the fly and stop (not drop) if any NA is left inside Germany; species-level cache keys (each species' own
+predictor layers only); the same checks for the landscape (1 km) and climate (50 km) layers.
