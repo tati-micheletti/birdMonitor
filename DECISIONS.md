@@ -1380,3 +1380,21 @@ A bootstrap must repeat the SAME procedure on resampled data (otherwise the inte
 size of the trends) depends on this choice -- the old block-fold replicates are kept as the sensitivity analysis (`_old_ridge_blockfolds_2026-10-10/`, interval tables copied there).
 Also found earlier the same day: climate models of three species refitted on 2026-10-08 differed from the replicate-0 copy (tree count) -- fixed by `cluster/refresh_climate_3species_2026-10-09.sh`; all 11 species and the regional grids then passed parity.
 Redo: big 5 -- `cluster/ridge_rule_big5_2026-10-10.sh` (ridge step only, before its band stage, which had not started); BRT-only -- `cluster/refresh_ridge_rule_brt_2026-10-10.sh` (band stage again, ~14 h wall).
+
+## 2026-10-20 -- Holes in the maps: `landscape_heterogeneity` version 2 (no 5% threshold, 0 where no mapped class)
+
+**Finding (PC, 2025, habitat grid 200 m):** the covariate `landscape_heterogeneity` had 66,683 NA cells inside Germany (0.75% of 8.95 M; 35,917 in 2022); every other habitat covariate had 0 NA inside Germany
+(land use, land cover, elevation, slope, distance to woodland; hedges are all-NA only in the years that are back-filled). Version 1 of `computeHeterogeneityIndex()` zeroed every category below 5% of the cell and
+returned NA when nothing was left. Of the NA cells (sample of 20,000): 45% have all 17 categories exactly 0 (bare rock, tidal flat, lagoon ...), 47% have a total between 0 and 5%, 9% are mixed cells with every
+category below 5%. NA covariate -> no prediction (`predictModelToRaster()` keeps complete cases only), the ensemble mean has `na.rm = FALSE` (`ensembleScale.R`), the ridge meta-model needs all scales
+(`predictRidgeToRaster.R`) -> holes in every map of the four species that use the layer (E. citrinella, Lanius collurio, Lullula arborea, Sturnus vulgaris). The NA set also differs between years (land-use product
+and grid change), so the area mean averaged different pixels in different years (possible contribution to the 2022 step; to be checked after the re-run). Confirmation on the prediction maps: `cluster/eve_na_holes_check.sbatch`.
+
+**Change (tested locally on a 100 x 100 km window at the Oder lagoon: 101,277 NA cells in version 1, 0 in version 2; mean absolute difference elsewhere 0.018, correlation 0.987 over Germany):**
+1. no rare-category threshold (`rareThreshold = 0`; the Simpson index squares the proportions, rare classes hardly count);
+2. cell with no mapped class (total = 0): heterogeneity = 0 (no diversity among the mapped classes); a cell with no data in any layer stays NA.
+`prepareHeterogeneityIndex()` writes a sidecar `<file>.version` and recomputes cached files whose version differs, so the old layers are replaced without deleting anything by hand.
+Cells outside Germany (sea, Poland ...) now get 0 instead of NA; Germany-only products are unaffected (maps are masked to the outline, `maskMetaModels.R`).
+
+**Consequence:** the covariate changes slightly everywhere, so the four species have to be refitted and re-predicted (habitat and landscape scales, then the ridge meta-model, then the 25 replicates); the other seven
+species are not affected. Everything combined over species (MSI, expected richness, regional index) has to be recombined from the stored per-species results. How: `UPDATING_THE_RUNS.md`.
