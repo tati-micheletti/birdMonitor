@@ -82,6 +82,18 @@ sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2
 # window share this same value (see DECISIONS.md's 2026-09-28 entry).
 sharedLandscapeYears <- 2005:2025
 sharedHabitatYears <- 2005:2025
+# DEBUG ONLY: BIRDMONITOR_YEARS="2022:2025" restricts the prediction years and the fitting years of both scales to that range (a fast local test of the real pipeline, e.g. with
+# BIRDMONITOR_SPECIES and BIRDMONITOR_STUDY_AREA). Unset = the full ranges above. Never set it for a run whose results are used.
+local({
+  yy <- Sys.getenv("BIRDMONITOR_YEARS", "")
+  if (nzchar(yy)) {
+    ends <- suppressWarnings(as.integer(strsplit(yy, ":", fixed = TRUE)[[1]]))
+    if (length(ends) != 2 || anyNA(ends) || ends[1] > ends[2]) stop("BIRDMONITOR_YEARS must look like 2022:2025 (got: ", yy, ")", call. = FALSE)
+    keep <- ends[1]:ends[2]
+    predictionYears <<- intersect(predictionYears, keep); sharedLandscapeYears <<- intersect(sharedLandscapeYears, keep); sharedHabitatYears <<- intersect(sharedHabitatYears, keep)
+    message("BIRDMONITOR_YEARS set -- years restricted to ", yy)
+  }
+})
 
 sharedLocaleCtype <- "de_DE.UTF-8"
 

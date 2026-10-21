@@ -16,7 +16,7 @@
 #   cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_v1_clean_run.sh     # checks + prints the chain, submits nothing
 #   cd ~/projects/birdMonitor && bash --login cluster/submit_eve_v1_clean_run.sh                                                                          # the real thing
 # Environment: BIRDMONITOR_RUNNAME (default v1), RESUME=1 (the run folder may exist: only what is missing is recomputed), BIG5_REPS (default 0:25), FORCE=1 (skip the queue check).
-# BIRDMONITOR_SPECIES must NOT be set (a debug switch: the steps that combine species would see only that subset).
+# BIRDMONITOR_SPECIES and BIRDMONITOR_YEARS must NOT be set (debug switches: the steps that combine species would see only a subset).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
@@ -26,6 +26,7 @@ if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login c
 export EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 module load ${EVE_R_MODULE}
 if [ -n "${BIRDMONITOR_SPECIES:-}" ]; then echo "STOP: BIRDMONITOR_SPECIES is set (${BIRDMONITOR_SPECIES}); unset it for a full run." >&2; exit 1; fi
+if [ -n "${BIRDMONITOR_YEARS:-}" ]; then echo "STOP: BIRDMONITOR_YEARS is set (${BIRDMONITOR_YEARS}); it is a debug switch, unset it for a full run." >&2; exit 1; fi
 if [ "${FORCE:-0}" != "1" ] && squeue -u "${USER}" -h -o "%j" | grep -qE "^(birdmon-prep|ens-|unc-|connector|copy-databirds)"; then
   echo "STOP: jobs of this workflow are already in the queue (squeue -u ${USER}). FORCE=1 overrides." >&2; exit 1; fi
 
