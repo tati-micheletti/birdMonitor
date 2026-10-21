@@ -128,6 +128,11 @@ local({
 # Names in the point-count (dbird/MhB) file that are a subspecies or variant of a roster species and count as that species (name in the file = roster name). The Yellow Wagtail is recorded as
 # "Motacilla flava flava" (12,511 records), "Motacilla flava" (193, unidentified) and "Motacilla flava thunbergi" (8); the DDA territory data have the species as "Wiesenschafstelze" (EURING 10170).
 sharedDbirdNameAliases <- c("Motacilla flava flava" = "Motacilla flava", "Motacilla flava thunbergi" = "Motacilla flava")
+# The EBBA2 occurrence file (relative to inputs/): presences of the roster species per 50 km atlas cell. A new extract is brought in with tools/prepareEbba2Extract.R, which writes a NEW dated file
+# (the one on disk is never overwritten); switching the pipeline to it is this one line.
+sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km.csv"
+# BirdLife names in an EBBA2 extract that differ from the roster name (latin_name in data/speciesCanonical.csv): extract name = roster name (tools/prepareEbba2Extract.R renames them when merging).
+sharedEbba2NameAliases <- c("Sylvia communis" = "Curruca communis")
 options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor's uncOutlineLAEA() (the reporting-area outline of the masks and the regional steps) in every script that sources this file
 sharedRecordsBufferM <- 1000
 sharedClimatePredictBufferM <- 50000

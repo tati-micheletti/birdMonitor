@@ -378,6 +378,8 @@ separate follow-up decision.
 
 ## 6. Generalize the study-area crop/mask beyond "Germany"
 
+**DONE 2026-10-21 (phase 1):** one study-area definition (`sharedStudyArea`, `BIRDMONITOR_STUDY_AREA`) drives layers, records, models and index; see DECISIONS.md 2026-10-21. Open: crop at download time, explicit climate fit-area setting, water mask (version 2).
+
 **Current state:** the post-hoc masking tool (`tools/maskToGermany.R`) and the
 planned source-level fix (cropping the working extent in `dataPrep_Monitor`
 before any calculation starts, using a `rasterToMatch`/`studyArea` pattern --
@@ -804,6 +806,8 @@ can explode. At the moment a species is left out of a cell only when its baselin
 ---
 
 ## 19. Predict only inside Germany: replace the bounding box by the study-area outline at the source
+
+**DONE 2026-10-21 (for the layers and records):** the processed layers are cropped and masked to the study area plus a buffer, so predictions exist only there; the `_germany` copies cut the buffer to the reporting area (DECISIONS.md 2026-10-21, clean run v1).
 
 **Noted 2026-10-13 (project lead: "we are SUPPOSED to predict only for Germany for now ... we REALLY need to address this"; to be done after the Steering
 Consortium meeting; supersedes the interim Germany-only masking).** All predictions are made on a rectangle, the bounding box of Germany, not on Germany.

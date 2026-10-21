@@ -1489,8 +1489,8 @@ name in `birdlife_scientific_name` must equal `latin_name`; BirdLife may use `Sy
 
 ## 2026-10-21 -- Clean run v1: one chained script, `_germany` kept as the name of the reporting-area copies, DDA `Reviere` = -1 is a presence
 
-**One entry point for the first clean run:** `cluster/submit_eve_v1_clean_run.sh` chains checks -> prep -> BRT arrays -> ensemble (GLM/GAM/RF/NN fits, means, honest meta-model) -> reporting-area copies of the maps and the index on them ->
-uncertainty (25 replicates) -> regional index/intervals/maps -> copy to /data/birds -> connector (`/data/birds/viz`). NEW run folder (default `v1`) on purpose: the file-based caches (covariate stacks, ensemble model files,
+**One entry point for the first clean run:** `cluster/submit_eve_clean_run.sh` chains checks -> prep -> BRT arrays -> ensemble (GLM/GAM/RF/NN fits, means, honest meta-model) -> reporting-area copies of the maps and the index on them ->
+uncertainty (25 replicates) -> regional index/intervals/maps -> copy to /data/birds -> connector (`/data/birds/viz`). NEW run folder (default `v2`, the second full run) on purpose: the file-based caches (covariate stacks, ensemble model files,
 uncertainty folders, model_ready tables) live in `outputs/<run>/`, so nothing of the old runs can be reused by mistake; the content-based `cache/` is shared. The script stops if the run folder exists (RESUME=1 overrides), if
 the code on EVE has uncommitted changes or the modules are not at the pinned commits, if the duplicated functions differ, if a species of the roster has no records at one scale (`tools/checkSpeciesData.R`), or if the study
 area cannot be built; `DRY_RUN=1` prints the whole chain without submitting. Array sizes follow the roster (`--array=1-<species>`; also fixed in `submit_eve_tonight.sh`'s mask step).

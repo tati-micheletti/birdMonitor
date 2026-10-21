@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # READ-ONLY pre-flight: does every species of data/speciesCanonical.csv (included or candidate) have the records the three scales need?
-#   climate   EBBA2 atlas cells with the species (inputs/response/raw/ornitho/ebba2_data_occurrence_50km.csv, name in the BirdLife column = latin_name)
+#   climate   EBBA2 atlas cells with the species (inputs/<sharedEbba2CsvSubpath>, name in the BirdLife column = latin_name)
 #   landscape DDA territory data (the csv copies of tools/convertDdaTerritories.py; matched by EURING code): plots and territories
 #   habitat   point counts (MhB / dbird, inputs/response/raw/MhB/dbird_observations_CBBM.csv): presences April-June with an accepted breeding code in the habitat years, names via sharedDbirdNameAliases
 # A species can only be switched on (include = X in speciesCanonical.csv) when all three say READY: the meta-model needs the three scales, and a species with no EBBA2 rows stops the data preparation.
@@ -9,7 +9,7 @@ args <- commandArgs(trailingOnly = TRUE); minP <- if ("--min-presences" %in% arg
 repoRoot <- getwd(); libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*")); if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(data.table)); source("tools/sharedConfig.R")
 canon <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FALSE); canon$candidate <- !nzchar(trimws(canon$include))
-eb <- fread("inputs/response/raw/ornitho/ebba2_data_occurrence_50km.csv", sep = ";"); ebN <- eb[, .(ebba2Cells = sum(occurrence > 0)), by = .(latin_name = birdlife_scientific_name)]
+eb <- fread(file.path("inputs", sharedEbba2CsvSubpath), sep = ";"); ebN <- eb[, .(ebba2Cells = sum(occurrence > 0)), by = .(latin_name = birdlife_scientific_name)]
 dd <- fread("inputs/response/processed/territories_csv/dda_data.csv"); ddN <- dd[, .(ddaPlots = uniqueN(ROUTENCODE[Reviere > 0]), ddaTerritories = sum(Reviere)), by = .(euring_code = EURING)]
 d <- fread("inputs/response/raw/MhB/dbird_observations_CBBM.csv", select = c("SPECIES_NAME_SCIENTIFIC", "DATE_TIME", "TOTAL_COUNT", "ATLAS_CODE"))
 d[, year := as.integer(substr(DATE_TIME, 1, 4))]; d[, month := substr(DATE_TIME, 6, 7)]

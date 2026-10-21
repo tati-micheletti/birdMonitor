@@ -1,5 +1,5 @@
 #!/bin/bash
-# THE FIRST CLEAN RUN of the Spatio.IO / Bird Monitor (version 1): everything from the data preparation to /data/birds/viz as ONE dependency chain, in a NEW run folder.
+# THE SECOND FULL RUN (clean) = the first one for the Spatio.IO / Bird Monitor: everything from the data preparation to /data/birds/viz as ONE dependency chain, in a NEW run folder.
 #
 #   0. checks on the login node (a clean run folder, a clean and pushed code state, every roster species has records at the three scales, the study area can be built)
 #   1. prep      dataPrep_Monitor + inputs_Monitor: layers cropped/masked to the study area, hedges and heterogeneity (v2), CORINE classes, occurrence tables, model_ready tables
@@ -13,16 +13,16 @@
 # current definition by the preparation itself (study-area crop, heterogeneity v2 and CORINE classes by their stamps).
 #
 # Usage (EVE login node, VPN on):
-#   cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_v1_clean_run.sh     # checks + prints the chain, submits nothing
-#   cd ~/projects/birdMonitor && bash --login cluster/submit_eve_v1_clean_run.sh                                                                          # the real thing
-# Environment: BIRDMONITOR_RUNNAME (default v1), RESUME=1 (the run folder may exist: only what is missing is recomputed), BIG5_REPS (default 0:25), FORCE=1 (skip the queue check).
+#   cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh     # checks + prints the chain, submits nothing
+#   cd ~/projects/birdMonitor && bash --login cluster/submit_eve_clean_run.sh                                                                          # the real thing
+# Environment: BIRDMONITOR_RUNNAME (default v2), RESUME=1 (the run folder may exist: only what is missing is recomputed), BIG5_REPS (default 0:25), FORCE=1 (skip the queue check).
 # BIRDMONITOR_SPECIES and BIRDMONITOR_YEARS must NOT be set (debug switches: the steps that combine species would see only a subset).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
-RUN="${BIRDMONITOR_RUNNAME:-v1}"; export BIRDMONITOR_RUNNAME="${RUN}"
+RUN="${BIRDMONITOR_RUNNAME:-v2}"; export BIRDMONITOR_RUNNAME="${RUN}"
 TAG=ens_brt-glm-gam-rf-nn; MEM=brt,glm,gam,rf,nn; REPS="${BIG5_REPS:-0:25}"
-if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login cluster/submit_eve_v1_clean_run.sh" >&2; exit 1; fi
+if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login cluster/submit_eve_clean_run.sh" >&2; exit 1; fi
 export EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 module load ${EVE_R_MODULE}
 if [ -n "${BIRDMONITOR_SPECIES:-}" ]; then echo "STOP: BIRDMONITOR_SPECIES is set (${BIRDMONITOR_SPECIES}); unset it for a full run." >&2; exit 1; fi
@@ -38,8 +38,8 @@ if [ -n "$(git submodule foreach --quiet 'git status --porcelain --untracked-fil
 if git submodule status | grep -q '^[+-U]'; then echo "STOP: the modules are not at the commits the main repo points to. Run: git submodule update --init --recursive" >&2; exit 1; fi
 echo "code: main $(git rev-parse --short HEAD); modules: $(git submodule status | awk '{print $2 " " substr($1,1,7)}' | tr '\n' ';')"
 Rscript tools/check_duplicated_functions.R | tail -1
-Rscript tools/checkSpeciesData.R 2>&1 | tee "logs/v1_species_check_${RUN}.txt" | tail -25
-if grep -q "WARNING: species that are ON but not READY" "logs/v1_species_check_${RUN}.txt"; then
+Rscript tools/checkSpeciesData.R 2>&1 | tee "logs/species_check_${RUN}.txt" | tail -25
+if grep -q "WARNING: species that are ON but not READY" "logs/species_check_${RUN}.txt"; then
   echo "STOP: at least one species of the roster has no records at one scale (list above). Fix the data or set include blank in data/speciesCanonical.csv." >&2; exit 1; fi
 Rscript -e 'libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*")); if (length(libs)) .libPaths(c(libs, .libPaths())); suppressMessages(library(terra))
   source("tools/sharedConfig.R"); for (f in c("laeaAnalytic.R", "studyArea.R")) source(file.path("modules/dataPrep_Monitor/R", f))
@@ -52,7 +52,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then                # every sbatch (also inside th
   echo "DRY_RUN=1: nothing is submitted; the lines 'DRY sbatch ...' are what would be."
 else
   mkdir -p "outputs/${RUN}"
-  { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/v1_species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
+  { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
 fi
 
 echo; echo "=== 1. prep"

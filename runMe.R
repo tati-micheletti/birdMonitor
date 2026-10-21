@@ -233,6 +233,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       dataPrep_Monitor = list(
         rastersOnly = identical(Sys.getenv("BIRDMONITOR_STAGE"), "rasters"),
         studyAreaSpec = sharedStudyArea,                  # THE study area (tools/sharedConfig.R); layers and records are cropped/filtered by it
+        ebba2CSVSubpath = sharedEbba2CsvSubpath,          # the EBBA2 occurrence file (tools/sharedConfig.R; a new extract is merged with tools/prepareEbba2Extract.R)
         recordsBufferM = sharedRecordsBufferM,
         climatePredictBufferM = sharedClimatePredictBufferM,
         speciesPredictorTable = speciesPredictorTable,    # species-level cache keys of the occurrence tables
