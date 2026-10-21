@@ -882,6 +882,18 @@ maps -> area means -> species index -> combined index -> interval from the repli
 - **Result so far (13 October):** BRT-only run, Alauda arvensis and Saxicola rubetra, 2005, 2015 and 2025: 18 of 18 comparisons OK (maps -> area means -> species index -> combined index 95.575 -> interval over 50 replicates 94.04 to 98.17). Still to do: the big 5 run, and the other nine species.
 - **Limit:** these checks show that the arithmetic and the transfer of the numbers are right; they do not show that the model is right (item 21).
 
+## 23. DDA `Reviere` = -1 is treated as an absence in the occurrence tables (should be a presence)
+
+**Noted 2026-10-13 (project lead: yes, add it; found while preparing the PreVal bird data).** The DDA/MhB documentation (Confluence) says: `Reviere` = 0 is set by hand when
+a bird was seen outside the plot (it must not count as a territory); `Reviere` = -1 means the observer could not give an exact count, so no territory count exists, it drops out of
+the official MhB statistics, but in practice it is a PRESENCE (it cannot be used as a density).
+- **Where:** `modules/dataPrep_Monitor/R/occurrencePrepGerLandscape.R`, the presence/absence matrix (`Reviere` NA replaced by 0, then `occurrence = as.integer(Reviere > 0)`): a -1 becomes `occurrence` = 0.
+- **Size:** 67 route-year records over the 11 species (2005-2024): Sturnus vulgaris 21, Emberiza citrinella 16, Buteo buteo 11, Alauda arvensis 11, Lanius collurio 3, Vanellus vanellus 2,
+  Lullula arborea 1, Anthus pratensis 1, Saxicola rubetra 1, Perdix perdix 0, Emberiza calandra 0; at most 0.14% of the presences of a species. The effect on the maps and indices is expected to be negligible.
+- **Fix:** `occurrence = as.integer(Reviere > 0 | Reviere == -1)`; keep `Reviere` as is (or NA) so that nothing uses -1 as a count; bump `occurrenceCacheSchema` so that the cached tables are rebuilt; add a unit test with a -1 row.
+  Then rerun the landscape occurrence tables of the affected species and everything downstream (landscape BRTs, meta-models, indices, uncertainty): only worth doing together with the next full recomputation.
+- **DONE 2026-10-21 (for the first clean run, version 1):** `occurrence = as.integer(Reviere > 0 | Reviere == -1)`, `Reviere` of those rows set to NA, `occurrenceCacheSchema` 3 -> 4 (all occurrence tables are rebuilt in the clean run). PreVal still excludes -1 rows from its count response.
+
 ---
 
 *Some of these have started -- for discussion once the current run's

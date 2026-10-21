@@ -2,6 +2,15 @@
 
 Rule of the house: **never delete results, move them aside; never edit raw inputs.** Everything below is run on an EVE login node (VPN on) unless it says PC.
 
+## 0. A full clean run (first version of the Monitor, or after a change of the study area, the species set or the layers)
+One script chains everything (prep, BRT, ensemble, uncertainty, copy to `/data/birds`, connector) in a NEW run folder, so nothing of an old run is reused:
+```bash
+cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_v1_clean_run.sh
+```
+`DRY_RUN=1` runs the checks (clean run folder, code state, records of every species at the three scales, study area) and prints the chain without submitting. When it is happy, the same command without `DRY_RUN=1 ` submits it
+(run folder `v1`; another name with `BIRDMONITOR_RUNNAME`). Expect about two days. Cropping to the study area is done in place on `inputs/predictors/processed`: it is fine for the same or a smaller area; for a larger one the
+script/preparation stops and the processed layers of that scale have to be re-made first.
+
 ## 1. Get the latest version (PC and EVE)
 ```bash
 cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive

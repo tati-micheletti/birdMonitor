@@ -1486,3 +1486,18 @@ speciesConfig_general.csv (the usual three scales) and speciesConfig_predictors.
 and habitat (point-count presences 2022-2025: 881-19,355) are READY; **the climate scale is not: the EBBA2 extract on disk has only the 12 original species.** Needed: an EBBA2 extract with the four species (the
 name in `birdlife_scientific_name` must equal `latin_name`; BirdLife may use `Sylvia communis`). Then set `include = X`. The point-count file names the wagtail `Motacilla flava flava` (12,511 records), `Motacilla flava` (193) and
 `Motacilla flava thunbergi` (8): `sharedDbirdNameAliases` counts them as the species (8,137 presences 2022-2025); the DDA territory data have it as `Wiesenschafstelze`, EURING 10170.
+
+## 2026-10-21 -- Clean run v1: one chained script, `_germany` kept as the name of the reporting-area copies, DDA `Reviere` = -1 is a presence
+
+**One entry point for the first clean run:** `cluster/submit_eve_v1_clean_run.sh` chains checks -> prep -> BRT arrays -> ensemble (GLM/GAM/RF/NN fits, means, honest meta-model) -> reporting-area copies of the maps and the index on them ->
+uncertainty (25 replicates) -> regional index/intervals/maps -> copy to /data/birds -> connector (`/data/birds/viz`). NEW run folder (default `v1`) on purpose: the file-based caches (covariate stacks, ensemble model files,
+uncertainty folders, model_ready tables) live in `outputs/<run>/`, so nothing of the old runs can be reused by mistake; the content-based `cache/` is shared. The script stops if the run folder exists (RESUME=1 overrides), if
+the code on EVE has uncommitted changes or the modules are not at the pinned commits, if the duplicated functions differ, if a species of the roster has no records at one scale (`tools/checkSpeciesData.R`), or if the study
+area cannot be built; `DRY_RUN=1` prints the whole chain without submitting. Array sizes follow the roster (`--array=1-<species>`; also fixed in `submit_eve_tonight.sh`'s mask step).
+**`_germany` stays.** The earlier plan to drop `maskMetaModels` and rename the `_germany` folders is NOT done: the working area is the reporting area plus a buffer (1 km records/layers; one 50 km cell for the climate
+predictions), so the final maps still have to be cut to the reporting area, and the suffix is read by the connector, the figure tools, `pack_downloads.sh`, the refresh scripts and the reports. The suffix now means "the reporting
+area" (Germany today); a rename would touch all of them for no scientific gain. Revisit when a second reporting area is really run.
+**Cropping is in place, so only a smaller area can follow a larger one.** `applyStudyAreaToProcessed()` overwrites the processed layers; it now stops (message names the file and the stamp) if a layer was cropped for an area that
+does not contain the current working area (Saxony layers cannot be reused for Germany: re-make them). Same area, other label/stamp: re-cropped, nothing lost.
+**DDA `Reviere` = -1 is a presence** (improvements.md item 23, project lead: yes): `occurrence = as.integer(Reviere > 0 | Reviere == -1)`, `Reviere` of those rows becomes NA (no count), `occurrenceCacheSchema` 4 so every
+occurrence table is rebuilt in the clean run (the schema also covers the study-area record filter, the species-level covariate keys and the hedges change of today). 636 rows of the DDA file; 67 route-years of the 11 original species.

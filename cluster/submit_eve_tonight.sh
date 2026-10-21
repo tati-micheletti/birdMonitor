@@ -34,7 +34,8 @@ out=$(ENS_ALGOS="glm gam rf nn" ENS_VARIANTS="${MEM}" ENS_THROTTLE=11 bash clust
 meta=$(echo "${out}" | awk '/^meta /{print $NF}')
 [ -n "${meta}" ] || { echo "ERROR: could not read the meta-model job id of the big 5 baseline" >&2; exit 1; }
 echo; echo "=== B2. big 5 baseline on Germany-only maps"
-mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_mask_meta.sbatch); echo "mask-meta (big 5): ${mk}"
+NSP=$(Rscript -e 'source("tools/sharedConfig.R"); cat(length(sharedSpecies))' 2>/dev/null | tail -1); NSP="${NSP:-11}"
+mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_mask_meta.sbatch); echo "mask-meta (big 5): ${mk}"
 gi=$(BIRDMONITOR_INDEX_TAG="${TAG}_germany" sbatch --parsable --export=ALL --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_index.sbatch); echo "index (big 5, Germany only): ${gi}"
 
 echo; echo "=== C. big 5 uncertainty: the ensemble inside the replicates (${REPS})"
