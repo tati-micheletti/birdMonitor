@@ -1411,3 +1411,13 @@ explicitly before the covariates are extracted (`germanyOutlineLAEA()`, `insideG
 border is accurate to one 200 m cell, cells touched by the outline count as inside as in the masks of the layers). Landscape-scale records are DDA route centroids inside Germany and are not filtered.
 Still to do before the full re-run: complete `hedges` in the layer files instead of on the fly and stop (not drop) if any NA is left inside Germany; species-level cache keys (each species' own
 predictor layers only); the same checks for the landscape (1 km) and climate (50 km) layers.
+
+### Correction 2026-10-20 (later) -- what the "rows removed with NA covariates" were
+The addendum above guessed that most of the 1,000-3,000 rows removed per species and year were records outside Germany. **Measured on the raw point counts: wrong.** Of 217,941 presences
+(roster species, 2022-2025, Apr-Jun, accepted atlas codes) only 34 (0.016%) lie outside the German outline, all coastal or offshore (33 with empty STATE); in 2025: 6 of 49,183. The removed rows are
+INSIDE Germany: in 2025, 1,455 of 49,183 presences (2.96%) lie in cells where `landscape_heterogeneity` (version 1) was NA and no other layer is NA. Those cells are 0.75% of Germany but hold 3% of
+the records, and there the 16 mapped land-use/land-cover classes sum to about nothing (classified total exactly 0 for 1,194 of the 1,455 records, below 0.05 for 245 more; the median over all records is
+0.92). Version 1 therefore removed ~3% of the bird records of every species, systematically from places the land-use and land-cover layers do not describe, and left holes in the maps of the four
+species that use the layer. Version 2 keeps these records (heterogeneity 0). Open question: whether a share of "unmapped" land (1 - sum of the mapped classes) should become a predictor.
+Also measured: 2 of 2,637 MhB route centroids (ni128, ni107, coast) lie outside the GADM outline: a strict outline filter drops legitimate coastal records, so records need a buffered study area.
+Landscape-scale records (DDA routes) were filtered by NA only through `hedges` (all-NA in years without data) and are otherwise complete.
