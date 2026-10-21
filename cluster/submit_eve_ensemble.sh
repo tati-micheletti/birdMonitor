@@ -62,11 +62,11 @@ for members in "${VARIANTS[@]}"; do
     DEP=()
     if [ -n "${fitIds[${scale}]}" ]; then DEP=(--dependency=afterok:"${fitIds[${scale}]}" --kill-on-invalid-dep=yes);
     elif [ -n "${ENS_AFTER:-}" ]; then DEP=(--dependency=afterok:"${ENS_AFTER}"); fi
-    id=$(ENS_SCALE="${scale}" ENS_MEMBERS="${members}" sbatch --parsable --export=ALL --job-name="ens-mean-${scale}" "${DEP[@]+"${DEP[@]}"}" cluster/eve_ens_ens.sbatch)
+    id=$(ENS_SCALE="${scale}" ENS_MEMBERS="${members}" sbatch --parsable --export=ALL --job-name="ens-mean-${scale}" --array="1-${NSP}" "${DEP[@]+"${DEP[@]}"}" cluster/eve_ens_ens.sbatch)
     echo "ensemble ${tag} / ${scale}: ${id}"; ensIds+=("${id}")
   done
   depE=$(IFS=:; echo "${ensIds[*]}")
-  meta=$(BIRDMONITOR_META_SOURCE="${tag}" sbatch --parsable --export=ALL --job-name="ens-meta-${tag}" --dependency=afterok:"${depE}" --kill-on-invalid-dep=yes modules/models_Monitor/cluster/eve_array_meta.sbatch)
+  meta=$(BIRDMONITOR_META_SOURCE="${tag}" sbatch --parsable --export=ALL --job-name="ens-meta-${tag}" --array="1-${NSP}" --dependency=afterok:"${depE}" --kill-on-invalid-dep=yes modules/models_Monitor/cluster/eve_array_meta.sbatch)
   echo "meta ${tag}: ${meta}"
   idx=$(BIRDMONITOR_INDEX_TAG="${tag}" sbatch --parsable --export=ALL --job-name="ens-index-${tag}" --dependency=afterok:"${meta}" --kill-on-invalid-dep=yes cluster/eve_index.sbatch)
   echo "index ${tag}: ${idx}"

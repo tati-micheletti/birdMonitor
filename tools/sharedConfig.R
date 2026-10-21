@@ -130,7 +130,7 @@ local({
 sharedDbirdNameAliases <- c("Motacilla flava flava" = "Motacilla flava", "Motacilla flava thunbergi" = "Motacilla flava")
 # The EBBA2 occurrence file (relative to inputs/): presences of the roster species per 50 km atlas cell. A new extract is brought in with tools/prepareEbba2Extract.R, which writes a NEW dated file
 # (the one on disk is never overwritten); switching the pipeline to it is this one line.
-sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km.csv"
+sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km_2026-10-21.csv"   # 16 species (the 12 of ebba2_data_occurrence_50km.csv + the four candidates; made by tools/prepareEbba2Extract.R from ..._extraSp.csv)
 # BirdLife names in an EBBA2 extract that differ from the roster name (latin_name in data/speciesCanonical.csv): extract name = roster name (tools/prepareEbba2Extract.R renames them when merging).
 sharedEbba2NameAliases <- c("Sylvia communis" = "Curruca communis")
 options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor's uncOutlineLAEA() (the reporting-area outline of the masks and the regional steps) in every script that sources this file
