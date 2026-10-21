@@ -113,6 +113,10 @@ local({
     sharedStudyArea <<- spec
   }
 })
+# Names in the point-count (dbird/MhB) file that are a subspecies or variant of a roster species and count as that species (name in the file = roster name). The Yellow Wagtail is recorded as
+# "Motacilla flava flava" (12,511 records), "Motacilla flava" (193, unidentified) and "Motacilla flava thunbergi" (8); the DDA territory data have the species as "Wiesenschafstelze" (EURING 10170).
+sharedDbirdNameAliases <- c("Motacilla flava flava" = "Motacilla flava", "Motacilla flava thunbergi" = "Motacilla flava")
+options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor's uncOutlineLAEA() (the reporting-area outline of the masks and the regional steps) in every script that sources this file
 sharedRecordsBufferM <- 1000
 sharedClimatePredictBufferM <- 50000
 

@@ -235,6 +235,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         studyAreaSpec = sharedStudyArea,                  # THE study area (tools/sharedConfig.R); layers and records are cropped/filtered by it
         recordsBufferM = sharedRecordsBufferM,
         climatePredictBufferM = sharedClimatePredictBufferM,
+        speciesPredictorTable = speciesPredictorTable,    # species-level cache keys of the occurrence tables
+        speciesNameAliases = sharedDbirdNameAliases,      # subspecies names of the point-count file that count as a roster species
         targetCRS = sharedTargetCRS,
         europeBbox = sharedEuropeBbox,
         climateResolutionM = sharedClimateResolutionM,
@@ -301,6 +303,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       ),
       runIndex_Monitor = list(
         species = sharedSpecies,
+        studyAreaSpec = sharedStudyArea,
         baselineYear = 2005,
         allYears = predictionYears,
         currentYear = max(sharedHabitatYears),

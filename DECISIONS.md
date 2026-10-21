@@ -1466,3 +1466,23 @@ Decided with Tati. For the first clean run (every cache key changes anyway):
 5. **Hard check** (`checkNoNAInsideStudyArea()`, event `checkStudyAreaComplete`, parameter `stopIfNAInStudyArea` = TRUE): after the layers are cropped to the study area, the run STOPS, listing file and layer, if any
    predictor layer has NA inside the study area (the climate training window excepted). Tested: passes on the completed layers, stops with an injected NA. The only NA a record can still meet is a record in the water
    of the coastal buffer (no elevation there); the occurrence step reports it.
+
+## 2026-10-21 -- Species-level cache keys, the study area in models/index, four candidate species
+
+**Species-level cache keys (tested).** `reproducible::Cache()` keys on content, but a file-backed SUBSET of layers is digested as the whole file (changing an unused layer re-triggered the function), so subsetting
+the stack is not enough. Solution used everywhere a stack enters `Cache()`: `omitArgs = "covStack"` and `.cacheExtra = list(covLayers = layerContentDigest(covStack, layers))` (R/layerContentDigest.R, identical in
+dataPrep_Monitor and models_Monitor; digests of all layers of a file are kept once in a sidecar `<file>.layerdigests.rds`). Tested: a layer the species does not use changes nothing, a used layer recomputes only the
+species that use it. Applied to (a) the habitat and landscape occurrence tables (the function receives only the species' own layers, `speciesCovStack()`, from `speciesConfig_predictors.csv`, passed to dataPrep as
+`speciesPredictorTable`; layer names are matched with or without the `_<year>` suffix of the landscape stack), (b) the BRT prediction caches of habitat and landscape (`modelGerHabitat`, `modelGerLandscape`),
+(c) the ensemble members' maps (`algoScale.R`: a map is fresh only if newer than its model AND its sidecar `<map>.covdigest` equals the digest of the species' layers of that year; maps without a sidecar are remade
+once). The scales are separate by construction (separate stacks and separate cache tags). Tested locally on the Alauda mini pipeline (landscape and habitat): a rerun saves nothing; a changed sidecar remakes only
+that year. NOT covered (still file-based, moved aside by the update script): covcache stacks, ensemble model files, the uncertainty folders.
+**Study area in models_Monitor / runIndex_Monitor.** `uncOutlineLAEA()` (masks, regional steps, meta-model bootstrap crop) and the regional-index boundary of runIndex_Monitor no longer read
+`geodata::gadm("DEU")`: they build the study area from the spec (`options(birdMonitor.studyAreaSpec)`, set by tools/sharedConfig.R; runIndex_Monitor also has the parameter `studyAreaSpec`) with `buildStudyArea()`
+(identical copy in the three modules). Folder names with `_germany` are historical: they now mean "the reporting area"; renaming them is a separate step together with the connector. The climate model stays
+fitted on all of Europe (its training window is not cropped) and is predicted on the area + one cell.
+**Four candidate species** (Dorngrasmuecke = Curruca communis, Feldsperling = Passer montanus, Turteltaube = Streptopelia turtur, Wiesen-/Schafstelze = Motacilla flava): rows in speciesCanonical.csv (include blank),
+speciesConfig_general.csv (the usual three scales) and speciesConfig_predictors.csv (the FULL candidate set, provisional). `tools/checkSpeciesData.R` (read-only pre-flight): landscape (DDA territories 2,977-55,134)
+and habitat (point-count presences 2022-2025: 881-19,355) are READY; **the climate scale is not: the EBBA2 extract on disk has only the 12 original species.** Needed: an EBBA2 extract with the four species (the
+name in `birdlife_scientific_name` must equal `latin_name`; BirdLife may use `Sylvia communis`). Then set `include = X`. The point-count file names the wagtail `Motacilla flava flava` (12,511 records), `Motacilla flava` (193) and
+`Motacilla flava thunbergi` (8): `sharedDbirdNameAliases` counts them as the species (8,137 presences 2022-2025); the DDA territory data have it as `Wiesenschafstelze`, EURING 10170.
