@@ -232,6 +232,9 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
     params = paramsForStage(list(
       dataPrep_Monitor = list(
         rastersOnly = identical(Sys.getenv("BIRDMONITOR_STAGE"), "rasters"),
+        studyAreaSpec = sharedStudyArea,                  # THE study area (tools/sharedConfig.R); layers and records are cropped/filtered by it
+        recordsBufferM = sharedRecordsBufferM,
+        climatePredictBufferM = sharedClimatePredictBufferM,
         targetCRS = sharedTargetCRS,
         europeBbox = sharedEuropeBbox,
         climateResolutionM = sharedClimateResolutionM,

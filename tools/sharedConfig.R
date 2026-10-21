@@ -94,6 +94,28 @@ sharedLocaleCtype <- "de_DE.UTF-8"
 # held off on 5km since it starts to approach identifying individual
 # localities, which cuts against the reason these grids exist in the
 # first place (a regional picture without pointing at specific areas).
+# THE STUDY AREA of the whole pipeline (DECISIONS.md 2026-10-21): one definition, everything else follows. Predictor layers are cropped and masked to it when they are made,
+# response records are filtered by it, models are fitted and predicted on it. Change it and the pipeline runs for another area (a state, several countries, Europe, a shapefile).
+#   list(label, countries = ISO3 codes (GADM level 0), regions = names of GADM level-1 regions or NULL (= the whole country), shapefile = path or NULL)
+# Environment (one run for another area, nothing else to change):  BIRDMONITOR_STUDY_AREA="DEU:Sachsen"   "DEU,AUT"   "DEU"   "/path/area.shp"   (label: BIRDMONITOR_STUDY_AREA_LABEL)
+# Buffers (m) around the area: records and the habitat/landscape layers; the PREDICTION windows of the climate scale (one 50 km cell, for the resampling at the border).
+# The climate model itself is fitted on all of Europe (EBBA2): its training window is not cropped.
+sharedStudyArea <- list(label = "Germany", countries = "DEU", regions = NULL, shapefile = NULL)
+local({
+  sa <- Sys.getenv("BIRDMONITOR_STUDY_AREA", "")
+  if (nzchar(sa)) {
+    spec <- if (grepl("[.](shp|gpkg|geojson)$", sa, ignore.case = TRUE)) list(label = tools::file_path_sans_ext(basename(sa)), countries = NULL, regions = NULL, shapefile = sa) else {
+      parts <- strsplit(sa, ":", fixed = TRUE)[[1]]
+      cc <- trimws(strsplit(parts[1], ",", fixed = TRUE)[[1]]); rg <- if (length(parts) > 1) trimws(strsplit(parts[2], ";", fixed = TRUE)[[1]]) else NULL
+      list(label = paste(c(cc, rg), collapse = "-"), countries = cc, regions = rg, shapefile = NULL)
+    }
+    lab <- Sys.getenv("BIRDMONITOR_STUDY_AREA_LABEL", ""); if (nzchar(lab)) spec$label <- lab
+    sharedStudyArea <<- spec
+  }
+})
+sharedRecordsBufferM <- 1000
+sharedClimatePredictBufferM <- 50000
+
 # BIRDMONITOR_REGIONAL_KM="10" restricts a run to the grid sizes (km, comma-separated) given: the Bird Monitor shows only the 10 km map, so an update of what the
 # Monitor shows can skip the 20 and 50 km grids (the regional steps then take about a third of the time). Unset = all three, as before.
 sharedRegionalCellSizesM <- c(10000, 20000, 50000)

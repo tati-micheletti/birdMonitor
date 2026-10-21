@@ -1421,3 +1421,27 @@ the records, and there the 16 mapped land-use/land-cover classes sum to about no
 species that use the layer. Version 2 keeps these records (heterogeneity 0). Open question: whether a share of "unmapped" land (1 - sum of the mapped classes) should become a predictor.
 Also measured: 2 of 2,637 MhB route centroids (ni128, ni107, coast) lie outside the GADM outline: a strict outline filter drops legitimate coastal records, so records need a buffered study area.
 Landscape-scale records (DDA routes) were filtered by NA only through `hedges` (all-NA in years without data) and are otherwise complete.
+
+## 2026-10-21 -- ONE study-area definition drives the whole pipeline (engine, phase 1: dataPrep_Monitor)
+
+**Why.** Germany was hard-wired in many places (outline code in models_Monitor, `geodata::gadm("DEU")` in runIndex_Monitor, `_germany` copies and mask steps, bounding boxes in the downloads,
+Germany-only range checks), and the study area was only enforced by accident (see the corrections of 2026-10-20). The pipeline has to run unchanged for a state, several countries, Europe or a shapefile.
+**Design (agreed with Tati 2026-10-21).**
+1. `sharedStudyArea` in `tools/sharedConfig.R`: `list(label, countries (ISO3, GADM level 0), regions (GADM level 1 names) or NULL, shapefile or NULL)`; one run for another area through
+   `BIRDMONITOR_STUDY_AREA="DEU:Sachsen"` (or `"DEU,AUT"`, or a shapefile path), nothing else to change. Buffers: `sharedRecordsBufferM` = 1 km (habitat/landscape layers and records),
+   `sharedClimatePredictBufferM` = 50 km (one coarse cell: the resampling of the climate prediction to the fine grids needs neighbours at the border).
+2. Two roles, as in the SpaDES convention: `studyArea` = where models are fitted and predicted (area + buffer, per scale), `studyAreaReporting` = what is reported (the area itself; applied to the final
+   maps and indices, phase 2). The climate model is FITTED on all of Europe (EBBA2) and only PREDICTED on the area + one cell: the values inside the area are identical (pointwise models) and the
+   prediction is only ~10,000 cells; what is saved is the preparation of the climate layers of the 21 prediction years.
+3. Layers are cropped and masked when they are made (`applyStudyAreaToProcessed()`, event `applyStudyArea`, stamp `<file>.studyarea` = fingerprint of area + buffer, so a layer made for another area is
+   redone); everything downstream (covariate cache, predictions, maps, indices) then lives on the cropped extent. Test: Europe-wide slope 738 M cells -> Saxony window 0.95 M cells.
+4. Every response is filtered by the area plus the record buffer (`insideStudyArea()`: the area is rasterised once at 200 m and records look up their cell, 3 M points in 1.5 s; the exact polygon test
+   took > 10 min): habitat records and landscape records now (the DDA routes lie in Germany, so nothing is removed today), EBBA2 is NOT (training area = Europe).
+5. The polygon is built from lon/lat vertices with the closed-form `lonLatToLAEA()` (never GDAL/PROJ: axis order), checked against Europe's EPSG:3035 box.
+**Tested** (`modules/dataPrep_Monitor/tests/test_studyArea.R`, 12 checks, real layers in a scratch copy): Germany/Saxony extents and area (Saxony 18,400 km2), points, the 1 km buffer keeps the 2 coastal routes
+outside the outline, crop+mask of Europe-wide and Germany-wide layers, layer names kept, training window of the climate scale untouched, second pass does nothing, another area detected;
+`simInit` + init event of the module build the area and schedule `applyStudyArea` before the occurrence step.
+**Not done yet (phase 2).** Crop at download time (CHELSA daily reads for the prediction years, DEM tiles: pass the area's bounding box instead of `europeBbox`); inputs_Monitor / models_Monitor: predict on the
+cropped extent (automatic) and drop `maskMetaModels`/`_germany` copies by applying `studyAreaReporting` to the final maps (`metaModel()`), runIndex_Monitor and the regional steps use the same area
+instead of `geodata::gadm("DEU")`; climate fit area (Europe/EBBA2) as an explicit setting; hard check that stops the run if a layer has NA inside the area; `hedges` completed in the files; species-level
+cache keys; CORINE heath/scrub/natural grassland/wetland classes (+ unmapped share) for the first clean run; results folders per study area; a Saxony end-to-end test run.
