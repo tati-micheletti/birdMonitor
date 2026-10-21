@@ -36,6 +36,20 @@ if [ -e "outputs/${RUN}" ] && [ "${RESUME:-0}" != "1" ]; then
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "STOP: the main repo has uncommitted changes on this machine (git status)." >&2; exit 1; fi
 if [ -n "$(git submodule foreach --quiet 'git status --porcelain --untracked-files=no' 2>/dev/null)" ]; then echo "STOP: a module has uncommitted changes on this machine (git submodule foreach git status)." >&2; exit 1; fi
 if git submodule status | grep -q '^[+-U]'; then echo "STOP: the modules are not at the commits the main repo points to. Run: git submodule update --init --recursive" >&2; exit 1; fi
+# The preparation changes inputs/predictors/processed and inputs/response/processed IN PLACE (crop to the study area, hedges filled, heterogeneity v2, new CORINE classes, rebuilt occurrence tables); raw/ is never touched.
+# Before that, a copy of the CURRENT state must exist in /data/birds (cluster/eve_copy_data_birds.sbatch adds/updates, never deletes). The check compares the number of processed files; SKIP_BACKUP_CHECK=1 overrides.
+BK="${DATA_BIRDS_INPUTS:-/data/birds/birdMonitor/inputs}"
+if [ "${SKIP_BACKUP_CHECK:-0}" != "1" ]; then
+  for sub in predictors/processed response/processed; do
+    nSrc=$(find "inputs/${sub}" -type f | wc -l); nBk=$(find "${BK}/${sub}" -type f 2>/dev/null | wc -l)
+    if [ "${nBk}" -lt "${nSrc}" ]; then
+      echo "STOP: no complete safety copy of inputs/${sub} in ${BK}/${sub} (${nBk} files there, ${nSrc} here). The preparation overwrites these files in place." >&2
+      echo "      Make it first (adds only, deletes nothing; a job, takes a while):   cd ~/projects/birdMonitor && sbatch cluster/eve_copy_data_birds.sbatch     then run this script again when the job has finished." >&2
+      exit 1
+    fi
+  done
+  echo "safety copy of the processed inputs: found in ${BK}"
+fi
 echo "code: main $(git rev-parse --short HEAD); modules: $(git submodule status | awk '{print $2 " " substr($1,1,7)}' | tr '\n' ';')"
 Rscript tools/check_duplicated_functions.R | tail -1
 Rscript tools/checkSpeciesData.R 2>&1 | tee "logs/species_check_${RUN}.txt" | tail -25
