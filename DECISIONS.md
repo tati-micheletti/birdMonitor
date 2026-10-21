@@ -1445,3 +1445,24 @@ outside the outline, crop+mask of Europe-wide and Germany-wide layers, layer nam
 cropped extent (automatic) and drop `maskMetaModels`/`_germany` copies by applying `studyAreaReporting` to the final maps (`metaModel()`), runIndex_Monitor and the regional steps use the same area
 instead of `geodata::gadm("DEU")`; climate fit area (Europe/EBBA2) as an explicit setting; hard check that stops the run if a layer has NA inside the area; `hedges` completed in the files; species-level
 cache keys; CORINE heath/scrub/natural grassland/wetland classes (+ unmapped share) for the first clean run; results folders per study area; a Saxony end-to-end test run.
+
+## 2026-10-21 -- Predictor layers complete by construction: new CORINE classes, `unmapped_other`, hedges filled in the files, hard NA check
+
+Decided with Tati. For the first clean run (every cache key changes anyway):
+1. **CORINE categories 3 -> 7** (`landcoverCategoriesCorine()`): `natural_grassland` (26), `heath_moor` (27), `scrub` (29), `wetland_peat` (35-38) added to `built_up`, `trees`, `water`. No new download (the raw CORINE
+   2006/2012/2018 are in inputs/). Tested on the real 2018 raster: the three old layers are reproduced exactly (max difference 6e-8); the mean proportions inside Germany are 0.45%, 0.27%, 0.63%, 0.37%.
+   **The grouping is a decision for Germany (the classes are rare here, 0.26-0.63% each, so the rarest are grouped; individually they would be unstable predictors) and MUST BE REVISED when the study area
+   grows, e.g. to Europe, where heath, scrub and wetlands are common.** The landcover cache check now compares layer names with the category list, so files with 3 layers are recomputed.
+2. **`unmapped_other`** = 1 - (land use without hedges + all land-cover categories), clamped to 0-1 (`computeUnmappedShare()`, `prepareUnmappedShare()`; files `unmapped_other_<year>_<scale>.tif`, version stamp).
+   Real data 2025: mean 12.2% of a 200 m cell (12.9% at 1 km) is not described by any mapped class; 6.4% of the 200 m cells have more than half unmapped; 0 NA inside Germany. Loaded like the other derived
+   layers in all five covariate-stack builders (dataPrep `loadCovariates`, `loadHabitatCovariates`, `buildHabitatCovStackOneYear`, and the identical copies in models_Monitor). The heterogeneity version stamp
+   contains the category list, so it is recomputed.
+3. **All species get all five new layers** at habitat and landscape scale (`data/speciesConfig_predictors.csv`, 60 rows) and `covariatePredictorColumns()` lists them (inputs_Monitor). Which species benefit is read
+   from the results.
+4. **`hedges` is no longer special.** (a) `completeHedges()` fills the hedge layer of the years without hedge data IN THE LAND-USE FILES (nearest PRECEDING year with data, else the first; the years are read
+   from the files, not hard-coded; real years untouched). Tested on real files: 2010 <- 2017, 2022 <- 2021, names and other layers unchanged, second call does nothing. (b) The occurrence step no longer exempts
+   `hedges` from the "no NA" rule. (c) `hedges` is **excluded from the heterogeneity index**: it is no share of the cell's area and exists only for some years, so including it made the index change its
+   definition in 2017, 2022 and 2024 (an artefact in the covariate series of the four species that use the index).
+5. **Hard check** (`checkNoNAInsideStudyArea()`, event `checkStudyAreaComplete`, parameter `stopIfNAInStudyArea` = TRUE): after the layers are cropped to the study area, the run STOPS, listing file and layer, if any
+   predictor layer has NA inside the study area (the climate training window excepted). Tested: passes on the completed layers, stops with an injected NA. The only NA a record can still meet is a record in the water
+   of the coastal buffer (no elevation there); the occurrence step reports it.
