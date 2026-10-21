@@ -41,7 +41,7 @@ if git submodule status | grep -q '^[+-U]'; then echo "STOP: the modules are not
 BK="${DATA_BIRDS_INPUTS:-/data/birds/birdMonitor/inputs}"
 if [ "${SKIP_BACKUP_CHECK:-0}" != "1" ]; then
   for sub in predictors/processed response/processed; do
-    nSrc=$(find "inputs/${sub}" -type f | wc -l); nBk=$(find "${BK}/${sub}" -type f 2>/dev/null | wc -l)
+    nSrc=$(find "inputs/${sub}" -type f | wc -l); nBk=$(find "${BK}/${sub}" -type f 2>/dev/null | wc -l || true)
     if [ "${nBk}" -lt "${nSrc}" ]; then
       echo "STOP: no complete safety copy of inputs/${sub} in ${BK}/${sub} (${nBk} files there, ${nSrc} here). The preparation overwrites these files in place." >&2
       echo "      Make it first (adds only, deletes nothing; a job, takes a while):   cd ~/projects/birdMonitor && sbatch cluster/eve_copy_data_birds.sbatch     then run this script again when the job has finished." >&2
