@@ -133,6 +133,10 @@ sharedDbirdNameAliases <- c("Motacilla flava flava" = "Motacilla flava", "Motaci
 sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km_2026-10-28.csv"   # 17 species: the 12 original + Curruca communis, Passer montanus, Streptopelia turtur, Motacilla flava, Falco tinnunculus (tools/prepareEbba2Extract.R from ..._kestrel.csv)
 # BirdLife names in an EBBA2 extract that differ from the roster name (latin_name in data/speciesCanonical.csv): extract name = roster name (tools/prepareEbba2Extract.R renames them when merging).
 sharedEbba2NameAliases <- c("Sylvia communis" = "Curruca communis")
+# Last year of the national indicator that DDA/BfN have PUBLISHED. The national trend shown in the Monitor marks every later year as preliminary (dashed line, "Preliminary trend - subject to later update").
+# Only the national trend uses it: maps, regional MSI and per-species products use the full data. TO CONFIRM with Tobi; it is read by the connector only, so changing it needs no new model run
+# (override without editing: BIRDMONITOR_NATIONAL_LAST_YEAR).
+sharedNationalIndicatorLastYear <- 2023L
 options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor's uncOutlineLAEA() (the reporting-area outline of the masks and the regional steps) in every script that sources this file
 sharedRecordsBufferM <- 1000
 sharedClimatePredictBufferM <- 50000

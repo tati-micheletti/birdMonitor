@@ -11,6 +11,7 @@
 #'   BIRDMONITOR_RUNS_ROOT  folder with the run folders to take results from (default /data/birds/birdMonitor/outputs, the permanent copy; NOT /work)
 #'   BIRDMONITOR_VIZ_RUNS   comma-separated run folders to use (default: all except old test folders)
 #'   BIRDMONITOR_VIZ_TAG    ensemble tag of the result folders (default ens_brt-glm-gam-rf-nn)
+#'   BIRDMONITOR_NATIONAL_LAST_YEAR  last year of the published national indicator (default sharedNationalIndicatorLastYear in tools/sharedConfig.R); later years of the national trend are marked preliminary
 #'   BIRDMONITOR_VIZ_DRY    1 = only report what would be written
 #'   BIRDMONITOR_VIZ_FAIL   1 = error if a result the Monitor needs is missing (default: warning and <viz>/_missing.csv)
 #'   BIRDMONITOR_SPECIES is NOT used here: the viz folder always needs the FULL roster.
@@ -31,6 +32,7 @@ runsRoot <- env("BIRDMONITOR_RUNS_ROOT", "/data/birds/birdMonitor/outputs")
 runs <- if (nzchar(env("BIRDMONITOR_VIZ_RUNS"))) trimws(strsplit(env("BIRDMONITOR_VIZ_RUNS"), ",", fixed = TRUE)[[1]]) else NULL
 message("=== connector: viz folder ", vizPath, " | runs in ", runsRoot, " | ", length(sharedSpecies), " species | ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), " ===")
 params <- list(vizPath = vizPath, runsRoot = runsRoot, tag = env("BIRDMONITOR_VIZ_TAG", "ens_brt-glm-gam-rf-nn"), species = sharedSpecies, years = predictionYears,
+               nationalLastPublishedYear = as.integer(env("BIRDMONITOR_NATIONAL_LAST_YEAR", as.character(sharedNationalIndicatorLastYear))),
                dryRun = env("BIRDMONITOR_VIZ_DRY") == "1", failIfIncomplete = env("BIRDMONITOR_VIZ_FAIL") == "1")
 if (!is.null(runs)) params$runFolders <- runs
 sim <- SpaDES.core::simInitAndSpades(times = list(start = 2005, end = 2005), modules = "connector_Monitor",

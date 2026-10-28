@@ -32,6 +32,23 @@ vizDest <- function(product, species, year, label, folders, cellKm) {
          msi_regional_unc = file.path(f, sprintf("msi_%skm_%d_%s.tif", km, year, label)))
 }
 
+#' Write the national trend table for the Monitor
+#'
+#' Same numbers as the source (`combined_index_uncertainty.csv`: method, year, estimate, median, lwr, upr) plus the column `preliminary`: TRUE for every year AFTER
+#' `lastPublishedYear` (the last year of the published national indicator). The Monitor draws those years dashed and labels them "Preliminary trend - subject to later update".
+#' Only this national series is split that way; nothing else in the viz folder is marked. `lastPublishedYear` NA: nothing is marked (and a message says so).
+#' @return Invisibly, the table written.
+vizWriteNational <- function(src, dest, lastPublishedYear = NA_integer_) {
+  d <- utils::read.csv(src, stringsAsFactors = FALSE)
+  need <- c("method", "year", "estimate", "lwr", "upr"); if (!all(need %in% names(d))) stop("vizWriteNational(): ", src, " lacks column(s): ", paste(setdiff(need, names(d)), collapse = ", "))
+  d$preliminary <- if (is.na(lastPublishedYear)) FALSE else d$year > lastPublishedYear
+  if (is.na(lastPublishedYear)) message("vizWriteNational(): no last published indicator year given - no year is marked preliminary.")
+  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+  part <- paste0(dest, ".part"); utils::write.csv(d, part, row.names = FALSE)
+  if (file.exists(dest)) file.remove(dest)
+  file.rename(part, dest); invisible(d)
+}
+
 #' Put one layer of a source raster into the viz folder as its own single-layer file
 #'
 #' Written to a `.part` file first and then renamed, so a reader (the upload to the bucket) never sees a half-written file.

@@ -12,6 +12,9 @@
 #'   richness_year/richness_<year>_<layer>.tif                         expected richness (mean) and its uncertainty
 #'   msi_regional/msi_<km>km_<year>.tif                                regional index (MSI), raw
 #'   msi_regional_unc/msi_<km>km_<year>_<layer>.tif                    its uncertainty
+#'   msi_national/msi_national.csv                                     national trend (method, year, estimate, median, lwr, upr, preliminary)
+#'
+#' Richness (mean, sd, lwr, upr, width) is expected for EVERY year in `years`, like the species uncertainty.
 #'
 #' @param runsRoot Character. Folder with the run folders (e.g. `/data/birds/birdMonitor/outputs`).
 #' @param vizPath Character. The folder of the Monitor (e.g. `/data/birds/viz`); created if needed.
@@ -20,6 +23,7 @@
 #' @param years Integer vector. Years expected for every species.
 #' @param cellKm Numeric. Regional index cell size (km).
 #' @param runs,excludeRuns See `vizSources()`.
+#' @param nationalLastPublishedYear Integer. Last year of the published national indicator; later years of the national trend are marked `preliminary` (NA: none).
 #' @param folders Named list of folder names (see above).
 #' @param linkMode "symlink" (default) or "copy" for files that need no splitting.
 #' @param allowWorkSources Logical. Allow links to files under `/work` (they break when EVE cleans `/work`).
@@ -28,8 +32,8 @@
 #' @return Invisibly, a list with `manifest`, `missing` and `done` (number of files written or linked in this call).
 connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)",
                        folders = list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
-                                      msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc"),
-                       linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE) {
+                                      msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national"),
+                       nationalLastPublishedYear = NA_integer_, linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE) {
   spUnder <- gsub(" ", "_", species)
   src <- vizSources(runsRoot, runs, excludeRuns, tag, cellKm)
   if (!nrow(src)) stop("connectViz(): no result files for tag '", tag, "' found in the run folders of ", runsRoot)
@@ -48,6 +52,18 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
                                       srcMtime = numeric(), run = character(), mode = character(), written = character(), stringsAsFactors = FALSE)
   man$species[is.na(man$species)] <- ""; man$layer[is.na(man$layer)] <- ""
   done <- 0L; plan <- 0L
+  nat <- latest[latest$product == "msi_national", , drop = FALSE]; latest <- latest[latest$product != "msi_national", , drop = FALSE]   # the national trend is a table, not a raster
+  for (i in seq_len(nrow(nat))) {
+    dest <- file.path(folders$msi_national, "msi_national.csv"); k <- which(man$dest == dest); modeTxt <- paste0("written; last published year ", nationalLastPublishedYear)
+    current <- length(k) == 1L && file.exists(file.path(vizPath, dest)) && file.exists(man$src[k]) && !(nat$mtime[i] > man$srcMtime[k] + 1) && identical(man$mode[k], modeTxt)
+    if (current) next
+    plan <- plan + 1L
+    if (dryRun) { message("would write ", dest, "  <-  ", nat$run[i], "/", basename(nat$file[i])); next }
+    vizWriteNational(nat$file[i], file.path(vizPath, dest), nationalLastPublishedYear)
+    entry <- data.frame(product = "msi_national", species = "", year = NA_integer_, layer = "", dest = dest, src = normalizePath(nat$file[i], winslash = "/"), srcMtime = nat$mtime[i],
+                        run = nat$run[i], mode = modeTxt, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
+    man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L
+  }
   for (i in seq_len(nrow(latest))) {
     row <- latest[i, ]
     lay <- vizLayers(row$file, row$product)
@@ -75,10 +91,12 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   # what the Monitor needs but the folder does not have
   need <- rbind(expand.grid(product = "meta_prob_year", species = spUnder, year = years, label = "", stringsAsFactors = FALSE),
                 expand.grid(product = "meta_unc_year", species = spUnder, year = years, label = c("mean", "sd", "lwr", "upr", "width"), stringsAsFactors = FALSE))
-  have <- paste(man$product, man$species, man$year, ifelse(man$product == "meta_unc_year", man$layer, ""))
-  miss <- need[!paste(need$product, need$species, need$year, need$label) %in% have, , drop = FALSE]
-  noOther <- vapply(c("richness_year", "msi_regional", "msi_regional_unc"), function(p) any(man$product == p), logical(1))
-  extra <- if (any(!noOther)) data.frame(product = names(noOther)[!noOther], species = "", year = NA_integer_, label = "", stringsAsFactors = FALSE) else need[0, ]
+  need <- rbind(need, expand.grid(product = "richness_year", species = "", year = years, label = c("mean", "sd", "lwr", "upr", "width"), stringsAsFactors = FALSE))   # richness of EVERY year
+  have <- paste(man$product, man$species, man$year, ifelse(man$product %in% c("meta_unc_year", "richness_year"), man$layer, ""))
+  need$key <- paste(need$product, need$species, need$year, ifelse(need$product %in% c("meta_unc_year", "richness_year"), need$label, ""))
+  miss <- need[!need$key %in% have, c("product", "species", "year", "label"), drop = FALSE]
+  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national"), function(p) any(man$product == p), logical(1))
+  extra <- if (any(!noOther)) data.frame(product = names(noOther)[!noOther], species = "", year = NA_integer_, label = "", stringsAsFactors = FALSE) else need[0, c("product", "species", "year", "label")]
   miss <- rbind(miss, extra); names(miss)[names(miss) == "label"] <- "layer"
   utils::write.csv(miss, file.path(vizPath, "_missing.csv"), row.names = FALSE)
   message("connectViz(): ", done, " files written or linked now; ", nrow(man), " in the manifest; missing: ", nrow(miss), if (nrow(miss)) paste0(" (see ", file.path(vizPath, "_missing.csv"), ")") else "")

@@ -6,9 +6,10 @@
 #' (Germany-only versions, ensemble tag `tag`):
 #'   species probability  <run>/metamodel_<resolutions>_<tag>_germany/<Species>_meta_suitability_<year>.tif   (two layers: probability and binary)
 #'   species uncertainty  <run>/uncertainty_<tag>/<Species>/maps_germany/<Species>_unc_<year>.tif              (5 layers: mean, sd, lwr, upr, width)
-#'   expected richness    <run>/uncertainty_<tag>/community_germany/richness_expected_unc_<year>.tif            (5 layers, the report year)
+#'   expected richness    <run>/uncertainty_<tag>/community_germany/richness_expected_unc_<year>.tif            (5 layers, one file per mapped year)
 #'   regional index       <run>/regional_index_<tag>_germany/regional_index_<km>km_raw.tif                      (one layer per year)
 #'   regional uncertainty <run>/uncertainty_<tag>/regional/regional_index_<km>km_unc_<year>.tif                 (5 layers)
+#'   national trend       <run>/annual_report_<tag>_germany/combined_index_uncertainty.csv                      (table: method, year, estimate, median, lwr, upr)
 #'
 #' @param runsRoot Character. Folder that contains the run folders (e.g. `outputs`, or `/data/birds/birdMonitor/outputs`).
 #' @param runs Character vector of run folder names, or NULL for every folder in `runsRoot` that is not matched by `excludeRuns`.
@@ -48,6 +49,9 @@ vizSources <- function(runsRoot, runs = NULL, excludeRuns = "^(utest|test1|test2
     if (file.exists(f)) add("msi_regional", f, run)
     fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), "regional", sprintf("regional_index_%skm_unc_[0-9][0-9][0-9][0-9].tif", km)))
     if (length(fs)) add("msi_regional_unc", fs, run, year = yearOf(fs))
+    # national trend: the combined multi-species index with its interval, from the reporting-area (Germany-only) area means
+    f <- file.path(rd, paste0("annual_report_", tag, "_germany"), "combined_index_uncertainty.csv")
+    if (file.exists(f)) add("msi_national", f, run)
   }
   if (!length(rows)) return(data.frame(product = character(), species = character(), year = integer(), file = character(), run = character(), mtime = numeric(), stringsAsFactors = FALSE))
   do.call(rbind, rows)

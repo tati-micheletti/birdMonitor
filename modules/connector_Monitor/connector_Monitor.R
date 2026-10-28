@@ -41,9 +41,12 @@ defineModule(sim, list(
                     "Years expected for every species (e.g. predictionYears). No default (errors if unset)."),
     defineParameter("cellKm", "numeric", 10, NA, NA, "Cell size (km) of the regional (MSI) index map shown in the Monitor."),
     defineParameter("folders", "list", list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
-                                            msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc"), NA, NA,
-                    "Names of the sub-folders of vizPath for the five products. meta_prob_year, meta_unc_year and msi_regional follow the bucket",
-                    "(Confluence BirdTwin / Architektur / EVE Cluster); richness_year and msi_regional_unc are our names until agreed."),
+                                            msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national"), NA, NA,
+                    "Names of the sub-folders of vizPath for the six products. meta_prob_year, meta_unc_year and msi_regional follow the bucket",
+                    "(Confluence BirdTwin / Architektur / EVE Cluster); richness_year, msi_regional_unc and msi_national are our names until agreed."),
+    defineParameter("nationalLastPublishedYear", "numeric", NA_real_, NA, NA,
+                    "Last year of the PUBLISHED national indicator (DDA/BfN). The years after it are marked preliminary in msi_national/msi_national.csv",
+                    "(dashed line 'Preliminary trend - subject to later update'). Only the national trend is marked. NA: nothing marked."),
     defineParameter("linkMode", "character", "symlink", NA, NA,
                     "'symlink' (default) for files that need no splitting (single-layer files); 'copy' to copy them. Multilayer files are always written as new files."),
     defineParameter("allowWorkSources", "logical", FALSE, NA, NA,
@@ -76,7 +79,7 @@ doEvent.connector_Monitor = function(sim, eventTime, eventType) {
       # ! ----- EDIT BELOW ----- ! #
       runsRoot <- if (is.na(P(sim)$runsRoot)) dirname(normalizePath(outputPath(sim), winslash = "/", mustWork = FALSE)) else P(sim)$runsRoot
       res <- connectViz(runsRoot = runsRoot, vizPath = P(sim)$vizPath, tag = P(sim)$tag, species = P(sim)$species, years = as.integer(P(sim)$years),
-                        cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, linkMode = P(sim)$linkMode,
+                        cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, nationalLastPublishedYear = as.integer(P(sim)$nationalLastPublishedYear), linkMode = P(sim)$linkMode,
                         allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete)
       sim$vizManifest <- res$manifest
       # ! ----- STOP EDITING ----- ! #

@@ -17,7 +17,9 @@ build <- function(run, spp, yrs, val, withCommon) {
     w(mk(5, val, fiveNm), file.path(rd, paste0("uncertainty_", tag), s, "maps_germany", paste0(s, "_unc_", yr, ".tif")))
   }
   if (withCommon) {
-    w(mk(5, val, fiveNm), file.path(rd, paste0("uncertainty_", tag), "community_germany", "richness_expected_unc_2006.tif"))
+    for (yr in yrs) w(mk(5, val, fiveNm), file.path(rd, paste0("uncertainty_", tag), "community_germany", paste0("richness_expected_unc_", yr, ".tif")))
+    nd <- file.path(rd, paste0("annual_report_", tag, "_germany")); dir.create(nd, recursive = TRUE, showWarnings = FALSE)
+    utils::write.csv(data.frame(method = "MSI", year = 2005:2025, nReplicates = 25, estimate = 100, median = 100, lwr = 95, upr = 105), file.path(nd, "combined_index_uncertainty.csv"), row.names = FALSE)
     w(mk(2, val, c("2005", "2006")), file.path(rd, paste0("regional_index_", tag, "_germany"), "regional_index_10km_raw.tif"))
     for (yr in yrs) w(mk(5, val, fiveNm), file.path(rd, paste0("uncertainty_", tag), "regional", paste0("regional_index_10km_unc_", yr, ".tif")))
   }
@@ -33,12 +35,17 @@ check("first run: probability file of each species and year", all(file.exists(fi
 check("uncertainty split into 5 single-layer files", all(file.exists(file.path(viz, "meta_unc_year", "Perdix_perdix", paste0("Perdix_perdix_2005_", fiveNm, ".tif")))))
 check("every file has one layer", all(sapply(list.files(viz, pattern = "[.]tif$", recursive = TRUE, full.names = TRUE), function(f) nlyr(rast(f))) == 1))
 check("probability file is the probability layer (value 1), not the binary", global(rast(file.path(viz, "meta_prob_year", "Perdix_perdix", "Perdix_perdix_2005.tif")), "mean")[1, 1] == 1)
-check("richness: mean and uncertainty layers", all(file.exists(file.path(viz, "richness_year", paste0("richness_2006_", fiveNm, ".tif")))))
+check("richness: mean and uncertainty layers, for EVERY year", all(file.exists(file.path(viz, "richness_year", paste0("richness_", rep(yrs, each = 5), "_", fiveNm, ".tif")))))
+nt <- read.csv(file.path(viz, "msi_national", "msi_national.csv"))
+check("national trend: written with the preliminary flag (none: no year given)", nrow(nt) == 21 && !any(nt$preliminary))
+r1b <- run(nationalLastPublishedYear = 2023L); nt <- read.csv(file.path(viz, "msi_national", "msi_national.csv"))
+check("national trend: only the years after the last published year are preliminary (2024, 2025), the rest untouched", identical(nt$year[nt$preliminary], 2024:2025) && nrow(nt) == 21 && r1b$done == 1L)
+check("national trend: a table, not a raster, and nothing else is marked", !any(grepl("preliminary", list.files(viz, recursive = TRUE))) && nrow(r1b$missing) == 0)
 check("regional index: one file per year, uncertainty split", file.exists(file.path(viz, "msi_regional", "msi_10km_2005.tif")) && file.exists(file.path(viz, "msi_regional_unc", "msi_10km_2006_width.tif")))
 check("ignored folder (utest) not used", !any(grepl("utest", r1$manifest$run)))
 check("manifest written", file.exists(file.path(viz, "_manifest.csv")) && file.exists(file.path(viz, "_missing.csv")))
-r2 <- run()
-check("second run changes nothing", r2$done == 0L)
+r2 <- run(nationalLastPublishedYear = 2023L)
+check("second run (same settings) changes nothing", r2$done == 0L)
 
 # a later run of ONE species: only that species is replaced, the other keeps its earlier file
 build("runB", "Perdix perdix", yrs, 2, FALSE)
