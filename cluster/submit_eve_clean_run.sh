@@ -52,6 +52,11 @@ if [ "${SKIP_BACKUP_CHECK:-0}" != "1" ]; then
 fi
 echo "code: main $(git rev-parse --short HEAD); modules: $(git submodule status | awk '{print $2 " " substr($1,1,7)}' | tr '\n' ';')"
 Rscript tools/check_duplicated_functions.R | tail -1
+# The EBBA2 file the pipeline will read (sharedEbba2CsvSubpath in tools/sharedConfig.R -> runMe.R -> dataPrep_Monitor, and the same variable in checkSpeciesData.R below): print its name, size and checksum so it can be compared with the local copy.
+EBBA2=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedEbba2CsvSubpath)' 2>/dev/null | tail -1)
+[ -f "inputs/${EBBA2}" ] || { echo "STOP: the EBBA2 file inputs/${EBBA2} (sharedEbba2CsvSubpath) is not on this machine. Copy it to inputs/$(dirname "${EBBA2}")/ first." >&2; exit 1; }
+EBBA2SUM="$(md5sum "inputs/${EBBA2}" | cut -c1-32) $(stat -c %s "inputs/${EBBA2}") bytes $(($(wc -l < "inputs/${EBBA2}") - 1)) rows $(cut -d';' -f3 "inputs/${EBBA2}" | tail -n +2 | sort -u | wc -l) species"
+echo "EBBA2 file: inputs/${EBBA2} -> ${EBBA2SUM}"
 Rscript tools/checkSpeciesData.R 2>&1 | tee "logs/species_check_${RUN}.txt" | tail -25
 if grep -q "WARNING: species that are ON but not READY" "logs/species_check_${RUN}.txt"; then
   echo "STOP: at least one species of the roster has no records at one scale (list above). Fix the data or set include blank in data/speciesCanonical.csv." >&2; exit 1; fi
@@ -66,7 +71,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then                # every sbatch (also inside th
   echo "DRY_RUN=1: nothing is submitted; the lines 'DRY sbatch ...' are what would be."
 else
   mkdir -p "outputs/${RUN}"
-  { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
+  { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "EBBA2 file: inputs/${EBBA2} ${EBBA2SUM}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
 fi
 
 echo; echo "=== 1. prep"
