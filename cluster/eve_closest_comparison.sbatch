@@ -1,7 +1,7 @@
 #!/bin/bash -l
 # READ-ONLY on the model outputs. Builds on EVE what was built on the PC for the Steering Consortium (2026-10-16):
 #   1. the csv copies of the two DDA territory workbooks (tools/convertDdaTerritories.py, python standard library only; the raw xlsx files are not touched),
-#   2. section S9 of tools/makeStCoFigures.R: S9_closest_comparison(.png, _german.png), S9_observed_vs_modelled_combined/_species and the tables,
+#   2. section S9 of tools/makeResultFigures.R: S9_closest_comparison(.png, _german.png), S9_observed_vs_modelled_combined/_species and the tables,
 #      with our MSI from the main model and the Monte Carlo band (needs outputs/<run>/uncertainty_*/<Species>/area_mean_replicates_germany.csv),
 #   3. the same-plot panel (tools/panelTrendAnalysis.R) from outputs/<run>/panel_trend_check/*.csv (written by cluster/eve_panel_trend_check.sbatch).
 #   sbatch cluster/eve_closest_comparison.sbatch        -> outputs/<run>/figures_fullreport/ (S9) and outputs/<run>/panel_trend_check/ (panel_*.png, panel_*.csv)
@@ -32,7 +32,7 @@ check dda_data.csv 566e07d4cf5dbca37d63858fd2ed601dc34d72b8c991d6ed6356cdaf6fc1d
 check dda_visits.csv 3fee3f754e79b2563b121f1063380c6b0fbfe8457a5d382a46585fc7645f557a
 
 echo "=== 2. figures S9 (run ${RUN})"
-unc_run Rscript tools/makeStCoFigures.R --run "${RUN}" --variants big5 --sections S9
+unc_run Rscript tools/makeResultFigures.R --run "${RUN}" --variants big5 --sections S9
 
 echo "=== 3. same-plot panel"
 Rscript tools/panelTrendAnalysis.R --run "${RUN}"

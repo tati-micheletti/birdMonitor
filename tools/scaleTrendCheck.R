@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # READ-ONLY: where is the temporal change lost? For one species, the mean probability over Germany of the climate, landscape and habitat prediction and of the final (meta-model) map,
 # for every year 2005-2025, and each of them as an index (2005 = 100). Compare the four lines with each other and with the observed abundance and occupancy (DDA territory data, section S9
-# of tools/makeStCoFigures.R): does the landscape model (fitted on the territory data of 2005-2024) follow the observed change? does the habitat model? does the meta-model combination damp it?
+# of tools/makeResultFigures.R): does the landscape model (fitted on the territory data of 2005-2024) follow the observed change? does the habitat model? does the meta-model combination damp it?
 #   Rscript tools/scaleTrendCheck.R --index <species number 1..11> [--variants big5,brt] [--run test4]        (cluster: sbatch cluster/eve_scale_trend_check.sbatch, an array over the species)
 # Output: outputs/<run>/scale_trend_check/<Species>_<variant>.csv  (species, variant, scale, year, meanProb, index)
 Sys.setenv(OMP_NUM_THREADS = "1")

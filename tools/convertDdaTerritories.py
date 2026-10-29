@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the two DDA territory workbooks (raw, never modified) into plain csv copies, cell for cell, for the figure script (tools/makeStCoFigures.R, section S9).
+"""Convert the two DDA territory workbooks (raw, never modified) into plain csv copies, cell for cell, for the figure script (tools/makeResultFigures.R, section S9).
 
     python3 tools/convertDdaTerritories.py [--raw inputs/response/raw/territories] [--out inputs/response/processed/territories_csv]
 

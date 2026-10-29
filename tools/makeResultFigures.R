@@ -3,7 +3,7 @@
 # that already exist. Nothing is refitted and nothing in outputs/ is changed; the figures go to outputs/<run>/figures_fullreport/.
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
-#   Rscript tools/makeStCoFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
+#   Rscript tools/makeResultFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
 #                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 3,5,10,15] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
@@ -31,6 +31,7 @@ speciesCanonical <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FAL
 speciesCanonical <- speciesCanonical[nzchar(trimws(speciesCanonical$include)), ]
 allSpecies <- speciesCanonical$latin_name
 english <- setNames(speciesCanonical$english_name, speciesCanonical$latin_name)
+NSP <- length(allSpecies)                                  # number of species of the roster, used in titles and captions (no species number is written into the texts)
 
 run        <- getArg("--run", Sys.getenv("BIRDMONITOR_RUNNAME", "test4"))
 brtTag     <- getArg("--brt-tag", "honest2")
@@ -52,7 +53,7 @@ out        <- getArg("--out", file.path(root, "figures_fullreport"))
 for (d in c(out, file.path(out, "tables"))) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 logFile <- file.path(out, "figures.log")
 say <- function(...) { m <- paste0(format(Sys.time(), "%H:%M:%S"), " ", ...); message(m); cat(m, "\n", file = logFile, append = TRUE) }
-say("=== makeStCoFigures | run ", run, " | sections ", paste(sections, collapse = ","), " | variants ", paste(variants, collapse = ","), " | ", length(species), " species")
+say("=== makeResultFigures | run ", run, " | sections ", paste(sections, collapse = ","), " | variants ", paste(variants, collapse = ","), " | ", length(species), " species")
 
 ## ---- where things are --------------------------------------------------------------------------------------------------------------------
 firstExisting <- function(...) { p <- c(...); p <- p[file.exists(p)]; if (length(p)) p[1] else NA_character_ }
@@ -304,11 +305,11 @@ if ("S2" %in% sections) {
   for (k in variants) {
     v <- V[[k]]; sr <- file.path(v$report, sprintf("SR_map_%d.tif", curYear)); ru <- file.path(v$uncComm %||% "", sprintf("richness_expected_unc_%d.tif", curYear))
     figure("S2_maps", sprintf("S2_richness_%s", k), sprintf("Expected species richness %d (%s)", curYear, v$label),
-           "Sum of the probabilities of the 11 species per pixel (expected richness) with the width of its 90% interval over the replicates.",
+           paste0("Sum of the probabilities of the ", NSP, " species per pixel (expected richness) with the width of its 90% interval over the replicates."),
            paste(sr, ru, sep = "; "), variant = k, w = 11, h = 6, draw = function() {
       need(ru); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
       r <- rast(ru); drawMap(ger(lay(r, "mean", 1)), "Expected richness (mean over replicates)", palRich)
-      drawMap(ger(lay(r, "width", 5)), "Width of the 90% interval", palSeq); bigTitle(sprintf("Expected richness of the 11 species, %d (%s)", curYear, v$label))
+      drawMap(ger(lay(r, "width", 5)), "Width of the 90% interval", palSeq); bigTitle(sprintf(paste0("Expected richness of the ", NSP, " species, %d (%s)"), curYear, v$label))
     })
   }
 }
@@ -363,11 +364,11 @@ if ("S3" %in% sections) {
     id <- if (length(sel) == 2) "S3_combined_both" else paste0("S3_combined_", sel)
     if (length(sel) == 1 && length(okc) == 1 && id %in% sapply(manifest, function(m) m$id)) next
     figure("S3_indices", id, paste("Combined multi-species index (SBI, MSI, chain):", paste(sapply(sel, function(k) V[[k]]$label), collapse = " and ")),
-           "The combined index of the 11 species: geometric mean of the species indices, three ways of drawing the 90% interval. Black = main model.",
+           paste0("The combined index of the ", NSP, " species: geometric mean of the species indices, three ways of drawing the 90% interval. Black = main model."),
            "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = paste(sel, collapse = "+"), w = if (length(sel) == 2) 15 else 9.5, h = 6.6, draw = function() {
       par(mfrow = c(1, length(sel)), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.6, 0))
       for (i in seq_along(sel)) combPanel(sel[i], i == 1)
-      bigTitle("Combined multi-species indices, 11 species, Germany only"); mtext(txtCmb, outer = TRUE, side = 1, line = 2.2, cex = 0.85, col = "grey30")
+      bigTitle(paste0("Combined multi-species indices, ", NSP, " species, Germany only")); mtext(txtCmb, outer = TRUE, side = 1, line = 2.2, cex = 0.85, col = "grey30")
     })
   }
   # (b2) the same combined index on the full axis (0 to 102): how small the movement is against the range of the index
@@ -375,8 +376,8 @@ if ("S3" %in% sections) {
          "The same combined index (main model, 90% intervals) with the y axis running from 0 to 102 instead of being cut to the data. A decline of about 7 index points is small against the full range of the scale.",
          "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = k, w = 9.5, h = 6.6, draw = function() {
     par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
-    mtext("Multi-species indicator for 11 farmland bird species
-in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
+    mtext(paste0("Multi-species indicator for ", NSP, " bird species
+in 1st iteration of the BirdMonitor"), outer = TRUE, side = 3, line = 0.2, font = 2, cex = 1.35) })
   # (b3) our combined index (MSI, big 5) next to the European Farmland Bird Index (PECBMS/EBCC, abundance). Two versions: the European axis from 1980 with our index anchored to the
   #      European value of the base year, and our axis (base year = 100, from 40 to 102) with the European index re-based to the base year.
   refFile <- file.path("data", "reference", "pecbms_farmland_bird_index_1980base.csv")
@@ -395,25 +396,25 @@ in 1st iteration of the BirdMonitor", outer = TRUE, side = 3, line = 0.2, font =
     polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[vsK]], lwd = 3)
     if (from1980) text(baseYear, yl[2], sprintf("our index starts in %d", baseYear), col = "grey35", cex = 0.85, adj = c(-0.05, 1))
     lab <- c(sprintf("European Farmland Bird Index (PECBMS), abundance (%.0f in %d)", ref$smoothed[nrow(ref)], max(ref$year)), "  its confidence limits (shaded) and unsmoothed values (grey)",
-             sprintf("Our MSI, Germany, 11 species, occurrence (%.0f in %d)", x$estimate[nrow(x)], max(x$year)))
+             sprintf(paste0("Our MSI, Germany, ", NSP, " species, occurrence (%.0f in %d)"), x$estimate[nrow(x)], max(x$year)))
     legend("bottomleft", lab, col = c("black", "grey55", varCol[[vsK]]), lwd = c(3.5, 1.5, 3), bty = "n", cex = 0.9)
-    mtext(if (from1980) sprintf("Our index is set to the European value of %d (%.1f) so that both fit on one scale.
+    mtext(if (from1980) sprintf(paste0("Our index is set to the European value of %d (%.1f) so that both fit on one scale.
 Our band: 90%% Monte Carlo interval from the spread of 25 replicates; theirs: confidence limits of the smoothed indicator.
-Europe: PECBMS/EBCC 2025 update, abundance, 1980-2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, a0)
-          else sprintf("The European index is set to 100 in %d (its value that year: %.1f on the 1980 scale); its limits are scaled the same way.
+Europe: PECBMS/EBCC 2025 update, abundance, 1980-2024. Ours: probability of occurrence, ", NSP, " species, Germany only."), baseYear, a0)
+          else sprintf(paste0("The European index is set to 100 in %d (its value that year: %.1f on the 1980 scale); its limits are scaled the same way.
 Our band: 90%% Monte Carlo interval from the spread of 25 replicates; theirs: confidence limits of the smoothed indicator.
-Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurrence, 11 species, Germany only.", baseYear, a0),
+Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurrence, ", NSP, " species, Germany only."), baseYear, a0),
           outer = TRUE, side = 1, line = 1.6, cex = 0.8, col = "grey30") })
   if (file.exists(refFile) && length(okc)) {
     vsFigure("S3_vs_european_farmland_index", "Our combined index (MSI) against the European Farmland Bird Index, 1980-2025",
-             sprintf("European Farmland Bird Index (PECBMS/EBCC; abundance; smoothed line, its confidence limits and the unsmoothed values; 1980 = 100) with our MSI for the 11 species in Germany (probability of occurrence, %s) from %d. Our index is set to the European value of %d so that both lines are on one scale. They are different quantities.", V[[vsK]]$label, baseYear, baseYear), TRUE)
+             sprintf(paste0("European Farmland Bird Index (PECBMS/EBCC; abundance; smoothed line, its confidence limits and the unsmoothed values; 1980 = 100) with our MSI for the ", NSP, " species in Germany (probability of occurrence, %s) from %d. Our index is set to the European value of %d so that both lines are on one scale. They are different quantities."), V[[vsK]]$label, baseYear, baseYear), TRUE)
     vsFigure("S3_vs_european_farmland_index_from2005", sprintf("Our combined index (MSI) and the European Farmland Bird Index, both %d = 100", baseYear),
-             sprintf("The same comparison on our axis: both indices set to 100 in %d, y axis from 40 to 102. European Farmland Bird Index (PECBMS/EBCC, abundance, smoothed with confidence limits and unsmoothed values) against our MSI for the 11 species in Germany (probability of occurrence, %s). Grey = our hindcast years.", baseYear, V[[vsK]]$label), FALSE)
+             sprintf(paste0("The same comparison on our axis: both indices set to 100 in %d, y axis from 40 to 102. European Farmland Bird Index (PECBMS/EBCC, abundance, smoothed with confidence limits and unsmoothed values) against our MSI for the ", NSP, " species in Germany (probability of occurrence, %s). Grey = our hindcast years."), baseYear, V[[vsK]]$label), FALSE)
   }
   # (b4) the same comparison with the German farmland indicator (UBA/BfN Agrarland, abundance of selected farmland birds, to 2023) added; all three set to 100 in the base year
   gerFile <- file.path("data", "reference", "uba_agrarland_subindex_Germany.csv")
   if (file.exists(refFile) && file.exists(gerFile) && length(okc)) figure("S3_indices", "S3_vs_german_and_european_index", sprintf("Our combined index (MSI) against the German and the European farmland bird indicators, %d = 100", baseYear),
-         sprintf("Three series set to 100 in %d: our MSI for the 11 species in Germany (probability of occurrence; band = 90%% interval), the German national indicator Agrarland (UBA/BfN, DDA; abundance of selected farmland birds; to 2023) and the European Farmland Bird Index (PECBMS/EBCC; abundance of 39 species; to 2024). Different quantities and species sets.", baseYear),
+         sprintf(paste0("Three series set to 100 in %d: our MSI for the ", NSP, " species in Germany (probability of occurrence; band = 90%% interval), the German national indicator Agrarland (UBA/BfN, DDA; abundance of selected farmland birds; to 2023) and the European Farmland Bird Index (PECBMS/EBCC; abundance of 39 species; to 2024). Different quantities and species sets."), baseYear),
          paste(refFile, gerFile, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = vsK, w = 11.5, h = 6.8, draw = function() {
     ref <- read.csv(refFile); ref <- ref[ref$region == "Europe" & ref$year >= baseYear, ]; ref <- ref[order(ref$year), ]; a0 <- ref$smoothed[ref$year == baseYear]
     for (cn in c("smoothed", "lowerCL", "upperCL")) ref[[cn]] <- 100 * ref[[cn]] / a0
@@ -427,10 +428,10 @@ Europe: PECBMS/EBCC 2025 update, abundance, to 2024. Ours: probability of occurr
     polygon(c(x$year, rev(x$year)), c(x$lwr, rev(x$upr)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA); lines(x$year, x$estimate, col = varCol[[vsK]], lwd = 3)
     lab <- c(sprintf("European Farmland Bird Index (PECBMS), abundance, 39 species (%.0f in %d)", ref$smoothed[nrow(ref)], max(ref$year)),
              sprintf("German farmland indicator Agrarland (UBA/BfN), abundance (%.0f in %d)", ger$idx[nrow(ger)], max(ger$year)),
-             sprintf("Our MSI, Germany, 11 species, occurrence (%.0f in %d)", x$estimate[nrow(x)], max(x$year)))
+             sprintf(paste0("Our MSI, Germany, ", NSP, " species, occurrence (%.0f in %d)"), x$estimate[nrow(x)], max(x$year)))
     legend("bottomleft", lab, col = c("black", "#6a3d9a", varCol[[vsK]]), lwd = 3.5, bty = "n", cex = 0.9)
-    mtext(sprintf("All series set to 100 in %d. German indicator: percent of target value (UBA/BfN 2025, DDA data), divided by its %d value; about ten selected species.
-Europe: PECBMS/EBCC 2025 update, smoothed, with confidence limits. Ours: probability of occurrence, 11 species, Germany only, band = 90%% interval over the replicates.", baseYear, baseYear),
+    mtext(sprintf(paste0("All series set to 100 in %d. German indicator: percent of target value (UBA/BfN 2025, DDA data), divided by its %d value; about ten selected species.
+Europe: PECBMS/EBCC 2025 update, smoothed, with confidence limits. Ours: probability of occurrence, ", NSP, " species, Germany only, band = 90%% interval over the replicates."), baseYear, baseYear),
           outer = TRUE, side = 1, line = 1.6, cex = 0.8, col = "grey30") })
   # (c) replicates (spaghetti) and the replicate distribution in the last year
   for (k in variants) if (!is.null(IDX[[k]]$rep)) {
@@ -558,7 +559,7 @@ if ("S5" %in% sections) {
     v <- V[[k]]; cm <- v$uncComm %||% ""; fmean <- file.path(cm, "community_meanDeltaP_unc_vsBaseline.tif"); fturn <- file.path(cm, "community_turnoverBC_unc_vsBaseline.tif")
     fcc <- file.path(v$report, "change_vsBaseline_community.tif")
     figure("S5_community", sprintf("S5_community_change_%s", k), sprintf("Community change %d vs %d: mean change, turnover, gains and losses (%s)", curYear, baseYear, v$label),
-           "Top left: mean change in probability over the 11 species (red = decline). Top middle: the same only where the 90% interval over the replicates excludes zero (grey otherwise). Top right: Bray-Curtis turnover (0 = same community, 1 = no species in common). Bottom: number of species gained, number lost and the net (presence/absence maps).",
+           paste0("Top left: mean change in probability over the ", NSP, " species (red = decline). Top middle: the same only where the 90% interval over the replicates excludes zero (grey otherwise). Top right: Bray-Curtis turnover (0 = same community, 1 = no species in common). Bottom: number of species gained, number lost and the net (presence/absence maps)."),
            paste(fmean, fturn, fcc, sep = "; "), variant = k, w = 14, h = 9, draw = function() {
       need(fmean); par(mfrow = c(2, 3), oma = c(1, 0, 2.8, 0))
       u <- rast(fmean); l <- lay(u, "deltaLwr", 3); up <- lay(u, "deltaUpr", 4)
@@ -608,7 +609,7 @@ if ("S6" %in% sections) {
     v <- V[[k]]; fu <- file.path(v$uncReg, sprintf("regional_index_%dkm_unc_change_vsBaseline.tif", km)); fc <- file.path(v$uncReg, sprintf("regional_index_%dkm_coverage.tif", km))
     src <- paste(file.path(v$regional %||% "", sprintf("regional_index_%dkm_raw.tif", km)), fu, fc, sep = "; ")
     figure("S6_regional", sprintf("S6_regional_index_%dkm_%s", km, k), sprintf("Regional index %d (%d km cells, %s)", curYear, km, v$label),
-           "Combined index of the 11 species per grid cell in the last year (main model, 2005 = 100 in every cell). Red = below 2005, blue = above.",
+           paste0("Combined index of the ", NSP, " species per grid cell in the last year (main model, 2005 = 100 in every cell). Red = below 2005, blue = above."),
            file.path(v$regional %||% "", sprintf("regional_index_%dkm_raw.tif", km)), variant = k, w = 6.8, h = 6.6, draw = function() {
       rc <- regionalChange(k, km); par(oma = c(1, 0, 2.6, 0)); lim <- max(symLim(rc$idx - 100), 5); drawMap(rc$idx, sprintf("Regional index %d (2005 = 100)", curYear), palDiv, 100 + c(-1, 1) * lim); bigTitle(sprintf("%d km cells (%s)", km, v$label)) })
     figure("S6_regional", sprintf("S6_change_%dkm_%s", km, k), sprintf("Regional index: change %d vs %d, every cell and only the clear cells (%d km cells, %s)", curYear, baseYear, km, v$label),
@@ -711,7 +712,7 @@ if ("S8" %in% sections) {
 
 ## =================================================================================================================================================
 ## S9  observed trends from the DDA territory data (2005-2024): abundance against occupancy, and against our modelled index (needs inputs/response/processed/territories_csv;
-##     run locally: Rscript tools/makeStCoFigures.R --run test4 --variants big5 --sections S9 --out outputs/test4/figures_fullreport)
+##     run locally: Rscript tools/makeResultFigures.R --run test4 --variants big5 --sections S9 --out outputs/test4/figures_fullreport)
 ##     Rules as in Kamp et al. 2021 (J Ornithol 162): only plots surveyed in at least two years, the first year of each plot series is dropped, the reference year is 2006.
 ##     Not done: the observer correction (no observer id in the file) and the TRIM-GEE error model; the model here is a plain log-linear model with plot and year effects.
 ## =================================================================================================================================================
@@ -755,21 +756,21 @@ if ("S9" %in% sections) {
     geo <- function(v) exp(mean(log(pmax(v, 1e-3))))
     comb <- function(spp) do.call(rbind, lapply(yrsObs, function(y) { d <- ser[ser$year == y & ser$species %in% spp, ]
       data.frame(year = y, abundance = geo(d$abundance), occupancy = geo(d$occupancy), modelled = geo(d$modelled)) }))
-    germanList <- c("Saxicola rubetra", "Alauda arvensis", "Emberiza citrinella", "Emberiza calandra", "Lullula arborea", "Vanellus vanellus", "Lanius collurio")   # species of the German indicator that are also in our 11
+    germanList <- c("Saxicola rubetra", "Alauda arvensis", "Emberiza citrinella", "Emberiza calandra", "Lullula arborea", "Vanellus vanellus", "Lanius collurio")   # species of the German indicator that are also in our roster
     c11 <- comb(allSpecies); c7 <- comb(germanList)
     ser$english <- english[ser$species]; tableOut(ser[, c("species", "english", "year", "abundance", "occupancy", "abundanceChain", "occupancyChain", "modelled", "plotsSurveyed")], "S9_observed_vs_modelled_series")
     at <- function(y) { do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp & ser$year == y, ]; data.frame(species = sp, english = english[[sp]], year = y, observedAbundance = d$abundance, observedOccupancy = d$occupancy, modelled = d$modelled) })) }
-    addComb <- function(tb, y) rbind(tb, data.frame(species = "COMBINED (11 species)", english = "Combined (11 species)", year = y, observedAbundance = c11$abundance[c11$year == y], observedOccupancy = c11$occupancy[c11$year == y], modelled = c11$modelled[c11$year == y]),
+    addComb <- function(tb, y) rbind(tb, data.frame(species = paste0("COMBINED (", NSP, " species)"), english = paste0("Combined (", NSP, " species)"), year = y, observedAbundance = c11$abundance[c11$year == y], observedOccupancy = c11$occupancy[c11$year == y], modelled = c11$modelled[c11$year == y]),
                                           data.frame(species = "COMBINED (7 species of the German indicator)", english = "Combined (7 species of the German indicator)", year = y, observedAbundance = c7$abundance[c7$year == y], observedOccupancy = c7$occupancy[c7$year == y], modelled = c7$modelled[c7$year == y]))
     last <- max(yrsObs); tableOut(addComb(at(last), last), "S9_observed_vs_modelled_species_last_year"); tableOut(addComb(at(2018), 2018), "S9_observed_vs_modelled_species_2018")
     gerFile <- file.path("data", "reference", "uba_agrarland_subindex_Germany.csv"); gerCol <- "#6a3d9a"
     col3 <- c(abundance = "black", occupancy = "#2d8a4e", modelled = varCol[[vsK]])
     figure("S3_indices", "S9_observed_vs_modelled_combined", sprintf("Observed abundance and occupancy (DDA territory data) against our modelled index, %d-%d", min(yrsObs), last),
-           sprintf("From the DDA territory data (%s plots): the same plot-based model (plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our 11 species. Right: the 7 of them that are in the German farmland indicator, with that indicator. All set to 100 in %d.", format(length(plots), big.mark = ","), obsBase),
+           sprintf(paste0("From the DDA territory data (%s plots): the same plot-based model (plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our ", NSP, " species. Right: the 7 of them that are in the German farmland indicator, with that indicator. All set to 100 in %d."), format(length(plots), big.mark = ","), obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 6.6, draw = function() {
       par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.4, 0))
       for (pn in 1:2) { cb <- if (pn == 1) c11 else c7; yl <- c(40, max(110, max(cb[, c("abundance", "occupancy", "modelled")], na.rm = TRUE) + 3))
-        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), main = if (pn == 1) "11 species" else "7 species of the German indicator", bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
+        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), main = if (pn == 1) paste0("", NSP, " species") else "7 species of the German indicator", bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
         for (n in names(col3)) lines(cb$year, cb[[n]], lwd = 3, col = col3[[n]])
         if (pn == 2 && file.exists(gerFile)) { g <- read.csv(gerFile); g <- g[g$year >= obsBase & g$year <= last, ]; lines(g$year, 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == obsBase], lwd = 2.5, col = gerCol, lty = 2) }
         legend("bottomleft", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index", if (pn == 2) "German indicator Agrarland (UBA/BfN)"), col = c(col3, if (pn == 2) gerCol), lwd = c(3, 3, 3, if (pn == 2) 2.5), lty = c(1, 1, 1, if (pn == 2) 2), bty = "n", cex = 0.9) }
@@ -791,22 +792,22 @@ if ("S9" %in% sections) {
     if (file.exists(gerFile)) { g0 <- read.csv(gerFile); cmpV <- merge(cmpV, data.frame(year = g0$year, germanIndicatorAgrarland = 100 * g0$agrarland_pct_of_target / g0$agrarland_pct_of_target[g0$year == obsBase]), by = "year", all.x = TRUE) }
     cmpV$replicatesForInterval <- nRepMSI
     tableOut(cmpV, "S9_closest_comparison_values")                     # the plotted values, index with the reference year = 100
-    for (withGer in c(FALSE, TRUE)) figure("S3_indices", if (withGer) "S9_closest_comparison_german" else "S9_closest_comparison", sprintf("Our combined index and the observed trends of the same 11 species in Germany, %d = 100%s", obsBase, if (withGer) ", with the German indicator" else ""),
-           sprintf("The closest comparison we can make: the same 11 species in Germany. Observed occupancy (presence on the surveyed DDA plots, same quantity as our probability of occurrence) and observed abundance (number of territories), from the DDA territory data (%s plots), against our MSI (geometric mean of the species indices of the main model; band = 90%% Monte Carlo interval, as in PECBMS, from the spread of the %d bootstrap replicates)%s. All set to 100 in %d.", format(length(plots), big.mark = ","), nRepMSI, if (withGer) ", with the German indicator Agrarland (UBA/BfN, abundance of selected farmland birds, to 2023)" else "", obsBase),
+    for (withGer in c(FALSE, TRUE)) figure("S3_indices", if (withGer) "S9_closest_comparison_german" else "S9_closest_comparison", sprintf(paste0("Our combined index and the observed trends of the same ", NSP, " species in Germany, %d = 100%s"), obsBase, if (withGer) ", with the German indicator" else ""),
+           sprintf(paste0("The closest comparison we can make: the same ", NSP, " species in Germany. Observed occupancy (presence on the surveyed DDA plots, same quantity as our probability of occurrence) and observed abundance (number of territories), from the DDA territory data (%s plots), against our MSI (geometric mean of the species indices of the main model; band = 90%% Monte Carlo interval, as in PECBMS, from the spread of the %d bootstrap replicates)%s. All set to 100 in %d."), format(length(plots), big.mark = ","), nRepMSI, if (withGer) ", with the German indicator Agrarland (UBA/BfN, abundance of selected farmland birds, to 2023)" else "", obsBase),
            paste(vf, df, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = vsK, w = 11.5, h = 6.8, draw = function() {
       par(mar = c(4.2, 4.6, 3, 1), oma = c(if (withGer) 8.4 else 6.2, 0, 1, 0)); yl <- c(40, max(110, c11$abundance, c11$occupancy, xm$upr * fm, na.rm = TRUE) + 3)
       plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
       polygon(c(xm$year, rev(xm$year)), c(xm$lwr * fm, rev(xm$upr * fm)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA)
       lines(xm$year, xm$estimate * fm, col = varCol[[vsK]], lwd = 3.5); lines(c11$year, c11$occupancy, col = "#2d8a4e", lwd = 3); lines(c11$year, c11$abundance, col = "black", lwd = 3, lty = 2)
       gerOk <- withGer && file.exists(gerFile); if (gerOk) { g <- read.csv(gerFile); g <- g[g$year >= obsBase & g$year <= last, ]; g$idx <- 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == obsBase]; lines(g$year, g$idx, lwd = 3, col = gerCol, lty = 4) }
-      legend("bottomleft", c(sprintf("Our MSI, 11 species, probability of occurrence (%.0f in %d)", (xm$estimate * fm)[nrow(xm)], max(xm$year)), "  its 90% interval (Monte Carlo, as PECBMS, from the spread of the replicates)",
-                             sprintf("Observed occupancy, same 11 species, DDA plots (%.0f in %d)", c11$occupancy[nrow(c11)], max(c11$year)), sprintf("Observed abundance, same 11 species, DDA territories (%.0f in %d)", c11$abundance[nrow(c11)], max(c11$year)),
+      legend("bottomleft", c(sprintf(paste0("Our MSI, ", NSP, " species, probability of occurrence (%.0f in %d)"), (xm$estimate * fm)[nrow(xm)], max(xm$year)), "  its 90% interval (Monte Carlo, as PECBMS, from the spread of the replicates)",
+                             sprintf(paste0("Observed occupancy, same ", NSP, " species, DDA plots (%.0f in %d)"), c11$occupancy[nrow(c11)], max(c11$year)), sprintf(paste0("Observed abundance, same ", NSP, " species, DDA territories (%.0f in %d)"), c11$abundance[nrow(c11)], max(c11$year)),
                              if (gerOk) sprintf("German indicator Agrarland (UBA/BfN), abundance, about 10 species (%.0f in %d)", g$idx[nrow(g)], max(g$year))),
              col = c(varCol[[vsK]], adjustcolor(varCol[[vsK]], 0.25), "#2d8a4e", "black", if (gerOk) gerCol), lwd = c(3.5, 8, 3, 3, if (gerOk) 3), lty = c(1, 1, 1, 2, if (gerOk) 4), bty = "n", cex = 0.9)
-      mtext(sprintf("Observed series: DDA territory data, plots surveyed in at least two years, first year of each plot dropped, reference year %d (rules of Kamp et al. 2021);\nplain log-linear model with plot and year effects, no observer correction. Observed and modelled series are geometric means over the 11 species.\nOur MSI: main model of the ensemble (probability of occurrence, Germany); each species index has the standard deviation across %d bootstrap replicates as its standard error.\n%sOur landscape scale is fitted on part of these data, so this is not an independent test.", obsBase, nRepMSI, if (gerOk) "The German indicator (UBA/BfN, DDA data) is percent of a target value divided by its reference-year value; its species are not the same as ours.\n" else ""), outer = TRUE, side = 1, line = if (gerOk) 3.6 else 2.4, cex = 0.8, col = "grey30") })
+      mtext(sprintf(paste0("Observed series: DDA territory data, plots surveyed in at least two years, first year of each plot dropped, reference year %d (rules of Kamp et al. 2021);\nplain log-linear model with plot and year effects, no observer correction. Observed and modelled series are geometric means over the ", NSP, " species.\nOur MSI: main model of the ensemble (probability of occurrence, Germany); each species index has the standard deviation across %d bootstrap replicates as its standard error.\n%sOur landscape scale is fitted on part of these data, so this is not an independent test."), obsBase, nRepMSI, if (gerOk) "The German indicator (UBA/BfN, DDA data) is percent of a target value divided by its reference-year value; its species are not the same as ours.\n" else ""), outer = TRUE, side = 1, line = if (gerOk) 3.6 else 2.4, cex = 0.8, col = "grey30") })
     }
     figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
-           sprintf("The same three series for each of the 11 species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in %d.", obsBase),
+           sprintf(paste0("The same three series for each of the ", NSP, " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in %d."), obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 9, draw = function() {
       par(mfrow = c(3, 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
       for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)

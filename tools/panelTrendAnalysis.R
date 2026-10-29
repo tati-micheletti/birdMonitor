@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Same-plot panel: observed occupancy and abundance against our predictions at the SAME plots and years (input: outputs/<run>/panel_trend_check/<Species>.csv from tools/panelTrendCheck.R).
-# Rules of the DDA / Kamp et al. 2021 as in section S9 of tools/makeStCoFigures.R: only plots surveyed in at least two years, the first year of each plot series dropped, reference year 2006;
+# Rules of the DDA / Kamp et al. 2021 as in section S9 of tools/makeResultFigures.R: only plots surveyed in at least two years, the first year of each plot series dropped, reference year 2006;
 # the same plot-and-year model (expected value = plot effect x year effect, iterative scaling) is applied to every series, so they differ only in the data (observed presence, observed territories,
 # predicted probability of the climate, landscape, habitat scale and of the final map).
 #   Rscript tools/panelTrendAnalysis.R [--run test4] [--ref-year 2006] [--out outputs/test4/panel_trend_check]

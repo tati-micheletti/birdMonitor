@@ -1,0 +1,171 @@
+---
+title: "birdMonitor: methods, indices and uncertainty"
+author: "Tatiane Micheletti"
+date: "12 October 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: readable
+---
+
+This document describes how birdMonitor turns bird records and environmental data into yearly occurrence maps and national and regional indices, with confidence intervals, for the breeding bird species of the roster in Germany from 2005 to 2025. *Note of 29 October 2026: the method does not depend on the number of species (the roster can grow or shrink); the numbers in the text are those of the runs of 12 and 13 October, which had 11 species. The changes made since then, which apply from the clean run for the first version of the Monitor (14 species), are listed in section 9.*
+
+## 1. Overview
+
+The pipeline follows the multi-scale meta-model approach of Wiedenroth et al. (preprint, 2026) and adds honest weighting, an uncertainty framework and an algorithm ensemble.
+
+1. **Data preparation.** Bird records of three kinds, one per spatial scale, are cleaned and thinned, and matched to climate, landscape and habitat layers.
+2. **One model per scale.** A boosted regression tree is fitted at the climate scale (50 km), the landscape scale (1 km) and the habitat scale (200 m), with spatial block cross-validation.
+3. **Meta-model.** A ridge regression combines the three scale predictions into one probability of occurrence per 200 m pixel and year.
+4. **Indices and maps.** From these yearly maps we compute species indices, three combined indices (SBI, MSI and Chain), change and gain-loss maps, expected richness, turnover, and regional indices on 10, 20 and 50 km grids.
+5. **Uncertainty.** Steps 2 and 3 are repeated on spatial bootstrap resamples of the training data, and every product of step 4 is recomputed inside each replicate.
+6. **Big 5.** In step 2, the single algorithm at each scale is replaced by five algorithms (BRT, GLM, GAM, random forest, neural network) whose predictions are averaged within that scale. The meta-model of step 3 then combines the three scale averages, and steps 3 to 5 are repeated, with their own uncertainty.
+
+| Item | Value |
+| --- | --- |
+| Species | Those marked `include` in `data/speciesCanonical.csv`; the table holds 17 species, 14 of them on in the first version of the Monitor (Alauda arvensis, Anthus pratensis, Buteo buteo, Curruca communis, Emberiza calandra, Emberiza citrinella, Falco tinnunculus, Lanius collurio, Lullula arborea, Motacilla flava, Passer montanus, Saxicola rubetra, Sturnus vulgaris, Vanellus vanellus). The runs of 12 and 13 October, whose numbers are in this document, had 11 (the same without Curruca communis, Falco tinnunculus, Motacilla flava and Passer montanus, and with Perdix perdix). Perdix perdix, Streptopelia turtur and Milvus milvus are off |
+| Years mapped | 2005 to 2025 (21); baseline year 2005 |
+| Scales | climate 50 km, landscape 1 km, habitat 200 m |
+| Final grid | 200 m pixels in the EPSG:3035 projection |
+| Computation | UFZ cluster EVE, R with SpaDES modules |
+
+## 2. Data
+
+Each scale has its own bird data and its own environmental layers, and the three scales are combined only at the meta-model step.
+
+| Scale | Bird data | Environmental layers | Years of bird training (model fitting) data |
+| --- | --- | --- | --- |
+| Climate, 50 km | EBBA2 breeding-bird atlas, 50 km grid | CHELSA bioclimatic variables, summarised in six-year windows | Atlas period 2012-2017 |
+| Landscape, 1 km | DDA territory mapping (BirdStats 2005-2024); for some species the MhB point counts instead | Land-use fractions, terrain, woodland distance, landscape heterogeneity | 2005 onwards |
+| Habitat, 200 m | MhB (Monitoring haeufiger Brutvoegel) point counts along the survey routes | The same kind of layers at 200 m, plus hedges where available | 2022-2025 only. The model then predicts every year from 2005 to 2025 at this scale |
+
+**Environmental layers.** The land-use layers are fractions of crops (winter and summer cereals, maize, rapeseed, root crops, legumes, sunflower, vegetables, orchards, vines, hops), fallow, grassland, trees, water and built-up area; terrain is elevation and slope. Which of these enter a species' model is set in a configuration table per species and scale.
+
+**Preparing the records.** Records are filtered to the breeding season and, at the habitat scale, by breeding code; they are thinned spatially by a species-specific distance so that dense survey areas do not dominate; and they are matched to the layers of the year they were collected in. A presence is a detection of the species between April and June that comes with a breeding-evidence code. The MhB records carry the code of the German atlas system (`ATLAS_CODE`), which distinguishes possible (A), probable (B) and confirmed (C) breeding. We keep every code except the weakest one, a bare "A" without a number, which is the weakest evidence tier, and for one model, the landscape scale of Buteo buteo, we keep confirmed breeding (C) only. An absence is a surveyed site and year where the species was not detected. For the MhB routes, a route-year counts as surveyed if any species was detected on it. There is no pseudo-absence sampling.
+
+**Spatial blocks.** The records of each scale are grouped into square spatial blocks whose size comes from the range of spatial autocorrelation of the predictors (the `blockCV` package). The blocks are used for cross-validation. The bootstrap (section 7) uses a square grid of blocks whose size is derived in the same way.
+
+**Why the habitat scale has only four years.** By a project decision, MhB point counts are used only from 2022: earlier MhB records are inconsistent and were collected with a different method (the raw record counts are small before 2020 and jump from 2020). For 2005-2021 the habitat model is therefore applied to older layers as a hindcast (see section 8).
+
+## 3. Models
+
+Each scale gets its own model, and a meta-model then learns how much to trust each scale.
+
+**Scale models.** At each scale a boosted regression tree (BRT, `gbm`) predicts the probability of occurrence from that scale's predictors. The number of trees is chosen by internal cross-validation; the learning rate, tree complexity and bag fraction of the main fit are kept fixed in every bootstrap replicate. Accuracy is measured by five-fold spatial block cross-validation: each fold holds out whole blocks, so a record is never tested against its own neighbours. The fold models are saved, because they supply the out-of-fold predictions used afterwards (i.e., see below).
+
+**Meta-model.** The three scale predictions at the habitat records are combined by a logistic ridge regression (`glmnet`). The coefficients are constrained to be zero or positive, so a scale can only add evidence. The penalty is chosen by cross-validation (ten random folds, in the main model and in every bootstrap replicate). The meta-model is then applied to every 200 m pixel and year, which gives the yearly probability maps that all indices are built from. **Important note on a previous attempt:** replicates first used spatial block folds, which are stricter. However, these shrank the weights and the trends, so that version is kept as a sensitivity analysis but should not be interpreted as the correct approach.
+
+**Why the weights are honest.** The inputs to the meta-model are out-of-fold predictions: each habitat record is predicted by a scale model that never saw its block. The accuracy of the meta-model is evaluated on the same out-of-fold inputs. This is different from what Wiedenroth et al., developed, whose weights are fitted on in-sample predictions. We believe that this is why our accuracy figures are lower, but still more trustworthy. The honest AUC of the meta-model lies between 0.71 (Buteo buteo) and 0.95 (for example Alauda arvensis), and the climate scale has a positive weight for 10 of the 11 species (close to zero for one of them). Accuracy of the three scale models is not comparable across scales, because each is tested on different records.
+
+**Binary maps.** The binary maps are an addition at the very end of the chain. Everything is computed on probabilities, and only once the probability map of a year exists do we derive a presence-absence map from it: a species is called present in a pixel when its probability exceeds a threshold chosen per species from the same honest evaluation. The binary maps feed only the gain-and-loss maps and the counts of gained and lost species; the indices, the change in probability, the richness and the turnover all use the probabilities themselves.
+
+**Years.** The habitat scale is trained on 2022-2025, the landscape scale on 2005-2025 and the climate scale on one atlas period. The meta-model is trained on the habitat years. All three scales (via the meta-model) predict all 21 years; the further a year is from the habitat years, the more the result is a hindcast.
+
+## 4. The big 5 ensemble
+
+The big 5 replaces the single boosted regression tree at each scale by five algorithms, so that no single algorithm decides the result. The order of the steps matters. First, at each of the three scales separately, the five algorithms are fitted and their five predictions are averaged into one ensemble prediction for that scale. The honest ridge meta-model of section 3 then combines the three scale ensembles into the probability of occurrence, exactly as it combined the three BRT predictions before. Averaging across the big 5 therefore happens within each scale; the ridge meta-model then combines the three scale ensembles. There is one meta-model per species (and one per bootstrap replicate), not one per algorithm. This is the design of Wiedenroth et al., who chose it for interpretability, and it also means that we fit one meta-model instead of five.
+
+| Member | How it is fitted |
+| --- | --- |
+| BRT | Boosted regression tree, as in section 3 |
+| GLM | Logistic regression with linear and quadratic terms, selected by AIC (as in Wiedenroth et al.) |
+| GAM | Logistic additive model (`mgcv`) with a smooth of up to four degrees of freedom per predictor; if the default fit does not converge, more robust settings are tried before any predictor is dropped |
+| Random forest | `ranger`, 1000 trees, one third of the predictors tried at each split, minimum node size 5 (the published work used `randomForest`; `ranger` is much faster with the same defaults) |
+| Neural network | `nnet`, one hidden layer of 3 units, weight decay 0.1, up to 1000 iterations, standardised predictors, the mean of 5 random starts; these settings come from the sensitivity analysis described below |
+
+**One shared design.** All five members use the same predictors and the same spatial folds as the BRT of that scale, and each member's cross-validated predictions at the habitat records are kept. The ensemble prediction is the arithmetic mean of the five. A model can only predict a pixel where all of its predictor layers have a value. This is why four species (Emberiza citrinella, Lanius collurio, Lullula arborea and Sturnus vulgaris) have predictions inside Germany only: their models use the hedge and landscape-heterogeneity layers, which, as far as we can tell from the predictor lists, exist for Germany only. For the other seven species the maps cover almost the whole prediction window (the bounding box of Germany). All five members use the same predictors, so they all have a prediction in the same pixels. As a safeguard, a pixel where any member has no prediction is left empty instead of being averaged over fewer members.
+
+**Neural-network settings.** The network is the one member that was not published, so its settings were tested before use: nine combinations of 3, 10 and 20 hidden units and decay 0.01, 0.1 and 1, at all three scales, under spatial cross-validation (one species, three random starts). The first setting (10 units, 300 iterations) did not converge in 15 of 15 landscape fits. Three units with decay 0.1 matched or beat the best setting at every scale and converged:
+
+| Scale | AUC, 10 units, decay 0.1 | AUC, 3 units, decay 0.1 |
+| --- | --- | --- |
+| Climate | 0.888 | 0.904 |
+| Landscape | 0.874 | 0.879 |
+| Habitat | 0.938 | 0.940 |
+
+In an earlier local test on one species, the five-member ensemble was more accurate than any single member at the landscape scale (AUC 0.885 against 0.865 to 0.879).
+
+**Uncertainty with the ensemble.** In the bootstrap, every replicate refits all five members on its own resample and trains its own ridge meta-model, so the choice of algorithm adds to the interval instead of being hidden. If a member cannot be refitted on a resample even with its most robust settings (for the GAM: REML, a second optimiser, three knots, then dropping the sparsest predictor), the main fit of that member stands in for that replicate; the number of such cases is counted and logged per species, scale and member. The log is the file `refit_fallbacks.csv` in the `models/` folder of each species in the uncertainty run, and the counts are summarised in the handover document, section 7.3.
+
+## 5. The indices in detail
+
+All indices are built from the yearly probability maps of section 3, and none of them is a count: they are model-based indices of the probability of occurrence, not TRIM indices (which model counts and cannot be applied to probabilities).
+
+**Species index.** For species s and year t, let P(s,t) be the mean probability of occurrence over all pixels inside Germany. The index sets the baseline year 2005 to 100:
+
+$$I_{s,t} = 100 \cdot \frac{P_{s,t}}{P_{s,2005}}$$
+
+**Combined indices.** Three ways of combining the species indices are computed. The SBI and the MSI share the same point estimate, the geometric mean of the species indices (the Swiss Bird Index of Zbinden et al. 2005), and differ only in how the interval is obtained. The Chain index is built from year-to-year ratios and gives the same values as the SBI as long as no species is missing in any year.
+
+$$\mathrm{SBI}_t = \exp\left(\frac{1}{S}\sum_{s=1}^{S}\ln I_{s,t}\right)$$
+
+| Index | Point estimate | Interval | Lineage |
+| --- | --- | --- | --- |
+| SBI | Geometric mean of species indices | Percentile interval over replicates, the same replicate in every species | Zbinden et al. 2005 |
+| MSI | As SBI | Monte Carlo: species indices are drawn from their standard errors, combined, and the percentiles taken | Soldaat et al. 2017, the Monte Carlo step of the MSI method used by the DDA and PECBMS partners; their exclusions and truncation of low values are not implemented here |
+| Chain | Geometric mean of year-to-year ratios, cumulated; independent of the baseline year | Percentile interval over replicates | Living Planet Index method |
+
+**Standard error of a species index.** The MSI needs to know how uncertain each species index is, because it builds its interval from that. In the uncertainty run we take it from the bootstrap: for every species and year there are 50 replicate values of the index, and their standard deviation is the standard error. It therefore says how much the index changes when the models are trained on different data. In the baseline run there are no replicates, so the only measure available is spatial: the standard deviation of the probabilities over all pixels of Germany, divided by the square root of the number of pixels. That formula treats every pixel as an independent observation, which they are not (neighbouring pixels are almost identical), and with millions of pixels it gives a very small number. We therefore do not read it as the uncertainty of the index, only as a lower bound, and all intervals we report come from the uncertainty run. The Chain index is also computed on the non-hindcast years only (2022-2025) as a robustness check. With no missing species the Chain index equals the SBI; the two diverge only when a species drops out of a year.
+
+**Smoothing.** Each combined series also has a smoothed version (`SBI_smooth`) for display. The smoothed series is a display of the point estimate and has no interval of its own.
+
+## 6. Maps: change, richness, turnover and the regional index
+
+**Change maps.** For three comparisons, each against the current year (2025): the baseline year 2005, five years earlier (2020) and the previous year (2024). Per pixel and species the map shows the change in probability, a gain-and-loss class from the binary maps (stable absent, loss, gain, stable present), and an increase, decrease or stable class, where a change of at least 0.05 in probability counts as an increase or decrease. The 0.05 is a judgement call and is reported as such.
+
+**Community layers.** Over all species: `meanDeltaP` (the mean change in probability), `gainCount` and `lossCount` (the number of species crossing the presence threshold upward or downward), `netGainLoss` and `turnoverBC` (below). Expected richness is the sum of the probabilities over species.
+
+**Turnover.** Richness and the mean change both cancel when species are swapped: five species at probability 0.8 in 2005, four lost and four others gained, gives the same richness and a mean change of zero. The Bray-Curtis dissimilarity between the two years does not cancel:
+
+$$\mathrm{BC} = \frac{\sum_s \left| p_{s,t_1} - p_{s,t_0} \right|}{\sum_s \left( p_{s,t_0} + p_{s,t_1} \right)}$$
+
+It is 0 when the expected community is unchanged and 1 when no species is shared; the swap above gives 0.8. Probabilities stand in for abundances, and the dissimilarity also rises when richness changes without a swap. In the uncertainty run it is computed inside each replicate and summarised by its mean, standard deviation and 90% interval.
+
+**Regional index.** As an example of how our indices can be regionalised, we computed the SBI (the geometric mean of the species indices, section 5) separately for every cell of a 10, 20 or 50 km grid instead of once for the whole country. Only the SBI is regionalised; the MSI and the Chain index are not. Everything else is as in section 5, except for three things. First, the 200 m pixels are masked with the German outline before they are averaged into a cell, so a border cell holds German pixels only. Second, a species is left out of a cell where its baseline mean is below a floor (currently 10 to the power of minus 6); on the current data no cell comes near it (the lowest baseline cell means are above 0.001 and no ratio between 2005 and 2025 exceeds 10), so a higher floor, or a cap on extreme ratios (in the spirit of the truncation of very small index values in Soldaat et al. 2017), is kept as a safeguard rather than needed. Third, a smoothed version applies a Gaussian filter with a standard deviation of 1.5 cells, renormalised at the edges, to the final raw result. The smoothed map has no interval of its own; the raw regional index has one (section 7).
+
+## 7. Uncertainty
+
+The question we ask here is: how different would each result be if the models had been trained on different data? We answer it by refitting the whole chain on resampled data many times. This is a different question from how wrong the environmental layers are, how well the model settings were chosen, how the birds were surveyed, or whether habitat preferences were the same before 2022, none of which this uncertainty covers (see "What is not covered" below).
+
+**The bootstrap.** For each scale, the training records are grouped into square spatial blocks. One replicate draws blocks at random with replacement, as many draws as there are blocks, and takes all records of every block drawn, twice if a block is drawn twice. This is a bootstrap in which the blocks play the role of the independent units, a so-called cluster or block bootstrap. Because blocks differ in size, the number of records differs a little between replicates. The blocks are treated as independent, which is only approximately true because neighbouring blocks are still correlated, so the intervals can be somewhat too narrow. A draw with fewer than 10 presences or 10 absences is redrawn. Each replicate then refits the scale models with the settings of the main fit (nothing is re-tuned), fits its own ridge meta-model on out-of-fold predictions of its own models, predicts all 21 years, and computes every product below inside the replicate. The interval is the 5th to the 95th percentile across replicates (90%). Seeds are fixed per species, scale and replicate and logged, so replicates 51-100 can be added later without changing replicates 1-50.
+
+**Replicate 0** is the main model run through exactly the same machinery. It is never part of an interval; it proves that the machinery reproduces the baseline maps and indices (the parity check: same valid pixels, probabilities equal to within the storage precision of 3.3 x 10^-5, area means equal to about 10^-10). Replicate 0 is not part of any interval and its size is far below the width of the intervals.
+
+| Product | How the uncertainty enters |
+| --- | --- |
+| Probability map per year | Mean, standard deviation, 5th and 95th percentile and width of the probability across replicates, per pixel |
+| Change maps (three comparisons: 2025 to 2024, 2025 to 2020 and 2025 to 2005) | The change is computed in each replicate; mean, standard deviation, interval, width, and the share of replicates that decrease and that increase |
+| Per-pixel trend | The linear trend per decade is computed in each replicate; the same seven layers |
+| Species index | The area mean (i.e., within Germany) is computed in each replicate, then the index and its percentiles |
+| Combined indices | SBI and Chain are computed inside each replicate, using the same replicate for every species; the MSI uses the standard deviation of each species index across replicates |
+| Expected richness, community change, turnover | Computed in each replicate; five or seven layers as for the maps |
+| Regional index (10, 20, 50 km) | Cell means, index and combination computed in each replicate on the raw grid; interval per cell and year, change and trend with shares of replicates decreasing and increasing, and a coverage layer; replicate 0 checked against the baseline regional index |
+
+**What is not covered.** Errors in the environmental layers; the tuning of model settings; survey-design bias and spatial or temporal dependence beyond what the blocks capture; the randomness of the thinning of the records; and the hindcast assumption (section 8). The climate scale has only about 13 blocks for Europe, so its resampling is coarse.
+
+**A caveat for Perdix perdix.** In the BRT-only run, 9 of the 50 replicates of Perdix perdix have an index of exactly 100 in every year: in these resamples the meta-model found no usable signal, so the map of that replicate does not change over time. We kept these replicates in the interval, because a bootstrap has to repeat the main procedure, so the upper end of the Perdix interval (100) comes from them. A second interval without these replicates is planned for after the Steering Consortium meeting (improvements.md, item 17).
+
+**Reading the numbers.** The mean over replicates is not the baseline map; the baseline map is the point estimate and the replicates describe its uncertainty. The 5th and 95th percentiles of 50 replicates each rest on two or three replicates and are noisy. The shares of replicates decreasing or increasing are shares, not probabilities, and have no threshold: a change of -0.0001 counts as a decrease. For the big 5 we first ran 25 replicates; more replicates can be added if time allows.
+
+## 8. Important information
+
+**Five cautions for every number.**
+
+1. **Hindcast.** The habitat scale is trained on 2022-2025 only. The maps for 2005-2021 apply that model to older layers, so they show how the landscape changed under fixed habitat preferences, not how the birds changed. Intervals do not include this assumption.
+2. **Model uncertainty only.** The intervals describe sensitivity to the training data. They are not prediction intervals for counts in the field, and they do not cover errors in the environmental layers, model tuning or survey bias.
+3. **Probabilities, not counts.** Indices are ratios of mean probabilities of occurrence and cannot be compared one-to-one with TRIM indices of counts.
+4. **Few replicates.** The tails of percentile intervals from 25 or 50 replicates are noisy; replicates can be added without changing the earlier ones.
+5. **Thresholds are judgement calls.** The 0.05 limit for increase and decrease, the presence threshold of the binary maps and the floor of the regional index are stated choices, not estimates.
+
+## 9. Changes since 12 October (they apply from the clean run for the first version of the Monitor)
+
+I made these changes after the runs described above. None of them has been run yet on the full data; the results above do not contain them.
+
+1. **One study area for all inputs.** The study area is defined once (a country, a region or a shapefile). Predictor layers are cropped and masked to it when they are made, with a buffer of 1 km for the records and the habitat and landscape layers and one 50 km cell for the climate predictions. The climate model is still fitted on all of Europe. Records are filtered to the area for every response, including the landscape scale. The final maps are still cut to the reporting area, so the Germany-only copies remain.
+2. **Predictor layers are complete by construction.** Land cover has seven CORINE classes plus a residual class for cells with no mapped class. The landscape heterogeneity index no longer uses a 5% threshold: it is 0 where no class is mapped, so no cell inside the area is missing. Version 1 had left about 3% of the records of all species without a value and dropped them. A hard check stops the run if any layer has a missing value inside the area. The hedge layer is filled for the years without data from the nearest earlier year with data.
+3. **DDA territory data.** A value of -1 in the territory count means that the species was present but not counted. It now counts as a presence (636 rows of the file).
+4. **Species.** The roster has 14 species: Perdix perdix is out; Curruca communis, Passer montanus, Motacilla flava and Falco tinnunculus are in. Falco tinnunculus is on trial: the layers do not resolve small woodlots, and it may not stay in the Monitor. The EBBA2 file now has 17 species; the climate scale takes the surveyed cells from the cells present in that file, so the absences of all species are drawn from a universe that grew with the new species.
+5. **Richness for every year.** The expected richness and its interval are computed for every mapped year, not only for 2025.
+6. **National trend.** In the Monitor the national trend shows the period after the last published national indicator year as a dashed, preliminary line; the maps, the regional index and the per-species products use all the data. The cut-off year is not confirmed yet.

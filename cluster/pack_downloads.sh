@@ -61,9 +61,9 @@ case "$MODE" in
     done
     echo "(sizes are before packing; the .tar has the same size. Package A first, then B if you have room.)" ;;
   A|B|C)
-    mkdir -p "$OUT"; f="$OUT/stco_${MODE}_${RUN}.tar"; list "$MODE" > "$OUT/stco_${MODE}_${RUN}.list.txt"
-    [ -s "$OUT/stco_${MODE}_${RUN}.list.txt" ] || { echo "nothing found for package $MODE" >&2; exit 1; }
-    tar -cf "$f" -T "$OUT/stco_${MODE}_${RUN}.list.txt"
-    echo "wrote $f ($(du -h "$f" | cut -f1)); contents listed in $OUT/stco_${MODE}_${RUN}.list.txt" ;;
+    mkdir -p "$OUT"; f="$OUT/figures_${MODE}_${RUN}.tar"; list "$MODE" > "$OUT/figures_${MODE}_${RUN}.list.txt"
+    [ -s "$OUT/figures_${MODE}_${RUN}.list.txt" ] || { echo "nothing found for package $MODE" >&2; exit 1; }
+    tar -cf "$f" -T "$OUT/figures_${MODE}_${RUN}.list.txt"
+    echo "wrote $f ($(du -h "$f" | cut -f1)); contents listed in $OUT/figures_${MODE}_${RUN}.list.txt" ;;
   *) echo "usage: bash cluster/pack_downloads.sh sizes|A|B|C" >&2; exit 1 ;;
 esac

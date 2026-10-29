@@ -1,0 +1,101 @@
+---
+title: 'birdMonitor: executive summary'
+author: "Tati Micheletti"
+date: "13 October 2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: readable
+---
+
+*Note of 29 October 2026: the numbers in this summary are those of the 11-species runs of 12 and 13 October. The roster for the first version of the Monitor has 14 species (28 October); a clean run recomputes everything, and the pipeline has meanwhile been extended with one study area for all inputs, complete predictor layers and a connector that fills the folder the Monitor reads. This summary has not been changed otherwise.*
+
+The birdMonitor modelling pipeline turns bird records and environmental data into yearly maps and national indices for 11 species (2005-2025), with confidence intervals on everything, all within Germany's borders.
+
+## At a glance
+
+- **A model pipeline** combines three spatial scales (climate 50 km, landscape 1 km, habitat 200 m) for 11 species and 21 years, following the pre-print Wiedenroth et al. method.
+- **Honest accuracy.** The weights that combine the scales are trained and tested on predictions the models did not see, which differs from the original  method, but is likely more robust.
+- **Uncertainty throughout.** A spatial bootstrap with 50 replicates of the models gives an interval for every map, change map, trend and index, including the regional indices on 10, 20 and 50 km grids.
+- **An ensemble of five algorithms (the "big 5"),** with its own uncertainty. It is more accurate than the single algorithm and shows a stronger decline.
+
+## Everything done and still to do, in order of work
+
+Of 21 steps, 18 are done and 3 are still ahead. The problems we found along the way, and how they were fixed, are listed in the handover document (section 7.10).
+
+| # | Phase | What it delivers | Status |
+| --- | --- | --- | --- |
+| 1 | Foundation: four linked software modules following the published Wiedenroth et al. method | A reproducible chain from raw data to indices for 11 species and 21 years | Done |
+| 2 | Cluster computing on the UFZ cluster | The full analysis runs in hours, not weeks | Done |
+| 3 | Indices: species, three combined indices, change maps, richness | Every standard way of reporting a trend, side by side | Done |
+| 4 | Regional index on 10, 20 and 50 km grids | Where in Germany things change | Done |
+| 5 | Honest weighting of the three scales | Accuracy figures that are not inflated (beyond the published method) | Done |
+| 6 | Uncertainty: 50 model replicates | A 90% interval for every map, change, trend and index | Done |
+| 7 | Climate data corrected and everything recomputed | Trends that are no longer distorted at the end of the series | Done |
+| 8 | Regional uncertainty | Cold and hot spots with confidence | Done |
+| 9 | Species turnover layer | Shows swaps of species that richness hides | Done |
+| 10 | Germany-only correction of all national numbers | National numbers that describe Germany only | Done |
+| 11 | Safeguards in the pipeline | Fewer silent errors in a long computation | Done |
+| 12 | Neural-network pilot | A defensible network setting | Done |
+| 13 | The big 5: five algorithms combined | Algorithm choice stops being a hidden assumption | Done |
+| 14 | Decisions document for the Steering Consortium | A meeting that decides rather than discusses | Done |
+| 15 | The big 5 with uncertainty | Intervals that include the choice of algorithm | Done |
+| 16 | Check for near-absent species in the regional maps (none found) | Stable regional maps | Done |
+| 17 | Backup of the results and the input data on the project storage (/data/birds) | A safe copy of the data | Done |
+| 18 | Final checks of every number | Confidence that the results are right | Done |
+| 19 | Predict only inside Germany by cutting every input to the study-area outline at the source, instead of using the bounding box of Germany | A cleaner pipeline in which nothing is computed outside Germany | Planned |
+| 20 | Check the intervals (a second interval for the grey partridge, a check of the block size of the bootstrap, replicates 26-100) | More reliable intervals | Planned |
+| 21 | Further sources of uncertainty (predictor error, tuning) and the floor and cap rule of the regional index | A more complete picture of uncertainty and stable regional maps | Planned |
+
+## What the results show so far
+
+Within Germany, the model-based combined index of the 11 species stands at 95.6 in 2025 (2005 = 100), a decline of about 4%, and nine of the 11 species are below their 2005 level in the main model; for eight of them the 90% interval of the replicates lies entirely below 100. The 90% interval from 50 model replicates runs from 94.0 to 98.2, so the decline is small but its direction does not depend on the training data. These are the results with one algorithm (BRT only).
+
+With the big 5, the combined index is lower: 93.3 in 2025 for the main model, with a 90% interval from 91.5 to 95.7 (25 replicates, mean 93.5). The two intervals overlap only between 94.0 and 95.7, so the big 5 shows a stronger decline than the single algorithm. The big 5 is also more accurate: its AUC is higher than that of the BRT in 31 of 33 combinations of species and scale (on average by 0.019).
+
+| Species | BRT only: main model | BRT only: 90% interval (50 replicates) | Big 5: main model | Big 5: 90% interval (25 replicates) |
+| --- | --- | --- | --- | --- |
+| Saxicola rubetra | 82.7 | 75.2 to 92.7 | 77.1 | 70.0 to 88.5 |
+| Vanellus vanellus | 90.8 | 90.2 to 95.6 | 92.6 | 90.2 to 95.5 |
+| Perdix perdix | 91.1 | 84.7 to 100.0 | 84.1 | 77.4 to 98.3 |
+| Alauda arvensis | 94.9 | 93.7 to 95.8 | 94.3 | 93.3 to 95.0 |
+| Anthus pratensis | 95.7 | 84.6 to 97.2 | 92.1 | 86.0 to 94.3 |
+| Lanius collurio | 97.3 | 96.0 to 99.5 | 95.5 | 89.8 to 97.7 |
+| Emberiza citrinella | 97.4 | 96.7 to 98.0 | 97.6 | 96.6 to 97.8 |
+| Buteo buteo | 97.7 | 97.5 to 98.7 | 97.8 | 97.3 to 98.3 |
+| Sturnus vulgaris | 98.8 | 98.3 to 99.2 | 98.9 | 98.7 to 99.2 |
+| Emberiza calandra | 102.6 | 97.2 to 118.8 | 96.8 | 91.7 to 97.8 |
+| Lullula arborea | 104.5 | 98.7 to 109.8 | 102.2 | 93.4 to 106.0 |
+| **Combined index** | **95.6** | **94.0 to 98.2** | **93.3** | **91.5 to 95.7** |
+
+The biggest differences between the two runs are Emberiza calandra (a slight increase with one algorithm, a decline with the big 5, whose interval does not contain 100), Perdix perdix and Lanius collurio. For Perdix perdix, 9 of the 50 replicates of the single-algorithm run have a constant map (index 100 in every year), because the model found no usable signal in those resamples, which is why the upper end of that interval is 100. We kept them and will report a second interval without them after the meeting; the same check is still to be done for the big 5.
+
+Two cautions go with every number. The maps for 2005-2021 are a hindcast, because the habitat model learns from 2022-2025 data only, so the series shows how the landscape changed under fixed habitat preferences, not how the birds changed. And the intervals describe model uncertainty from the training data, not the uncertainty of counts in the field.
+
+**What is available and what is still open.**
+
+| Result | Available | Still open |
+| --- | --- | --- |
+| Species and combined indices, both runs | Tables above | None |
+| Final checks of every number | Done: the species and combined indices of both runs were re-derived from the maps and from the replicates (52 comparisons, no difference), and the accuracy and weight tables were checked against the logs | None |
+| Big 5 accuracy and weights of the three scales | Done: handover document, sections 7.5 and 7.8 | Figure for the meeting |
+| Which files feed which output of the monitor | Handover document, section 7.9 |  |
+| Backup of the results and input data | Done: in /data/birds (inputs 124 GB, results 618 GB) | None |
+| Regional maps (10, 20, 50 km) | Baseline maps; intervals and cold and hot spot layers for both runs, consistent with the main model | Figures |
+| Species turnover (Bray-Curtis) | Baseline layer and interval layer for both runs | Figures |
+| Consistency check of the main model against its replicate 0 | Passed for all 11 species and all three grids, in both runs | None |
+| Did the big 5 need its fallback when a model could not be refitted? | No case in any species, scale or algorithm | None |
+| How much the trend size depends on the weighting rule | With the earlier block-fold rule the replicates gave 97.5 (90% interval 96.1 to 99.0); with the main model's rule 96.1 (94.0 to 98.2); the main model gives 95.6 | Reported as a sensitivity analysis; nothing more is planned |
+
+## How far the uncertainty reaches
+
+The intervals show how much each result would change if the models had been trained on different data, and they cover every product we deliver.
+
+- **Covered:** the sampling of the training data at all three scales, the weights that combine the scales, and everything derived from them: maps, change, trend, species and combined indices, regional indices, richness and turnover. With the big 5, the choice of algorithm is covered too.
+- **Not covered:** errors in the environmental layers, tuning of model settings, biases in how the birds were surveyed, the randomness of the thinning of the records, and whether habitat preferences were the same before 2022.
+- **How to read an interval:** it is a 90% range of the model result, not a range for what an observer would count in the field, and it is based on 25 to 50 replicates. It is an approximate interval: the weak points of the bootstrap and the plan to check them are in the improvements list.

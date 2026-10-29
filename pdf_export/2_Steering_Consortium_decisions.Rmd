@@ -1,0 +1,123 @@
+---
+title: "birdMonitor: decisions for the Steering Consortium"
+author: "Tatiane Micheletti"
+date: "13 October 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: readable
+---
+
+*Note of 29 October 2026: this document records the decisions asked on 13 October for the 11-species runs. The first version of the Monitor has 14 species (28 October) and is recomputed in a clean run; nothing below has been changed.*
+
+We have built the models and the first set of maps and indices for the 11 species. Before we decide what goes into the monitor, I need your decision on four points. Below them I explain, for information only, what we did with the algorithm ensemble and what exactly the uncertainty does and does not cover.
+
+## Overview
+
+| # | Decision | What we ask | Our proposal |
+| --- | --- | --- | --- |
+| 1 | Regional index: grid sizes, smoothing, border cells | Which grids do we show, and how do we draw the cells at the border? | Show 10, 20 and 50 km; smooth only the final map; clip the display to the outline and flag cells with less than half their area in Germany |
+| 2 | Community layers: richness, mean change, gains and losses, turnover | Do these layers go into the monitor? I added them myself, so nothing about them is agreed yet | Show expected richness and turnover with their intervals; gain and loss counts only as supporting material |
+| 3 | Combined indices | Which of the combined indices do we show, and do we merge them into one index of our own? | One index, the geometric mean of the species indices, under our own name, with the other versions in the supporting tables |
+| 4 | What goes into the monitor | For every output: do we show it, yes or no? | See the table in decision 4 |
+
+## 1. Regional index: grid sizes, smoothing and border cells
+
+As an example of how an index can be regionalised, we computed the combined index (the SBI of decision 3) separately for every cell of a 10, 20 and 50 km grid, instead of once for the whole country. The calculation is the same as for the country: per species and cell the index is 100 times the cell mean in year t divided by the cell mean in 2005, and the species are combined by the geometric mean. The maps are cut to the German outline, so border cells contain German pixels only.
+
+**Smoothing.** A Gaussian smoothing (standard deviation 1.5 cells) is applied only to the final map, never inside the replicates. The smoothed map is therefore a display of the best estimate and has no interval of its own. The raw map has an interval per cell and year, and for change and trend it has the share of replicates that decrease and that increase, which marks cold and hot spots.
+
+**What we ask.**
+
+- Do we show all three grid sizes, or only one?
+- Do we show the smoothed map, the raw map, or both?
+- How do we draw the cells at the border?
+
+| Border display option | Effect |
+| --- | --- |
+| Full squares, mean of the German pixels only | Current look; the squares extend beyond the border |
+| Clip the display to the outline at fine resolution | Same values, no pixels beyond the border |
+| Add a layer with the share of each cell inside Germany | Lets readers see which border cells rest on little area |
+
+**Our proposal.** Show all three grids, clip the display to the outline, add the coverage layer and flag cells with less than half of their area inside Germany.
+
+## 2. Community layers: richness, mean change, gains and losses, turnover
+
+I added these layers on my own, without asking the Consortium, so please treat all of them as open.
+
+| Layer | What it is | Uncertainty |
+| --- | --- | --- |
+| Expected richness | The sum of the probabilities of occurrence of all species in a pixel; it is not a count of species | Interval per pixel |
+| Mean change in probability | The mean over species of the change in probability between two years | Interval per pixel |
+| Gain and loss counts | The number of species that cross the presence threshold upwards or downwards | None (baseline only) |
+| Turnover (Bray-Curtis) | How much the expected community changes between two years, from 0 (unchanged) to 1 (no species in common) | Interval per pixel |
+
+**Why turnover.** Expected richness and the mean change cannot tell a swap of species from no change. Take a pixel with 5 species at probability 0.8 in 2005. If four of them are lost and four others gained by 2025, the richness is the same and the mean change is zero, because gains and losses cancel. The Bray-Curtis dissimilarity (the sum over species of the absolute change in probability, divided by the sum over species of the probabilities in both years) gives 0.8 for this swap and 0 for no change. Probabilities stand in for abundances, and the dissimilarity also rises when richness changes without a swap.
+
+**Two thresholds are judgement calls.** A change in probability of at least 0.05 counts as an increase or a decrease and anything below is "stable". The presence threshold behind the gains and losses is set per species from the out-of-fold evaluation.
+
+**What we ask.** Which of these layers go into the monitor, and are the thresholds acceptable?
+
+**Our proposal.** Show expected richness and turnover with their intervals; keep the mean change and the gain and loss counts as supporting material. Keep 0.05 and report a check with 0.02 and 0.10.
+
+## 3. Combined indices
+
+Each species index is model-based: 100 times the mean predicted probability of occurrence in Germany in year t, divided by the same value in the baseline year 2005. It is not a TRIM index, which models counts and cannot be applied to probabilities.
+
+We combine the 11 species indices in three ways. They are not three different indices: the SBI and the MSI have exactly the same best estimate, the geometric mean of the species indices, and differ only in how the interval is made. The Chain index is built from year-to-year ratios and gives the same values as the SBI as long as no species is missing in any year, which is the case here.
+
+| Combined index | How the best estimate is built | How the interval is made |
+| --- | --- | --- |
+| SBI | Geometric mean of the species indices | Percentiles over the bootstrap replicates, the same replicate for every species |
+| MSI | The same geometric mean | Monte Carlo: species indices are drawn from their standard errors (the spread across the replicates), combined, and the percentiles taken (Soldaat et al. 2017); the exclusions and the truncation of low values used by the DDA are not implemented |
+| Chain | Cumulated geometric mean of year-to-year ratios | Percentiles over the bootstrap replicates |
+
+I dropped the older PECBMS delta-method index (Gregory et al. 2005): it gave the same best estimate and an almost identical interval, so it added nothing.
+
+**What we ask.**
+
+- Do we show all three, or only one?
+- Do we merge them into one index of our own, the geometric mean of the species indices with the interval from the replicates, under a name of the monitor?
+- Do we also show it as a regional map (decision 1)? Only the SBI is computed regionally; the MSI and the Chain index are not.
+
+**Our proposal.** One index of our own, reported once, with the MSI and the Chain index in the supporting tables.
+
+## 4. What goes into the monitor
+
+This table lists every output we have. For each one, please say yes or no, and tell us if the way we propose to communicate it is not right.
+
+| Output | What it is | How to communicate it properly | Show it? (Yes / No) |
+| --- | --- | --- | --- |
+| Yearly probability map per species | The modelled probability of occurrence in every 200 m pixel for each year from 2005 to 2025 | A map of a model, not a count of birds. 2005-2021 is a hindcast, because the habitat model learns from 2022-2025 data only | |
+| Uncertainty layers of the probability map | 5th and 95th percentile and the width of the interval, per pixel | A 90% range of the model result when the training data change, not a range for what an observer would count | |
+| Change maps (2025 against 2005, 2020 and 2024) | Change in probability; increase, decrease or stable class; share of replicates that decrease and that increase | The shares are shares of replicates, not probabilities; "stable" means a change below 0.05 | |
+| Per-pixel trend per decade | Linear change in probability per decade, with the shares of replicates that decrease and increase | Over 2005-2025 the trend is driven by how the environmental layers changed (hindcast) | |
+| Gain and loss maps | Where a species crosses the presence threshold | Needs a presence threshold; no uncertainty | |
+| Species index for Germany | The ratio of mean probabilities, 2005 = 100, with an interval, for each species | Not comparable one-to-one with TRIM indices of counts; the years before 2022 are a hindcast | |
+| Combined index | See decision 3 | See decision 3 | |
+| Regional index maps (10, 20, 50 km) | The combined index per grid cell, raw and smoothed, with interval, change, trend, shares and coverage | See decision 1; the smoothed map has no interval | |
+| Expected richness | The sum of the probabilities of occurrence over species, with interval | Not a count of species | |
+| Mean change and turnover | See decision 2 | See decision 2 | |
+| Model accuracy per species and scale | Honest AUC from spatial block cross-validation; weights of the three scales | The three scales are tested on different records, so the AUCs of different scales are not comparable | |
+| Spread among the five algorithms | How much the five algorithms disagree in a pixel (big 5 only) | One measure of how much the choice of algorithm matters | |
+| Big 5 against single algorithm (BRT only) | The same results from both runs side by side | Shows what the ensemble adds | |
+
+## For information: the algorithm ensemble ("the big 5")
+
+For the final results we replaced the single boosted regression tree at each scale by five algorithms: BRT, GLM, GAM, random forest and a neural network. At each of the three scales the five predictions are averaged. A ridge model then combines the three scale averages into the probability of occurrence, with weights that are never negative. This follows the design of Wiedenroth et al. We went beyond it in four ways: the neural network is our addition; the ridge weights are trained and evaluated on predictions the models did not see (theirs use in-sample inputs); random forest runs with the ranger package instead of randomForest (much faster, same defaults); and the whole ensemble is refitted inside every bootstrap replicate, so the choice of algorithm enters the uncertainty. The settings of the neural network (3 hidden units, decay 0.1, up to 1000 iterations) come from a pilot on one species. The single-algorithm run stays as the comparison, so the added value of the ensemble can be shown. If you are not happy with this, tell us and we remove it.
+
+## For information: what the uncertainty covers and what it does not
+
+The intervals show how much a result would change if the models had been trained on different data. We get them by cutting the training data of each scale into spatial blocks, redrawing the blocks with replacement, refitting everything on each draw, and recomputing every product inside each replicate. The interval is the 5th to the 95th percentile across replicates. One replicate is the main model itself and is never part of an interval.
+
+| Covered | Not covered |
+| --- | --- |
+| Sampling of the training data at all three scales | Errors in the environmental layers (climate, land cover, elevation) |
+| The weights that combine the three scales, estimated again in each replicate | The tuning of the model settings (they are fixed from the main fit) |
+| The choice of algorithm (big 5 run only) | How the birds were surveyed, and dependence between records beyond what the blocks capture |
+| Everything derived from them: maps, change, trend, species and combined indices, regional index, richness, turnover | The randomness of the thinning of the records |
+| | Whether habitat preferences were the same before 2022 (the hindcast) |
+
+**How to read an interval.** It is a percentile interval of the fitted surface. It is not a prediction interval for observed occurrences and it is not an observed trend. The shares of replicates that decrease or increase are shares, not probabilities, and have no threshold. The 5th and 95th percentiles of 50 replicates each rest on two or three replicates and are noisy; the big 5 starts with 25 replicates, and more can be added without changing the earlier ones.

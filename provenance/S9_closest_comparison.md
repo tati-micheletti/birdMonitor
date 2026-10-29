@@ -1,6 +1,6 @@
 # Provenance of the figure "Our combined index and the observed trends of the same 11 species in Germany"
 
-Figure files (written by `tools/makeStCoFigures.R`, section S9): `S3_indices/S9_closest_comparison.png` (without the German indicator) and `S9_closest_comparison_german.png` (with it).
+Figure files (written by `tools/makeResultFigures.R`, section S9): `S3_indices/S9_closest_comparison.png` (without the German indicator) and `S9_closest_comparison_german.png` (with it).
 Plotted values: `tables/S9_closest_comparison_values.csv` (one row per year; every number on the figure is in it).
 Code version: git commit `64b22e5` (main) or later. The calculation is deterministic (the Monte Carlo uses `set.seed(42)`): the same inputs give the same numbers.
 Final version: to be built on EVE (needs the replicate area means there): `FIG_ARGS="--sections S9 --variants big5" sbatch --export=ALL cluster/eve_figures.sbatch`.
@@ -35,7 +35,7 @@ Conversion to csv: `tools/convertDdaTerritories.py` (cell for cell; nothing filt
 `dda_data.csv` sha256 `566e07d4cf5dbca37d63858fd2ed601dc34d72b8c991d6ed6356cdaf6fc1dc2b`, `dda_visits.csv` sha256 `3fee3f754e79b2563b121f1063380c6b0fbfe8457a5d382a46585fc7645f557a`.
 Checked 2026-10-16: the script reproduces both csv files byte for byte. On EVE the same csv files are used; compare their sha256 with the values above (`sha256sum`).
 
-Index calculation (S9 block of `tools/makeStCoFigures.R`), the rules of Kamp et al. 2021 (J Ornithol 162):
+Index calculation (S9 block of `tools/makeResultFigures.R`), the rules of Kamp et al. 2021 (J Ornithol 162):
 - only plots surveyed in at least two years (2,116 plots); the first survey year of each plot is dropped; reference year 2006;
 - a plot-and-year multiplicative model (expected value = plot effect x year effect, fitted by iterative scaling) on the territory counts (abundance) and on presence/absence (occupancy), per species; index = 100 x year effect / year effect of 2006;
 - the 11 species are combined by the geometric mean.
@@ -50,7 +50,7 @@ Inputs (on EVE, `outputs/<run>/`; the S9 block reads them through the variant `b
 - `annual_report_ens_brt-glm-gam-rf-nn_germany/species_index.csv`: species index of the **main model** (2005 = 100), Germany-only pixels. The values on the local copy: file date 2026-10-09 05:50, 4,109 bytes, sha256 `ed6424e037ac6403d0fa2b7f3ddf7900d1cdef4e52038244302fa2fcab8715ae`.
 - `uncertainty_ens_brt-glm-gam-rf-nn/<Species>/area_mean_replicates_germany.csv`: for every species, replicate (0 = main model, 1-25 = bootstrap replicates) and year, the mean predicted probability over German pixels. **To be filled from the EVE run:** sha256 of the 11 files and the number of replicates found (printed in the table column `replicatesForInterval`).
 
-Calculation (`tools/makeStCoFigures.R`, S9; `tools/msiMonteCarlo.R`):
+Calculation (`tools/makeResultFigures.R`, S9; `tools/msiMonteCarlo.R`):
 - main-model species index rebased to 2006: 100 x index(year) / index(2006), per species;
 - standard error of a species index = standard deviation across the replicates of 100 x area mean(year) / area mean(2006), computed replicate by replicate (so it is 0 in 2006);
 - estimate = geometric mean over the 11 species of the main-model indices;
