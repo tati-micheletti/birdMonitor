@@ -263,7 +263,7 @@ Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test4
 **A full run for a new run folder** (first version of the Monitor, a new study area, a new species
 set, changed layers): one command on an EVE login node. It chains the checks, the preparation, the
 BRT arrays at three scales, the ensemble, the reporting-area copies and the index, the uncertainty
-(25 replicates), the regional steps, the copy to `/data/birds` and the connector. About two days.
+(25 replicates), the regional steps, the copy to `/data/birds` and the connector. About 5 to 6 days (measured on the first run, see START_HERE.md).
 ```bash
 cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive
 DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh      # runs the checks, prints the chain, submits nothing

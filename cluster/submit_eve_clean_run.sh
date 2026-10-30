@@ -93,7 +93,7 @@ mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --array="1-${NSP}" --
 gi=$(BIRDMONITOR_INDEX_TAG="${TAG}_germany" sbatch --parsable --export=ALL --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_index.sbatch); echo "index on the reporting-area maps: ${gi}"
 
 echo; echo "=== 4. uncertainty: the ensemble inside the replicates (${REPS})"
-uout=$(ENS_MEMBERS="${MEM}" BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${meta}" UNC_PREP_TIME="${BIG5_PREP_TIME:-24:00:00}" bash cluster/submit_eve_ensemble_uncertainty.sh | tee /dev/stderr)
+uout=$(ENS_MEMBERS="${MEM}" BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${meta}" UNC_PREP_TIME="${BIG5_PREP_TIME:-48:00:00}" UNC_PREP_MEM="${BIG5_PREP_MEM:-16G}" bash cluster/submit_eve_ensemble_uncertainty.sh | tee /dev/stderr)
 band=$(echo "${uout}" | awk '/^band:/{print $2}'); fin=$(echo "${uout}" | awk '/^assembleall:/{print $2}')
 [ -n "${band}" ] && [ -n "${fin}" ] || { echo "ERROR: could not read the band / assembleall job ids of the uncertainty chain" >&2; exit 1; }
 rout=$(FORCE=1 BIRDMONITOR_UNC_MEMBERS="${MEM}" BIRDMONITOR_UNC_TAG="${TAG}" BIRDMONITOR_UNC_BANDS=48 BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${band}" UNC_FINAL="${fin}" UNC_THROTTLE=100 bash cluster/submit_eve_regional.sh | tee /dev/stderr)
@@ -106,6 +106,6 @@ cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid
 
 echo
 echo "================================================================================"
-echo "ALL QUEUED (run ${RUN}, ${NSP} species). Expect about 2 days. Read-only monitor:  cd ~/projects/birdMonitor && bash cluster/monitor_tonight.sh"
+echo "ALL QUEUED (run ${RUN}, ${NSP} species). Expect about 5-6 days from the start of prep (measured: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h; plus queue waits). Read-only monitor:  cd ~/projects/birdMonitor && bash cluster/monitor_tonight.sh"
 echo "WHEN THE CONNECTOR IS DONE:  cat /data/birds/viz/_missing.csv   (must be empty)   |   grep -H RESULT outputs/${RUN}/uncertainty*/*/parity_check.txt   (every species RESULT: OK)"
 echo "================================================================================"

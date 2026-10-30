@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.."
 export BIRDMONITOR_UNC_MEMBERS="${ENS_MEMBERS:-brt,glm,gam,rf}"
 export BIRDMONITOR_UNC_BANDS="${ENS_BANDS:-48}"
 export UNC_THROTTLE="${UNC_THROTTLE:-100}"
-export UNC_BAND_TIME="${UNC_BAND_TIME:-12:00:00}"
+export UNC_BAND_TIME="${UNC_BAND_TIME:-24:00:00}"   # 24 h, not 12 h: the heaviest ensemble band tasks took 12.4-13.7 h in the October run (12 h would kill them and stop the chain)
 unset BIRDMONITOR_UNC_TAG || true      # the tag defaults to the ensemble's name
 echo "Ensemble uncertainty run: members ${BIRDMONITOR_UNC_MEMBERS} | bands ${BIRDMONITOR_UNC_BANDS} | replicates ${BIRDMONITOR_UNC_REPS:-0:50}"
 bash cluster/submit_eve_uncertainty.sh

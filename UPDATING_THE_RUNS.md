@@ -8,7 +8,7 @@ One script chains everything (prep, BRT, ensemble, uncertainty, copy to `/data/b
 cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh
 ```
 `DRY_RUN=1` runs the checks (clean run folder, code state, records of every species at the three scales, study area) and prints the chain without submitting. When it is happy, the same command without `DRY_RUN=1 ` submits it
-(run folder `v2`, the second full run; another name with `BIRDMONITOR_RUNNAME`). Expect about two days. Cropping to the study area is done in place on `inputs/predictors/processed`: it is fine for the same or a smaller area; for a larger one the
+(run folder `v2`, the second full run; another name with `BIRDMONITOR_RUNNAME`). Expect about 5 to 6 days (measured on the first run, see START_HERE.md). Cropping to the study area is done in place on `inputs/predictors/processed`: it is fine for the same or a smaller area; for a larger one the
 script/preparation stops and the processed layers of that scale have to be re-made first.
 
 ## 1. Get the latest version (PC and EVE)

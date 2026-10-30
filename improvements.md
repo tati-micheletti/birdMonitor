@@ -898,6 +898,28 @@ the official MhB statistics, but in practice it is a PRESENCE (it cannot be used
   Then rerun the landscape occurrence tables of the affected species and everything downstream (landscape BRTs, meta-models, indices, uncertainty): only worth doing together with the next full recomputation.
 - **DONE 2026-10-21 (for the first clean run, version 1):** `occurrence = as.integer(Reviere > 0 | Reviere == -1)`, `Reviere` of those rows set to NA, `occurrenceCacheSchema` 3 -> 4 (all occurrence tables are rebuilt in the clean run). PreVal still excludes -1 rows from its count response.
 
+## 24. `thin()` is quadratic: a faster version that gives exactly the same points
+
+**Noted 2026-10-30 (project lead: yes, add it; do it once the Monitor is up and running, not during a run).** In the first clean run (v2) the habitat occurrence tables took hours: a species with about 5,000
+records (Alauda arvensis 2022) needed 55 minutes in `thin()` (`modules/dataPrep_Monitor/R/thin.R`), a species with a few hundred records 1 to 3 minutes. Habitat is thinned for every species and year (2022:2025),
+and the same function is used for the Europe (100 km) and landscape tables (`occurrencePrepEurope.R`, `occurrencePrepGerLandscape.R`, `occurrencePrepGerHabitat.R`).
+
+- **Why it is slow.** Each pass of the `while` loop removes ONE point and then rebuilds the neighbour lists of ALL points (`purrr::map(bi, setdiff, ...)` and `purrr::map_dbl(bi, length)`), five times (`runs = 5`). The cost is about
+  (points removed) x (points), so it grows with the square of the number of records.
+- **Same result, no change of method.** The algorithm does not have to change, only the bookkeeping. Keep `st_buffer` and `st_intersects` exactly as they are (this fixes the neighbour lists, including the point itself and the
+  small asymmetry of the buffer polygon), keep one integer vector `ni` (number of neighbours), and per removal do only this: take the candidates `which(ni == max(ni))` among the points still present (the same ascending order as the names
+  of the old list), draw with the SAME call, `sample(length(cand), 1)`, mark the point as removed (`ni[id] <- -1L`), and subtract 1 from the points whose list contained it. Those points come from a reverse index of the lists made once
+  (`split(rep.int(seq_len(n), lengths(nb)), unlist(nb))`), NOT from the assumption that neighbours are symmetric. The result of a run is the points still present, in ascending order, which is what `unique(unlist(bi))` gave (every remaining
+  list holds only the point itself). `set.seed(i)` per run, `seeds <- sample.int(runs)` and the final choice among the largest runs stay as they are, so the sequence of random draws is identical and the retained rows are identical.
+- **Expected gain:** each removal costs one vectorised pass over `ni` (microseconds) instead of thousands of small R calls; a run should take well under a second instead of minutes. To be measured, not assumed.
+- **How to prove it is the same (do this before using it):** a test (`modules/dataPrep_Monitor/tests/test_thin.R`) that keeps the old function as `thinOld` and checks `identical(thinOld(x, d, runs = 5), thinNew(x, d, runs = 5))` on many random point sets with fixed
+  seeds: clustered points on a 200 m grid (like the habitat data), points at distances just below and above the thinning distance (this is where an asymmetry of the buffer polygon would show), sets with no neighbours at all, and sets of 1 and 2 points.
+  Then once on the real table of one big species-year (Alauda arvensis 2022): thin with both versions and compare the retained rows.
+- **Pitfalls.** (1) Do not replace the `st_buffer`/`st_intersects` step by `st_is_within_distance`: the exact circle and the buffer polygon differ at the boundary, so the points would differ. (2) Do not change the order of the
+  random draws (for instance by sampling from a differently ordered vector). (3) `reproducible::Cache()` of the occurrence tables may or may not include the code of `thin()` in its key: check on one species before the full run; if the key changes, all tables are
+  rebuilt once (acceptable, but plan for it). (4) The repository checks that duplicated functions are identical across modules (`tools/check_duplicated_functions.R`); `thin.R` exists only in `dataPrep_Monitor`, so there is nothing to copy.
+- **Not done.** Nothing in `thin.R` was changed; the clean run v2 uses the old function, so its tables are the reference the new version has to reproduce.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
