@@ -3,10 +3,11 @@
 #
 #   0. checks on the login node (a clean run folder, a clean and pushed code state, every roster species has records at the three scales, the study area can be built)
 #   1. prep      dataPrep_Monitor + inputs_Monitor: layers cropped/masked to the study area, hedges and heterogeneity (v2), CORINE classes, occurrence tables, model_ready tables
-#   2. BRT       europe / habitat / landscape arrays, one task per species (the meta-model of the BRT runs inside the last scale task of a species)
-#   3. ensemble  GLM/GAM/RF/NN fits, ensemble means, honest meta-model, index (cluster/submit_eve_ensemble.sh), reporting-area copies of the maps and the index on them
-#   4. uncertainty  the ensemble inside 25 bootstrap replicates, regional index, intervals, reporting-area maps (cluster/submit_eve_big5_uncertainty.sh steps)
-#   5. copy to /data/birds, then the connector (modules/connector_Monitor) puts the newest result of every species into /data/birds/viz
+#   2. covcache  the 200 m habitat covariate stacks of every year, written once (cluster/eve_covcache.sbatch); the habitat array reads them
+#   3. BRT       europe / habitat / landscape arrays, one task per species (the meta-model of the BRT runs inside the last scale task of a species)
+#   4. ensemble  GLM/GAM/RF/NN fits, ensemble means, honest meta-model, index (cluster/submit_eve_ensemble.sh), reporting-area copies of the maps and the index on them
+#   5. uncertainty  the ensemble inside 25 bootstrap replicates, regional index, intervals, reporting-area maps (cluster/submit_eve_big5_uncertainty.sh steps)
+#   6. copy to /data/birds, then the connector (modules/connector_Monitor) puts the newest result of every species into /data/birds/viz
 #
 # The run folder is new ON PURPOSE: the file-based caches of a run (covariate stacks, ensemble model files, uncertainty folders, model_ready tables) live in outputs/<run>/,
 # so nothing of the old runs can be reused by mistake. The persistent Cache (cache/) is content-based and safe to share. The processed layers in inputs/ are brought to the
@@ -16,6 +17,7 @@
 #   cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh     # checks + prints the chain, submits nothing
 #   cd ~/projects/birdMonitor && bash --login cluster/submit_eve_clean_run.sh                                                                          # the real thing
 # Environment: BIRDMONITOR_RUNNAME (default v2), RESUME=1 (the run folder may exist: only what is missing is recomputed), BIG5_REPS (default 0:25), FORCE=1 (skip the queue check).
+# To continue a run whose prep (and perhaps two of the BRT arrays) already finished: SKIP_PREP=1 [BRT_SCALES=habitat] RESUME=1 (prep is not sent again; BRT_SCALES lists the arrays to send, default all three).
 # BIRDMONITOR_SPECIES and BIRDMONITOR_YEARS must NOT be set (debug switches: the steps that combine species would see only a subset).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -75,24 +77,33 @@ else
 fi
 
 echo; echo "=== 1. prep"
-prep=$(sbatch --parsable --export=ALL cluster/eve_prep.sbatch); echo "prep: ${prep}"
+if [ "${SKIP_PREP:-0}" = "1" ]; then prep=""; echo "prep: skipped (SKIP_PREP=1: it finished earlier in this run folder)"
+else prep=$(sbatch --parsable --export=ALL cluster/eve_prep.sbatch); echo "prep: ${prep}"; fi
 
-echo; echo "=== 2. BRT at the three scales (${NSP} species each)"
+# The habitat array READS the 200 m covariate stacks of every year from outputs/<run>/uncertainty/covcache (written once by this job). Without them each task builds the stacks in memory
+# and is killed at 12 GB (all 14 habitat tasks of the first v2 chain, 31 Oct 2026). So the habitat array waits for this job.
+echo; echo "=== 2. habitat covariate stacks (once; the habitat array waits for it)"
+PREPDEP=(); if [ -n "${prep}" ]; then PREPDEP=(--dependency=afterok:"${prep}" --kill-on-invalid-dep=yes); fi
+cc=$(sbatch --parsable --export=ALL "${PREPDEP[@]+"${PREPDEP[@]}"}" cluster/eve_covcache.sbatch); echo "covcache: ${cc}"
+
+echo; echo "=== 3. BRT at the scales ${BRT_SCALES:-europe habitat landscape} (${NSP} species each)"
 ids=()
-for scale in europe habitat landscape; do
-  id=$(sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:"${prep}" --kill-on-invalid-dep=yes modules/models_Monitor/cluster/eve_array_${scale}.sbatch)
+for scale in ${BRT_SCALES:-europe habitat landscape}; do        # BRT_SCALES=habitat re-sends only the habitat array when the other two have finished
+  dep="${prep}"; if [ "${scale}" = "habitat" ]; then dep="${dep:+${dep}:}${cc}"; fi
+  DEPARG=(); if [ -n "${dep}" ]; then DEPARG=(--dependency=afterok:"${dep}" --kill-on-invalid-dep=yes); fi
+  id=$(sbatch --parsable --export=ALL --array="1-${NSP}" "${DEPARG[@]+"${DEPARG[@]}"}" modules/models_Monitor/cluster/eve_array_${scale}.sbatch)
   echo "BRT ${scale}: ${id}"; ids+=("${id}")
 done
 brt=$(IFS=:; echo "${ids[*]}")
 
-echo; echo "=== 3. ensemble: fits -> ensemble means -> honest meta-model -> index"
+echo; echo "=== 4. ensemble: fits -> ensemble means -> honest meta-model -> index"
 out=$(ENS_AFTER="${brt}" ENS_ALGOS="glm gam rf nn" ENS_VARIANTS="${MEM}" ENS_THROTTLE=15 bash cluster/submit_eve_ensemble.sh | tee /dev/stderr)
 meta=$(echo "${out}" | awk '/^meta /{print $NF}')
 [ -n "${meta}" ] || { echo "ERROR: could not read the meta-model job id of the ensemble" >&2; exit 1; }
 mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_mask_meta.sbatch); echo "reporting-area copies of the maps: ${mk}"
 gi=$(BIRDMONITOR_INDEX_TAG="${TAG}_germany" sbatch --parsable --export=ALL --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_index.sbatch); echo "index on the reporting-area maps: ${gi}"
 
-echo; echo "=== 4. uncertainty: the ensemble inside the replicates (${REPS})"
+echo; echo "=== 5. uncertainty: the ensemble inside the replicates (${REPS})"
 uout=$(ENS_MEMBERS="${MEM}" BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${meta}" UNC_PREP_TIME="${BIG5_PREP_TIME:-48:00:00}" UNC_PREP_MEM="${BIG5_PREP_MEM:-16G}" bash cluster/submit_eve_ensemble_uncertainty.sh | tee /dev/stderr)
 band=$(echo "${uout}" | awk '/^band:/{print $2}'); fin=$(echo "${uout}" | awk '/^assembleall:/{print $2}')
 [ -n "${band}" ] && [ -n "${fin}" ] || { echo "ERROR: could not read the band / assembleall job ids of the uncertainty chain" >&2; exit 1; }
@@ -100,7 +111,7 @@ rout=$(FORCE=1 BIRDMONITOR_UNC_MEMBERS="${MEM}" BIRDMONITOR_UNC_TAG="${TAG}" BIR
 mm=$(echo "${rout}" | awk '/^maskmaps:/{print $2}'); ri=$(echo "${rout}" | awk '/^regionindex:/{print $2}')
 [ -n "${mm}" ] && [ -n "${ri}" ] || { echo "ERROR: could not read the maskmaps / regionindex job ids" >&2; exit 1; }
 
-echo; echo "=== 5. /data/birds and /data/birds/viz"
+echo; echo "=== 6. /data/birds and /data/birds/viz"
 cp=$(COPY_INPUTS=0 sbatch --parsable --export=ALL --dependency=afterok:${mm}:${gi}:${ri} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy to /data/birds: ${cp}"
 cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid-dep=yes cluster/eve_connector.sbatch); echo "connector: ${cn}"
 
