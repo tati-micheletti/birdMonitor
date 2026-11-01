@@ -26,7 +26,7 @@ repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
-source("modules/models_Monitor/R/uncRegional.R")                       # uncOutlineLAEA(): the German outline without any GDAL/PROJ axis problem
+source("modules/models_Monitor/R/uncRegional.R"); for (f in c("laeaAlias.R", "studyArea.R")) source(file.path("modules/models_Monitor/R", f))                       # uncOutlineLAEA(): the German outline without any GDAL/PROJ axis problem
 speciesCanonical <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FALSE)
 speciesCanonical <- speciesCanonical[nzchar(trimws(speciesCanonical$include)), ]
 allSpecies <- speciesCanonical$latin_name

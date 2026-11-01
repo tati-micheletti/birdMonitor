@@ -10,7 +10,7 @@ repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
-source("modules/models_Monitor/R/uncRegional.R")                           # uncOutlineLAEA()
+source("modules/models_Monitor/R/uncRegional.R"); for (f in c("laeaAlias.R", "studyArea.R")) source(file.path("modules/models_Monitor/R", f))                           # uncOutlineLAEA()
 scale <- getArg("--scale", "scale_02"); root <- getArg("--root", file.path("inputs", "predictors", "processed")); dir <- file.path(root, scale)
 out <- getArg("--out", file.path("outputs", paste0("covariate_na_", scale, ".csv")))
 fs <- list.files(dir, pattern = "[.]tif$"); fs <- fs[!grepl("^(elevation|slope|solar)", fs) | TRUE]

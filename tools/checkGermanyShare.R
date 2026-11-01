@@ -7,7 +7,7 @@ runName <- if (length(args) >= 1) args[1] else "test4"; yr <- if (length(args) >
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
-source("modules/models_Monitor/R/uncRegional.R")          # uncOutlineLAEA(): the outline without a GDAL/PROJ transformation
+source("modules/models_Monitor/R/uncRegional.R"); for (f in c("laeaAlias.R", "studyArea.R")) source(file.path("modules/models_Monitor/R", f))          # uncOutlineLAEA(): the outline without a GDAL/PROJ transformation
 fs <- Sys.glob(file.path("outputs", runName, "metamodel_*", sprintf("*_meta_suitability_%d.tif", yr)))
 fs <- fs[!grepl("_ens_", fs)]
 if (!length(fs)) stop("No meta_suitability files for year ", yr, " under outputs/", runName)

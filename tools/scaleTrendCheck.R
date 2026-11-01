@@ -11,7 +11,7 @@ repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
-source("modules/models_Monitor/R/uncRegional.R")                         # uncOutlineLAEA()
+source("modules/models_Monitor/R/uncRegional.R"); for (f in c("laeaAlias.R", "studyArea.R")) source(file.path("modules/models_Monitor/R", f))                         # uncOutlineLAEA()
 canon <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FALSE); canon <- canon[nzchar(trimws(canon$include)), ]
 sp <- getArg("--species"); if (is.null(sp)) { i <- as.integer(getArg("--index", Sys.getenv("SLURM_ARRAY_TASK_ID", NA))); if (is.na(i) || i < 1 || i > nrow(canon)) stop("--index must be 1..", nrow(canon)); sp <- canon$latin_name[i] }
 run <- getArg("--run", Sys.getenv("BIRDMONITOR_RUNNAME", "test4")); ensTag <- getArg("--ens-tag", "ens_brt-glm-gam-rf-nn"); variants <- strsplit(getArg("--variants", "big5"), ",")[[1]]

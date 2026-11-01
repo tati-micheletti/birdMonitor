@@ -17,7 +17,7 @@ repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
-source("modules/models_Monitor/R/uncRegional.R")
+source("modules/models_Monitor/R/uncRegional.R"); for (f in c("laeaAlias.R", "studyArea.R")) source(file.path("modules/models_Monitor/R", f))
 source("tools/sharedConfig.R"); source("tools/sharedSpeciesConfig.R")
 runName <- Sys.getenv("BIRDMONITOR_RUNNAME", "test4")
 sp <- getArg("--species")
