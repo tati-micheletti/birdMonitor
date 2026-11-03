@@ -8,6 +8,8 @@
 #   4. ensemble  GLM/GAM/RF/NN fits, ensemble means, honest meta-model, index (cluster/submit_eve_ensemble.sh), reporting-area copies of the maps and the index on them
 #   5. uncertainty  the ensemble inside 25 bootstrap replicates, regional index, intervals, reporting-area maps (cluster/submit_eve_big5_uncertainty.sh steps)
 #   6. copy to /data/birds, then the connector (modules/connector_Monitor) puts the newest result of every species into /data/birds/viz
+#   7. post-run (cluster/eve_postrun.sbatch): the end-of-run checks (cluster/post_run_checks.sh); if they pass, all figures and package A of cluster/pack_downloads.sh;
+#      an e-mail with the verdict to NOTIFY_EMAIL (comma-separated addresses; cluster/notify.sh)
 #
 # The run folder is new ON PURPOSE: the file-based caches of a run (covariate stacks, ensemble model files, uncertainty folders, model_ready tables) live in outputs/<run>/,
 # so nothing of the old runs can be reused by mistake. The persistent Cache (cache/) is content-based and safe to share. The processed layers in inputs/ are brought to the
@@ -76,6 +78,7 @@ else
   { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "EBBA2 file: inputs/${EBBA2} ${EBBA2SUM}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
 fi
 
+SINCE=$(date +%FT%T)                                  # for the failure watcher (step 7): jobs of this chain are submitted from now on
 echo; echo "=== 1. prep"
 if [ "${SKIP_PREP:-0}" = "1" ]; then prep=""; echo "prep: skipped (SKIP_PREP=1: it finished earlier in this run folder)"
 else prep=$(sbatch --parsable --export=ALL cluster/eve_prep.sbatch); echo "prep: ${prep}"; fi
@@ -115,8 +118,16 @@ echo; echo "=== 6. /data/birds and /data/birds/viz"
 cp=$(COPY_INPUTS=0 sbatch --parsable --export=ALL --dependency=afterok:${mm}:${gi}:${ri} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy to /data/birds: ${cp}"
 cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid-dep=yes cluster/eve_connector.sbatch); echo "connector: ${cn}"
 
+echo; echo "=== 7. post-run: checks, then (if they pass) figures + zip, then an e-mail"
+[ -n "${NOTIFY_EMAIL:-}" ] || echo "NOTE: NOTIFY_EMAIL is not set: the post-run job will run but no e-mail is sent (NOTIFY_EMAIL=\"a@ufz.de,b@ufz.de\" bash --login cluster/submit_eve_clean_run.sh)."
+pr=$(sbatch --parsable --export=ALL --dependency=afterok:${cn} --kill-on-invalid-dep=yes cluster/eve_postrun.sbatch); echo "post-run: ${pr}"
+# Failure watcher: one digest e-mail within the hour (WATCH_EVERY, seconds) of new failures anywhere in the chain (UFZ forbids Slurm's per-array-task mails; cluster/eve_chain_watch.sbatch).
+if [ -n "${NOTIFY_EMAIL:-}" ]; then
+  wd=$(WATCH_FIRST_JOB="${prep:-${cc}}" WATCH_UNTIL_JOB="${pr}" WATCH_SINCE="${SINCE}" sbatch --parsable --export=ALL cluster/eve_chain_watch.sbatch); echo "failure watcher: ${wd} (e-mail to ${NOTIFY_EMAIL})"
+fi
+
 echo
 echo "================================================================================"
 echo "ALL QUEUED (run ${RUN}, ${NSP} species). Expect about 5-6 days from the start of prep (measured: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h; plus queue waits). Read-only monitor:  cd ~/projects/birdMonitor && bash cluster/monitor_tonight.sh"
-echo "WHEN THE CONNECTOR IS DONE:  cat /data/birds/viz/_missing.csv   (must be empty)   |   grep -H RESULT outputs/${RUN}/uncertainty*/*/parity_check.txt   (every species RESULT: OK)"
+echo "WHEN THE POST-RUN JOB (${pr}) IS DONE:  cat outputs/${RUN}/POSTRUN_SUMMARY.txt   (the same text as the e-mail; by hand: bash cluster/post_run_checks.sh)"
 echo "================================================================================"
