@@ -767,7 +767,7 @@ if ("S9" %in% sections) {
     routesCsv <- getArg("--routes-csv", file.path(root, "diagnostics", "model_at_routes.csv")); atRoutes <- file.exists(routesCsv)
     if (atRoutes) {
       mr <- fread(routesCsv); mr[, ROUTENCODE := tolower(ROUTENCODE)]; say("S9: model at the survey routes read from ", routesCsv, " (", nrow(mr), " rows)")
-      for (col in c("meta", "landscape")) { ser[[paste0(col, "AtRoutes")]] <- NA_real_
+      for (col in c("meta", "landscape", "habitat", "climate")) { ser[[paste0(col, "AtRoutes")]] <- NA_real_
         for (sp in allSpecies) {
           d <- mr[species == sp & year %in% yrsObs & ROUTENCODE %in% plots]
           Mm <- matrix(NA_real_, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mm[cbind(match(d$ROUTENCODE, plots), match(d$year, yrsObs))] <- d[[col]]
@@ -787,16 +787,15 @@ if ("S9" %in% sections) {
     gerFile <- file.path("data", "reference", "uba_agrarland_subindex_Germany.csv"); gerCol <- "#6a3d9a"
     col3 <- c(abundance = "black", occupancy = "#2d8a4e", modelled = varCol[[vsK]])
     figure("S3_indices", "S9_observed_vs_modelled_combined", sprintf("Observed abundance and occupancy (DDA territory data) against our modelled index, %d-%d", min(yrsObs), last),
-           sprintf(paste0("From the DDA territory data (%s plots): the same plot-based model (plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our ", NSP, " species. Right: the 7 of them that are in the German farmland indicator, with that indicator. All set to 100 in %d."), format(length(plots), big.mark = ","), obsBase),
+           sprintf(paste0("From the DDA territory data (%s plots): the same plot-based model (plot and year effects) applied to the number of territories (abundance) and to presence/absence (occupancy), against the modelled combined index. Left: our ", NSP, " species. Right: the 7 of them that are in the German farmland indicator. All set to 100 in %d."), format(length(plots), big.mark = ","), obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 6.6, draw = function() {
       par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.4, 0))
       for (pn in 1:2) { cb <- if (pn == 1) c11 else c7; yl <- c(40, max(110, max(cb[, c("abundance", "occupancy", "modelled")], na.rm = TRUE) + 3))
         plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), main = if (pn == 1) paste0("", NSP, " species") else "7 species of the German indicator", bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
         for (n in names(col3)) lines(cb$year, cb[[n]], lwd = 3, col = col3[[n]])
-        if (pn == 2 && file.exists(gerFile)) { g <- read.csv(gerFile); g <- g[g$year >= obsBase & g$year <= last, ]; lines(g$year, 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == obsBase], lwd = 2.5, col = gerCol, lty = 2) }
-        legend("bottomleft", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index", if (pn == 2) "German indicator Agrarland (UBA/BfN)"), col = c(col3, if (pn == 2) gerCol), lwd = c(3, 3, 3, if (pn == 2) 2.5), lty = c(1, 1, 1, if (pn == 2) 2), bty = "n", cex = 0.9) }
+        legend("bottomleft", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index"), col = col3, lwd = 3, bty = "n", cex = 0.9) }
       bigTitle("Observed and modelled trends")
-      mtext(sprintf("DDA territory data: plots surveyed in at least two years, first year of each plot dropped, reference year %d (as Kamp et al. 2021); plain log-linear model with plot and year effects, no observer correction.\nOur index: main model, probability of occurrence; its landscape scale is fitted on part of these data. The German indicator is percent of a target value divided by its %d value.", obsBase, obsBase), outer = TRUE, side = 1, line = 2.2, cex = 0.8, col = "grey30") })
+      mtext(sprintf("DDA territory data: plots surveyed in at least two years, first year of each plot dropped, reference year %d (as Kamp et al. 2021); plain log-linear model with plot and year effects, no observer correction.\nOur index: main model, probability of occurrence; its landscape scale is fitted on part of these data.", obsBase), outer = TRUE, side = 1, line = 2.2, cex = 0.8, col = "grey30") })
     # the closest like-for-like comparison: same 11 species, same country, same years, same metric (occurrence) and, for reference, abundance; our MSI with its 90% interval
     # Our MSI the PECBMS way: estimate = geometric mean of the species indices of the MAIN model (species_index.csv); band = Monte Carlo (tools/msiMonteCarlo.R) with the standard deviation of each
     # species index across the bootstrap replicates as its standard error. Everything on the reference year of the observed series (here 2006), computed replicate by replicate, so the band is 0 in that year.
@@ -827,27 +826,8 @@ if ("S9" %in% sections) {
              col = c(varCol[[vsK]], adjustcolor(varCol[[vsK]], 0.25), "#2d8a4e", "black", if (gerOk) gerCol), lwd = c(3.5, 8, 3, 3, if (gerOk) 3), lty = c(1, 1, 1, 2, if (gerOk) 4), bty = "n", cex = 0.9)
       mtext(sprintf(paste0("Observed series: DDA territory data, plots surveyed in at least two years, first year of each plot dropped, reference year %d (rules of Kamp et al. 2021);\nplain log-linear model with plot and year effects, no observer correction. Observed and modelled series are geometric means over the ", NSP, " species.\nOur MSI: main model of the ensemble (probability of occurrence, Germany); each species index has the standard deviation across %d bootstrap replicates as its standard error.\n%sOur landscape scale is fitted on part of these data, so this is not an independent test."), obsBase, nRepMSI, if (gerOk) "The German indicator (UBA/BfN, DDA data) is percent of a target value divided by its reference-year value; its species are not the same as ours.\n" else ""), outer = TRUE, side = 1, line = if (gerOk) 3.6 else 2.4, cex = 0.8, col = "grey30") })
     }
-    figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
-           sprintf(paste0("The same three series for each of the ", NSP, " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in %d."), obsBase),
-           paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
-      par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
-      for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
-        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
-        for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]]) }
-      plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index"), col = col3, lwd = 3, bty = "n", cex = 1.05)
-      bigTitle("Observed and modelled index, per species") })
     if (atRoutes) {
       colR <- "#1f78b4"
-      figure("S3_indices", "S9_observed_vs_modelled_species_atroutes", sprintf("Observed abundance and occupancy against our modelled index, per species, with our model read only at the survey routes, %d-%d", min(yrsObs), last),
-             sprintf(paste0("The three series of the figure before for each of the ", NSP, " species, plus one line: our final ensemble map read only at the survey routes and run through the same plot-and-year model as the observed series (so the same plots and years are used). If this line follows the observed ones, the comparison with all of Germany was the problem; if it does not, the model is. All set to 100 in %d."), obsBase),
-             paste(routesCsv, vf, df, sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
-        par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
-        for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, d$metaAtRoutes, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
-          plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
-          for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]])
-          lines(d$year, d$metaAtRoutes, lwd = 2.8, col = colR) }
-        plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index, all of Germany", "our model at the survey routes only"), col = c(col3, colR), lwd = 3, bty = "n", cex = 1.05)
-        bigTitle("Observed and modelled index, per species, model at the survey routes") })
       sl <- function(v, yr) { ok <- is.finite(v) & v > 0; round(unname(coef(lm(log(v[ok] / 100) ~ yr[ok]))[2]) * 100, 2) }
       agree <- do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp, ]; h <- d$year <= 2021
         data.frame(species = sp, english = english[[sp]], obsAbundancePctPerYr = sl(d$abundance, d$year), obsOccupancyPctPerYr = sl(d$occupancy, d$year), modelGermanyPctPerYr = sl(d$modelled, d$year),
@@ -855,7 +835,34 @@ if ("S9" %in% sections) {
                    rOccupancyModelGermany = round(cor(d$occupancy, d$modelled, use = "complete"), 2), rOccupancyModelAtRoutes = round(cor(d$occupancy, d$metaAtRoutes, use = "complete"), 2),
                    rOccupancyLandscapeAtRoutes = round(cor(d$occupancy, d$landscapeAtRoutes, use = "complete"), 2),
                    rOccupancyModelAtRoutes_to2021 = round(cor(d$occupancy[h], d$metaAtRoutes[h], use = "complete"), 2), rOccupancyModelAtRoutes_from2022 = round(cor(d$occupancy[!h], d$metaAtRoutes[!h], use = "complete"), 2)) }))
-      tableOut(agree, "S9_agreement_at_routes"); tableOut(ser[, intersect(names(ser), c("species", "english", "year", "abundance", "occupancy", "modelled", "metaAtRoutes", "landscapeAtRoutes", "plotsSurveyed"))], "S9_observed_vs_modelled_series_atroutes")
+      for (sc in c("climate", "habitat")) { agree[[paste0(sc, "AtRoutesPctPerYr")]] <- sapply(allSpecies, function(sp) { d <- ser[ser$species == sp, ]; sl(d[[paste0(sc, "AtRoutes")]], d$year) })
+        agree[[paste0("rOccupancy", toupper(substr(sc, 1, 1)), substr(sc, 2, 99), "AtRoutes")]] <- sapply(allSpecies, function(sp) { d <- ser[ser$species == sp, ]; round(cor(d$occupancy, d[[paste0(sc, "AtRoutes")]], use = "complete"), 2) }) }
+      tableOut(agree, "S9_agreement_at_routes"); tableOut(ser[, intersect(names(ser), c("species", "english", "year", "abundance", "occupancy", "modelled", "metaAtRoutes", "landscapeAtRoutes", "habitatAtRoutes", "climateAtRoutes", "plotsSurveyed"))], "S9_observed_vs_modelled_series_atroutes")
+      # the same, one line per part of the model (climate, landscape, habitat scale and the final map), each labelled with the data it was trained on
+      cfgG <- tryCatch(read.csv(file.path("data", "speciesConfig_general.csv"), stringsAsFactors = FALSE), error = function(e) NULL)
+      lsInfo <- function(sp) { r <- if (is.null(cfgG)) NULL else cfgG[cfgG$species == sp & cfgG$scale == "landscape", ]; if (is.null(r) || !nrow(r)) return(list(txt = "", dda = TRUE))
+        res <- r$resolution_m[1]; rs <- if (res >= 1000) sprintf("%g km", res / 1000) else sprintf("%g m", res); dda <- grepl("DDA", r$data_source[1])
+        list(txt = if (dda) sprintf("landscape (%s): trained on these DDA data", rs) else sprintf("landscape (%s): trained on point counts, NOT these data", rs), dda = dda) }
+      cScale <- c(climate = "#9e9e9e", landscape = "#ff7f00", habitat = "#a65628", meta = colR)
+      figure("S3_indices", "S9_observed_vs_modelled_species_scales", sprintf("Observed abundance and occupancy against each part of our model, per species, read at the survey routes, %d-%d", min(yrsObs), last),
+             sprintf(paste0("For each of the ", NSP, " species: the observed series (DDA territories) and, read at the same survey routes and years and run through the same plot-and-year model, the climate scale (50 km), the landscape scale (1 km), the habitat scale (200 m) and the final map that combines them. The line under each title says which data the landscape scale was trained on. All set to 100 in %d."), obsBase),
+             paste(routesCsv, vf, df, "data/speciesConfig_general.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)) + 1, draw = function() {
+        par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 3.6, 0.6), oma = c(4.6, 0, 3, 0), mgp = c(2.2, 0.7, 0))
+        for (sp in allSpecies) { d <- ser[ser$species == sp, ]; li <- lsInfo(sp)
+          yl <- range(c(d$abundance, d$occupancy, d$climateAtRoutes, d$landscapeAtRoutes, d$habitatAtRoutes, d$metaAtRoutes, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
+          plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = "", bty = "l", las = 1)
+          rect(2021.5, yl[1] - diff(yl), par("usr")[2] + 1, yl[2] + diff(yl), col = adjustcolor("grey70", 0.3), border = NA); abline(h = 100, lty = 3, col = "grey40")
+          for (n in c("climate", "habitat", "landscape")) lines(d$year, d[[paste0(n, "AtRoutes")]], lwd = 2.2, col = cScale[[n]])
+          lines(d$year, d$metaAtRoutes, lwd = 3, col = cScale[["meta"]])
+          lines(d$year, d$abundance, lwd = 2.6, col = "black"); lines(d$year, d$occupancy, lwd = 2.6, col = "#2d8a4e", lty = 2)
+          title(main = english[[sp]], line = 1.7, cex.main = 1.1); mtext(li$txt, side = 3, line = 0.4, cex = 0.62, col = if (li$dda) "grey30" else "#b2182b") }
+        plot.new(); legend("center", c("Observed abundance (DDA territories)", "Observed occupancy (DDA, presence)", "Climate scale, 50 km (EBBA2 atlas)", "Landscape scale, 1 km (DDA territories*)", "Habitat scale, 200 m (point counts 2022-25)", "Final map (combines the three scales)"),
+               col = c("black", "#2d8a4e", cScale[c("climate", "landscape", "habitat", "meta")]), lwd = c(2.6, 2.6, 2.2, 2.2, 2.2, 3), lty = c(1, 2, 1, 1, 1, 1), bty = "n", cex = 0.78, y.intersp = 1.35)
+        bigTitle("Observed trends against each part of our model, read at the survey routes")
+        mtext(paste0("Observed: DDA territory data, plots surveyed in at least two years, first year of each plot dropped, plain log-linear model with plot and year effects. Model lines: each scale's ensemble map read at the same routes and years and run through the same estimator.\n",
+                     "Grey band, 2022-2025: the only years with point-count data (habitat scale; landscape scale of the species marked in red). Before 2022 the habitat scale is a hindcast on older land-use maps.\nThe climate scale is trained on the EBBA2 atlas (2013-2017) and varies only through the yearly climate.\n",
+                     "* Where the landscape scale was trained on these DDA territory data (grey subtitle) its line is in-sample, so it should follow the observed series; the red subtitle marks species whose landscape scale was trained on other data."),
+              outer = TRUE, side = 1, line = 3.2, cex = 0.72, col = "grey30") })
     }
   }
 }

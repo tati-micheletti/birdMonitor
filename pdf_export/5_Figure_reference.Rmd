@@ -175,8 +175,8 @@ browse("First version of the richness map (mean and width of the interval)", "S2
 A check against data, not a model result. The DDA territory data (2005 to 2024) give the number of territories of each species on each surveyed plot. I applied the rules of Kamp et al. (2021) as far as the file allows: only plots surveyed in at least two years, the first year of each plot dropped, and 2006 as the reference year (set to 100); there is no observer correction, because the file has no observer id, and the model is a plain log-linear model with plot and year effects, not TRIM. I used the same model on the number of territories (abundance) and on presence/absence (occupancy), so that the two differ only by the data. The landscape scale of our model is fitted on part of these data. The results depend on the reference year and on the plot selection, so compare the changes over the same period (2006 to 2018 is the period Kamp et al. report) and not single values.
 
 ```{r s37, results='asis'}
-figs(c("S9_observed_vs_modelled_combined", "S9_observed_vs_modelled_species"), what = TRUE)
-if (file.exists(file.path(figDir, "S3_indices", "S9_observed_vs_modelled_species_atroutes.png"))) figs("S9_observed_vs_modelled_species_atroutes", what = TRUE)
+figs("S9_observed_vs_modelled_combined", what = TRUE)
+if (file.exists(file.path(figDir, "S3_indices", "S9_observed_vs_modelled_species_scales.png"))) figs("S9_observed_vs_modelled_species_scales", what = TRUE)
 ```
 
 Kamp, J., Frank, C., Trautmann, S., Busch, M., Dröschmeister, R., Flade, M., Gerlach, B., Karthäuser, J., Kunz, F., Mitschke, A., Schwarz, J., Sudfeldt, C. (2021). Population trends of common breeding birds in Germany 1990–2018. *Journal of Ornithology* 162: 1–15. https://doi.org/10.1007/s10336-020-01830-4. Their farmland birds (19 species) fall by 32.4% from 1990 to 2018 and by 17.1% from 2006 to 2018 (Table 1).
@@ -281,7 +281,7 @@ knitr::kable(data.frame(Species = en[tt$species], `Mann-Kendall p < 0.05 (%)` = 
 In the paths below, `<ensemble>` is the suffix of the folders and files of the model ensemble.
 
 ```{r sources}
-man <- man[!grepl("coldhot|_(20|50)km_", man$id), ]; d <- man[, c("id", "title", "source")]; d$id <- gsub("_big5", "", d$id, fixed = TRUE); d$source <- paste0("`", gsub("ens_brt-glm-gam-rf-nn", "<ensemble>", gsub("_big5", "_<ensemble>", d$source, fixed = TRUE), fixed = TRUE), "`")
+man <- man[!grepl("coldhot|_(20|50)km_|^S9_observed_vs_modelled_species(_atroutes)?$", man$id), ]; d <- man[, c("id", "title", "source")]; d$id <- gsub("_big5", "", d$id, fixed = TRUE); d$source <- paste0("`", gsub("ens_brt-glm-gam-rf-nn", "<ensemble>", gsub("_big5", "_<ensemble>", d$source, fixed = TRUE), fixed = TRUE), "`")
 knitr::kable(d, row.names = FALSE)
 ```
 
