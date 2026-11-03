@@ -5,7 +5,8 @@
 #   1. prep      dataPrep_Monitor + inputs_Monitor: layers cropped/masked to the study area, hedges and heterogeneity (v2), CORINE classes, occurrence tables, model_ready tables
 #   2. covcache  the 200 m habitat covariate stacks of every year, written once (cluster/eve_covcache.sbatch); the habitat array reads them
 #   3. BRT       europe / habitat / landscape arrays, one task per species (the meta-model of the BRT runs inside the last scale task of a species)
-#   4. ensemble  GLM/GAM/RF/NN fits, ensemble means, honest meta-model, index (cluster/submit_eve_ensemble.sh), reporting-area copies of the maps and the index on them
+#   4. ensemble  GLM/GAM/RF/NN fits, ensemble means, honest meta-model, index (cluster/submit_eve_ensemble.sh), reporting-area copies of the maps and the index on them,
+#                and the Mann-Kendall pixel trend test on those maps (cluster/eve_pixel_trend_test.sbatch; needed by the results page)
 #   5. uncertainty  the ensemble inside 25 bootstrap replicates, regional index, intervals, reporting-area maps (cluster/submit_eve_big5_uncertainty.sh steps)
 #   6. copy to /data/birds, then the connector (modules/connector_Monitor) puts the newest result of every species into /data/birds/viz
 #   7. post-run (cluster/eve_postrun.sbatch): the end-of-run checks (cluster/post_run_checks.sh); if they pass, all figures and package A of cluster/pack_downloads.sh;
@@ -105,6 +106,8 @@ meta=$(echo "${out}" | awk '/^meta /{print $NF}')
 [ -n "${meta}" ] || { echo "ERROR: could not read the meta-model job id of the ensemble" >&2; exit 1; }
 mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_mask_meta.sbatch); echo "reporting-area copies of the maps: ${mk}"
 gi=$(BIRDMONITOR_INDEX_TAG="${TAG}_germany" sbatch --parsable --export=ALL --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_index.sbatch); echo "index on the reporting-area maps: ${gi}"
+# Mann-Kendall test and Sen slope at every pixel of the main-model maps (the second opinion on the trend maps; the results page and its species list need it). One task per roster species.
+pt=$(BIRDMONITOR_RUNNAME="${RUN}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_pixel_trend_test.sbatch); echo "pixel trend test (Mann-Kendall): ${pt}"
 
 echo; echo "=== 5. uncertainty: the ensemble inside the replicates (${REPS})"
 uout=$(ENS_MEMBERS="${MEM}" BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${meta}" UNC_PREP_TIME="${BIG5_PREP_TIME:-48:00:00}" UNC_PREP_MEM="${BIG5_PREP_MEM:-16G}" bash cluster/submit_eve_ensemble_uncertainty.sh | tee /dev/stderr)
@@ -120,7 +123,7 @@ cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid
 
 echo; echo "=== 7. post-run: checks, then (if they pass) figures + zip, then an e-mail"
 [ -n "${NOTIFY_EMAIL:-}" ] || echo "NOTE: NOTIFY_EMAIL is not set: the post-run job will run but no e-mail is sent (NOTIFY_EMAIL=\"a@ufz.de,b@ufz.de\" bash --login cluster/submit_eve_clean_run.sh)."
-pr=$(sbatch --parsable --export=ALL --dependency=afterok:${cn} --kill-on-invalid-dep=yes cluster/eve_postrun.sbatch); echo "post-run: ${pr}"
+pr=$(sbatch --parsable --export=ALL --dependency=afterok:${cn}:${pt} --kill-on-invalid-dep=yes cluster/eve_postrun.sbatch); echo "post-run: ${pr}"
 # Failure watcher: one digest e-mail within the hour (WATCH_EVERY, seconds) of new failures anywhere in the chain (UFZ forbids Slurm's per-array-task mails; cluster/eve_chain_watch.sbatch).
 if [ -n "${NOTIFY_EMAIL:-}" ]; then
   wd=$(WATCH_FIRST_JOB="${prep:-${cc}}" WATCH_UNTIL_JOB="${pr}" WATCH_SINCE="${SINCE}" sbatch --parsable --export=ALL cluster/eve_chain_watch.sbatch); echo "failure watcher: ${wd} (e-mail to ${NOTIFY_EMAIL})"
