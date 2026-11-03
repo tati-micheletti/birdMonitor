@@ -4,7 +4,7 @@
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
 #   Rscript tools/makeResultFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
-#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--spot-points 3,5,10,15] [--alpha 0.05] [--out <folder>]
+#                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--cells-km 10] [--spot-points 3,5,10,15 (off by default)] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
 # Sections follow the methods figure (pdf_export/birdMonitor_schematic.png):
@@ -13,7 +13,7 @@
 #   S3  Step 3  national indices: species indices, combined indices (SBI, MSI, chain), replicates, BRT-only against big 5
 #   S4  Step 3  per-pixel change and trend maps per species, shown for all pixels and only where the 90% interval excludes zero; Mann-Kendall test (needs pixelTrendTest.R)
 #   S5  Step 3  community maps: richness change, turnover, gain/loss
-#   S6  Step 3  regional index (10/20/50 km): change in index points, cold and hot spots, trend, uncertainty
+#   S6  Step 3  regional index (10 km; --cells-km 10,20,50 for more): change in index points, trend, uncertainty (cold and hot spot figures only with --spot-points)
 #   S7  Step 2  robustness: BRT-only against big 5 (regional pattern), spread among the five algorithms
 #   S9  observed trends from the DDA territory data (abundance and occupancy, 2005-2024) against our modelled index; run locally, not part of the default sections
 #   S8  Step 1/3 expected species richness with its uncertainty (2025: mean, 5th and 95th percentile, width) and the change in richness since 2005
@@ -40,14 +40,18 @@ baseYear   <- as.integer(getArg("--base-year", 2005))
 curYear    <- as.integer(getArg("--year", 2025))
 mapYears   <- as.integer(strsplit(getArg("--map-years", paste(baseYear, 2015, curYear, sep = ",")), ",")[[1]])
 hindcastEnd <- as.numeric(getArg("--hindcast-end", 2021.5))             # the habitat model has real data from 2022; earlier years are hindcast
-spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", "3,5,10,15"), ",")[[1]])   # cold/hot spot: regional index change of at least this many index points (one figure per value)
-spotMain <- if (10 %in% spotPointsVec) 10 else spotPointsVec[1]
+natLast <- local({                                                       # last year of the PUBLISHED national indicator: the combined index is drawn dashed and marked preliminary after it (same value as the connector uses)
+  e <- Sys.getenv("BIRDMONITOR_NATIONAL_LAST_YEAR", ""); if (nzchar(e)) return(as.integer(e))
+  l <- tryCatch(readLines("tools/sharedConfig.R", warn = FALSE), error = function(err) character()); m <- grep("^sharedNationalIndicatorLastYear *<-", l, value = TRUE)
+  if (length(m)) as.integer(gsub("[^0-9]", "", sub("#.*", "", sub("^[^<]*<-", "", m[1])))) else NA_integer_ })
+spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", ""), ",")[[1]])   # cold/hot spot figures are OFF (the regional MSI is the product); e.g. --spot-points 3,5,10,15 makes them: regional index change of at least this many index points (one figure per value)
+spotMain <- if (length(spotPointsVec) && !(10 %in% spotPointsVec)) spotPointsVec[1] else 10
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
 sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7,S8"), ",")[[1]])
 variants   <- strsplit(getArg("--variants", "brt,big5"), ",")[[1]]
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
-cellKm     <- as.integer(strsplit(getArg("--cells-km", "10,20,50"), ",")[[1]])
+cellKm     <- as.integer(strsplit(getArg("--cells-km", "10"), ",")[[1]])
 root       <- file.path("outputs", run)
 out        <- getArg("--out", file.path(root, "figures_fullreport"))
 for (d in c(out, file.path(out, "tables"))) dir.create(d, recursive = TRUE, showWarnings = FALSE)
@@ -115,6 +119,7 @@ figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, vari
   invisible(ok)
 }
 tableOut <- function(x, name) { write.csv(x, file.path(out, "tables", paste0(name, ".csv")), row.names = FALSE); say("table ", name, ".csv") }
+gridRows <- function(n) ceiling((n + 1) / 4)       # rows of a 4-column grid with one panel per species plus the legend (more panels than cells would start a second page, and the png keeps only the last page)
 
 ## ---- outline, colours, map helpers -----------------------------------------------------------------------------------------------------
 outline <- tryCatch(uncOutlineLAEA(file.path("inputs", "predictors", "raw", "gadm"), "EPSG:3035"), error = function(e) { say("NO OUTLINE: ", conditionMessage(e)); NULL })
@@ -321,7 +326,7 @@ if ("S3" %in% sections) {
   say("--- S3 ---")
   # (a) species indices, small multiples
   speciesGrid <- function(ks, title) {
-    par(mfrow = c(3, 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
+    par(mfrow = c(gridRows(length(species)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
     for (sp in species) {
       allv <- c(100); for (k in ks) { u <- IDX[[k]]$spUnc; u <- u[u$species == sp, ]; allv <- c(allv, u$indexLwr, u$indexUpr, unlist(IDX[[k]]$main[sp, ])) }
       yl <- range(allv, na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl); yrs <- as.integer(names(IDX[[ks[1]]]$main))
@@ -338,33 +343,36 @@ if ("S3" %in% sections) {
   for (k in variants) if (!is.null(IDX[[k]]$main) && !is.null(IDX[[k]]$spUnc))
     figure("S3_indices", sprintf("S3_species_index_%s", k), sprintf("Species indices 2005-%d with 90%% interval (%s)", curYear, V[[k]]$label),
            "Index of each species (area mean probability in Germany, 2005 = 100): line = main model (best estimate), band = 5th-95th percentile of the replicates. Grey = hindcast years.",
-           file.path(V[[k]]$report, "species_index.csv + species_index_uncertainty.csv"), variant = k, w = 14, h = 9, draw = function() speciesGrid(k, sprintf("Species indices, Germany (%s)", V[[k]]$full)))
+           file.path(V[[k]]$report, "species_index.csv + species_index_uncertainty.csv"), variant = k, w = 14, h = 3 * gridRows(length(species)), draw = function() speciesGrid(k,sprintf("Species indices, Germany (%s)", V[[k]]$full)))
   if (all(c("brt", "big5") %in% variants) && all(sapply(c("brt", "big5"), function(k) !is.null(IDX[[k]]$main) && !is.null(IDX[[k]]$spUnc))))
     figure("S3_indices", "S3_species_index_brt_vs_big5", "Species indices: BRT only against big 5",
            "The same species indices for both runs in one panel per species (blue = BRT only, orange = big 5). Shows where adding the other four algorithms changes the picture.",
-           "annual_report_germany and annual_report_<ens>_germany: species_index(_uncertainty).csv", variant = "both", w = 14, h = 9, draw = function() speciesGrid(c("brt", "big5"), "Species indices, Germany: BRT only against big 5")
+           "annual_report_germany and annual_report_<ens>_germany: species_index(_uncertainty).csv", variant = "both", w = 14, h = 3 * gridRows(length(species)), draw = function() speciesGrid(c("brt", "big5"), "Species indices, Germany: BRT only against big 5")
     )
   # (b) combined indices (same as tools/plotCombinedIndices.R, from the annual report files)
   combPanel <- function(k, showLegend, ylim = NULL, title = NULL) {
     ix <- IDX[[k]]; x <- ix$comb; yrs <- sort(unique(x$year))
-    rng <- range(x$lwr[x$method %in% names(cmbCol)], x$upr[x$method %in% names(cmbCol)], ix$sbi$sbi, na.rm = TRUE) + c(-0.4, 0.4)
+    rng <- range(x$lwr[x$method == "MSI"], x$upr[x$method == "MSI"], ix$sbi$sbi, na.rm = TRUE) + c(-0.4, 0.4)
     if (!is.null(ylim)) rng <- ylim
     plot(NA, xlim = range(yrs), ylim = rng, xlab = "Year", ylab = "Index (2005 = 100)", main = if (is.null(title)) V[[k]]$full else title, cex.main = 1.3, bty = "l", las = 1)
     hindcastBox(yrs, rng); text(mean(c(min(yrs), hindcastEnd)), if (is.null(ylim)) rng[2] - 0.05 else 50, "hindcast 2005-2021", col = "grey45", cex = 0.95, adj = c(0.5, 1)); abline(h = 100, lty = 3, col = "grey40")
-    for (m in names(cmbCol)) { d <- x[x$method == m, ]; d <- d[order(d$year), ]
-      if (m == "SBI") polygon(c(d$year, rev(d$year)), c(d$lwr, rev(d$upr)), col = adjustcolor(cmbCol[[m]], 0.2), border = NA)
-      else { lines(d$year, d$lwr, col = cmbCol[[m]], lty = cmbLty[[m]], lwd = 1.6); lines(d$year, d$upr, col = cmbCol[[m]], lty = cmbLty[[m]], lwd = 1.6) } }
-    lines(ix$sbi$year, ix$sbi$sbi, col = "black", lwd = 3)
-    if (showLegend) legend("bottomleft", c("Best estimate (main model)", "90% interval, SBI (percentiles over the replicates)", "90% interval, chain index (equal to SBI)", "90% interval, MSI (Monte Carlo)"),
-                           col = c("black", adjustcolor(cmbCol[["SBI"]], 0.5), cmbCol[["Chain"]], cmbCol[["MSI"]]), lty = c(1, 1, cmbLty[["Chain"]], cmbLty[["MSI"]]), lwd = c(3, 8, 1.6, 1.6), bty = "n", cex = 0.9)
+    d <- x[x$method == "MSI", ]; d <- d[order(d$year), ]                  # only the Monte Carlo (MSI) interval is drawn; the SBI and chain intervals are computed and kept in the table S3_combined_intervals_<variant>
+    polygon(c(d$year, rev(d$year)), c(d$lwr, rev(d$upr)), col = adjustcolor(cmbCol[["MSI"]], 0.2), border = NA)
+    s <- ix$sbi[order(ix$sbi$year), ]; prelim <- !is.na(natLast) && any(s$year > natLast)
+    sol <- if (prelim) s[s$year <= natLast, ] else s; lines(sol$year, sol$sbi, col = "black", lwd = 3)
+    if (prelim) { dsh <- s[s$year >= natLast, ]; lines(dsh$year, dsh$sbi, col = "black", lwd = 3, lty = 2) }
+    if (showLegend) legend("bottomleft", c("Best estimate (main model)", "90% interval (Monte Carlo, MSI)", if (prelim) sprintf("Preliminary, after %d (subject to later update)", natLast)),
+                           col = c("black", adjustcolor(cmbCol[["MSI"]], 0.5), if (prelim) "black"), lty = c(1, 1, if (prelim) 2), lwd = c(3, 8, if (prelim) 3), bty = "n", cex = 0.9)
   }
   okc <- variants[sapply(variants, function(k) !is.null(IDX[[k]]$comb) && !is.null(IDX[[k]]$sbi))]
-  txtCmb <- "Black line: main model (fitted once on all training data).\nBands/lines: 90% interval over the replicates (SBI, chain) or Monte Carlo (MSI).\nSBI and chain coincide when no species is missing."
+  txtCmb <- if (is.na(natLast)) "Black line: main model (fitted once on all training data).\nBand: 90% Monte Carlo interval (MSI). The SBI and chain intervals are computed too (table S3_combined_intervals_*)." else
+    sprintf("Black line: main model (fitted once on all training data); dashed = preliminary (after %d, the last year of the published national indicator).\nBand: 90%% Monte Carlo interval (MSI). The SBI and chain intervals are computed too (table S3_combined_intervals_*).", natLast)
+  for (k in okc) { w <- reshape(IDX[[k]]$comb[, c("method", "year", "estimate", "lwr", "upr")], idvar = "year", timevar = "method", direction = "wide"); tableOut(w[order(w$year), ], sprintf("S3_combined_intervals_%s", k)) }
   for (sel in list(okc, "big5", "brt")) { sel <- intersect(sel, okc); if (!length(sel) || (length(sel) == 1 && length(okc) == 1 && !identical(sel, okc))) next
     id <- if (length(sel) == 2) "S3_combined_both" else paste0("S3_combined_", sel)
     if (length(sel) == 1 && length(okc) == 1 && id %in% sapply(manifest, function(m) m$id)) next
-    figure("S3_indices", id, paste("Combined multi-species index (SBI, MSI, chain):", paste(sapply(sel, function(k) V[[k]]$label), collapse = " and ")),
-           paste0("The combined index of the ", NSP, " species: geometric mean of the species indices, three ways of drawing the 90% interval. Black = main model."),
+    figure("S3_indices", id, paste("Combined multi-species index (MSI interval):", paste(sapply(sel, function(k) V[[k]]$label), collapse = " and ")),
+           paste0("The combined index of the ", NSP, " species: geometric mean of the species indices with its 90% Monte Carlo interval (MSI). Black = main model; dashed = preliminary years, after the last year of the published national indicator. The SBI and chain intervals are computed too and kept in a table."),
            "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = paste(sel, collapse = "+"), w = if (length(sel) == 2) 15 else 9.5, h = 6.6, draw = function() {
       par(mfrow = c(1, length(sel)), mar = c(4.2, 4.6, 3.2, 1), oma = c(5, 0, 2.6, 0))
       for (i in seq_along(sel)) combPanel(sel[i], i == 1)
@@ -373,7 +381,7 @@ if ("S3" %in% sections) {
   }
   # (b2) the same combined index on the full axis (0 to 102): how small the movement is against the range of the index
   for (k in intersect(c("big5", "brt"), okc)) figure("S3_indices", sprintf("S3_combined_%s_axis0", k), sprintf("Combined multi-species index on the full axis 0-102 (%s)", V[[k]]$label),
-         "The same combined index (main model, 90% intervals) with the y axis running from 0 to 102 instead of being cut to the data. A decline of about 7 index points is small against the full range of the scale.",
+         "The same combined index (main model, 90% Monte Carlo interval, preliminary years dashed) with the y axis running from 0 to 102 instead of being cut to the data. A decline of about 7 index points is small against the full range of the scale.",
          "annual_report*_germany/combined_index_uncertainty.csv + combined_index_sbi.csv", variant = k, w = 9.5, h = 6.6, draw = function() {
     par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 4, 0)); combPanel(k, TRUE, ylim = c(0, 102), title = c(big5 = "Ensemble model (25 replicates)", brt = "BRT only (50 replicates)")[[k]])
     mtext(paste0("Multi-species indicator for ", NSP, " bird species
@@ -447,7 +455,7 @@ Europe: PECBMS/EBCC 2025 update, smoothed, with confidence limits. Ours: probabi
       legend("bottomleft", c("Main model", "One replicate", "5th and 95th percentile"), lwd = c(3, 1, 2), lty = c(1, 1, 2), col = c("black", adjustcolor(varCol[[k]], 0.5), varCol[[k]]), bty = "n")
     })
     figure("S3_indices", sprintf("S3_replicates_%d_%s", curYear, k), sprintf("Species index %d: every replicate against the main model (%s)", curYear, V[[k]]$label),
-           "For each species the index of every replicate in the last year (dots) and the main model (red diamond). Dots stacked at exactly 100 are replicates with a constant map (Perdix perdix).",
+           "For each species the index of every replicate in the last year (dots) and the main model (red diamond). Dots stacked at exactly 100 are replicates with a constant map.",
            paste0(V[[k]]$unc, "/<Sp>/area_mean_replicates_germany.csv"), variant = k, w = 9.5, h = 6.8, draw = function() {
       r <- IDX[[k]]$rep; r <- r[r$year == curYear, ]; r0 <- IDX[[k]]$rep0; r0 <- r0[r0$year == curYear, ]
       par(mar = c(4, 11, 3, 1)); plot(NA, xlim = range(r$index, r0$index, 100, na.rm = TRUE), ylim = c(0.5, length(species) + 0.5), yaxt = "n", xlab = sprintf("Index %d (2005 = 100)", curYear), ylab = "", main = V[[k]]$full)
@@ -639,9 +647,10 @@ if ("S6" %in% sections) {
     figure("S6_regional", sprintf("S6_trend_%dkm_%s", km, k), sprintf("Regional index: trend per decade, every cell and only the clear cells (%d km cells, %s)", km, v$label),
            "Linear trend of the regional index over all years (index points per decade; mean over the replicates, red = decline). Left: every cell. Right: only the cells where the 90% interval of the slope over the replicates excludes zero; grey = it includes zero.",
            ft, variant = k, w = 12.5, h = 6.8, draw = function() {
-      need(ft); u <- rast(ft); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); d <- lay(u, "slopeMean", 1); lim <- max(symLim(d), 1); par(mfrow = c(1, 2), oma = c(1, 0, 2.6, 0))
-      drawMap(d, "Trend per decade (index points), every cell", palDiv, c(-lim, lim), mb = bm); drawClearOnly(d, clearMask(l, up), "Only where the trend is clear", c(-lim, lim))
-      bigTitle(sprintf("Regional index (%d km): trend per decade (%s)", km, v$label)) })
+      need(ft); u <- rast(ft); l <- lay(u, "slopeLwr", 3); up <- lay(u, "slopeUpr", 4); d <- lay(u, "slopeMean", 1); lim <- max(symLim(d), 1); par(mfrow = c(1, 2), oma = c(2.6, 0, 2.6, 0))
+      drawMap(d, "Trend (index points per decade), every cell", palDiv, c(-lim, lim), mb = bm); drawClearOnly(d, clearMask(l, up), "Only where the trend is clear", c(-lim, lim))
+      bigTitle(sprintf("Regional index (%d km): trend per decade (%s)", km, v$label))
+      footnote("Colour bar = index points per decade (2005 = 100). -3: the cell loses 3 points every 10 years,\ni.e. 3% of its own 2005 value per decade (about 6% over 20 years). Red = decline, blue = increase.") })
     figure("S6_regional", sprintf("S6_uncertainty_%dkm_%s", km, k), sprintf("Regional index: how uncertain is the change? (%d km cells, %s)", km, v$label),
            "Left: width of the 90% interval of the change in index points over the replicates (wide = uncertain). Right: the share of replicates in which the cell's index is lower than in 2005 (secondary information).",
            fu, variant = k, w = 12.5, h = 6.2, draw = function() {
@@ -808,8 +817,8 @@ if ("S9" %in% sections) {
     }
     figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
            sprintf(paste0("The same three series for each of the ", NSP, " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index. All set to 100 in %d."), obsBase),
-           paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 9, draw = function() {
-      par(mfrow = c(3, 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
+           paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
+      par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
       for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
         plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
         for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]]) }

@@ -1,5 +1,5 @@
 # Why does a species' index jump in the last years?  READ-ONLY diagnostic (writes nothing but a printout and, optionally, a CSV).
-#   Rscript tools/diagnoseYearJump.R "Anthus pratensis,Lullula arborea" [--tag honest] [--years 2005,2015,2019:2025] [--top 6]
+#   Rscript tools/diagnoseYearJump.R "Anthus pratensis,Lullula arborea" [--tag honest] [--years 2005,2015,2019:2025] [--top 6] [--ens ens_brt-glm-gam-rf-nn]
 # Run name: BIRDMONITOR_RUNNAME (default test4).
 #
 # For every species it prints, in order:
@@ -27,6 +27,7 @@ cfg <- uncCfgFromParams(inputRoot = file.path(repoRoot, "inputs"), outputRoot = 
                         climateWindowLength = sharedClimateWindowLength, reps = 1, codeRoot = repoRoot)
 spList <- trimws(strsplit(if (length(args) && !startsWith(args[1], "--")) args[1] else "Anthus pratensis,Lullula arborea", ",")[[1]])
 tag <- getArg("--tag", "honest"); topN <- as.integer(getArg("--top", 6))
+ensName <- getArg("--ens", "")        # NEW (2026-11-03): name of the ensemble whose maps are read, e.g. ens_brt-glm-gam-rf-nn (clean run v2 has no BRT-only maps); empty = the BRT maps as before
 yrSpec <- getArg("--years", "2005,2010,2015,2019:2025")
 rng <- function(x) { p <- as.integer(strsplit(x, ":", fixed = TRUE)[[1]]); if (length(p) == 1) p else p[1]:p[2] }
 years <- sort(unique(unlist(lapply(trimws(strsplit(yrSpec, ",")[[1]]), rng))))
@@ -35,11 +36,14 @@ options(width = 200, digits = 4)
 for (sp in spList) {
   spClean <- gsub(" ", "_", sp); res <- cfg$resOf(sp)
   cat("\n", strrep("=", 100), "\n", sp, "\n", strrep("=", 100), "\n", sep = "")
-  predFile <- function(scale, yr) switch(scale,
+  predFileBrt <- function(scale, yr) switch(scale,
     climate = file.path(uncMainDir(cfg, sp, "climate"), sprintf("%s_pred_EU_%d.tif", spClean, yr)),
     landscape = file.path(uncMainDir(cfg, sp, "landscape"), sprintf("%s_pred_landscape_%d.tif", spClean, yr)),
     habitat = file.path(uncMainDir(cfg, sp, "habitat"), sprintf("%s_pred_habitat_%d.tif", spClean, yr)),
     meta = file.path(cfg$outputRoot, metamodelLabel(cfg$sharedRes), sprintf("%s_meta_suitability_%d.tif", spClean, yr)))
+  predFile <- function(scale, yr) if (!nzchar(ensName)) predFileBrt(scale, yr) else switch(scale,        # NEW: the ensemble maps of each scale and the ensemble meta-model
+    meta = file.path(cfg$outputRoot, paste0(metamodelLabel(cfg$sharedRes), "_", ensName), sprintf("%s_meta_suitability_%d.tif", spClean, yr)),
+    file.path(uncMainDir(cfg, sp, scale), sprintf("%s_pred_%s_%s_%d.tif", spClean, ensName, scale, yr)))
   yr1 <- years[file.exists(predFile("habitat", years))][1]
   win <- terra::ext(terra::rast(predFile("habitat", yr1)))      # the Germany window the habitat predictions cover
 

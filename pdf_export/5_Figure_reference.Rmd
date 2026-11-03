@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 source("figure_reference_helpers.R")
 ```
 
-*This page is built from the results of the run `r runName`, with the `r nSp` species that have results in it (species can be added to or removed from the roster; nothing on the page is typed per species). It is made again at the end of a full run: first the figures, `tools/makeResultFigures.R` on EVE, then `BIRDMONITOR_RUNNAME=<run> Rscript R/render_figure_reference.R` on the PC. The copy of 29 October shows the run `test4` (11 species, as at the meeting of 16 October); the clean run `v2` has not been made yet.*
+*This page is built from the results of the run `r runName`, with the `r nSp` species that have results in it (species can be added to or removed from the roster; nothing on the page is typed per species). It is made again at the end of a full run: first the figures, `tools/makeResultFigures.R` on EVE, then `BIRDMONITOR_RUNNAME=<run> Rscript R/render_figure_reference.R` on the PC. The run `v2` is the first clean run; the copy of 29 October showed the test run `test4` (11 species).*
 
 <style>
 .main-container { max-width: 1500px !important; }
@@ -37,7 +37,7 @@ details.more > summary { cursor: pointer; font-weight: bold; color: #555; margin
 
 This is the page I will have open on Friday. It has every figure we made, in the order of the results pipeline below, and one page for each species at the end. Click a figure to open it in full size (the full-size files are in the folder `figures_fullreport`, next to this page). Everything is for Germany and comes from the model ensemble. The FAQ at the end has short answers to the questions I expect.
 
-![**Results pipeline.** For each bird species (`r nSp`) and each year (2005 to 2025), three single scale models are combined into one probability map (step 1). Everything is repeated on 25 resampled datasets, the replicates (step 2), and everything derived is computed inside every replicate and then summarised (step 3). All results come from the model ensemble of five algorithms. Species x 11, years x 21, replicates x 25; replicate 0 is the main model. The maps in the figure are illustrative (made up); the structure is the real one. The habitat model is trained on the MhB point counts of 2022 to 2025; the climate and landscape models were trained on longer windows. Red = decline, blue = increase (change and trend maps).](birdMonitor_results_pipeline.png)
+![**Results pipeline.** For each bird species (`r nSp`) and each year (2005 to 2025), three single scale models are combined into one probability map (step 1). Everything is repeated on 25 resampled datasets, the replicates (step 2), and everything derived is computed inside every replicate and then summarised (step 3). All results come from the model ensemble of five algorithms. Species x `r nSp`, years x 21, replicates x 25; replicate 0 is the main model. The maps in the figure are illustrative (made up); the structure is the real one. The habitat model is trained on the MhB point counts of 2022 to 2025; the climate and landscape models were trained on longer windows. Red = decline, blue = increase (change and trend maps).](birdMonitor_results_pipeline.png)
 
 **Jump to a species:**
 ```{r jump, results='asis'}
@@ -111,7 +111,7 @@ fig("S3_species_2025_summary", what = TRUE)
 
 ## 3.3 Multi-species indicator (MSI)
 
-The multi-species indicator is the geometric mean of the `r nSp` species indices. I show it three ways, SBI, MSI (Monte Carlo) and the chain index. The estimate is the same; they differ in how the 90% interval is drawn.
+The multi-species indicator is the geometric mean of the `r nSp` species indices. I show it three ways, SBI, MSI (Monte Carlo) and the chain index. The figures draw the 90% Monte Carlo interval (MSI). The interval over the replicates (SBI) and the chain index interval are computed as well, so that I can keep an eye on them as more species are added; they are in the table `S3_combined_intervals_big5` (folder `tables`). The years after the last published national indicator year (2023, to be confirmed) are drawn dashed and marked as preliminary.
 
 ```{r s33, results='asis'}
 ens("S3_combined", what = TRUE)
@@ -134,22 +134,20 @@ ens("S3_combined_axis0", what = TRUE)
 
 ## 3.4 Regional MSI
 
-The regional multi-species indicator is the combined index per grid cell, calculated from the 200 m pixels inside Germany: the mean probability of each cell, each species as 100 times its value in the year divided by its value in 2005, then the geometric mean over the species. It is used to identify hot and cold spots. The figures below use the raw cells; the smoothed maps (a Gaussian moving window of 1.5 cell sizes, only for display) are separate files and are not used here. The 20 km grid is shown; 10 and 50 km are behind the buttons.
+The regional multi-species indicator is the combined index per grid cell of 10 km, calculated from the 200 m pixels inside Germany: the mean probability of each cell, each species as 100 times its value in the year divided by its value in 2005, then the geometric mean over the species. The figures below use the raw cells; the smoothed maps (a Gaussian moving window of 1.5 cell sizes, only for display) are separate files and are not used here. A cell is 100 in 2005, so every number on these maps is in **index points**: a cell at 90 in 2025 has lost 10 points, which is 10% of its own 2005 value.
 
 ```{r s34, results='asis'}
-fig("S6_regional_index_20km_big5")
-fig("S6_change_20km_big5", what = TRUE)
-cat("\n### Cold and hot spots\n\nA cold spot is a cell whose index fell by at least the threshold between 2005 and 2025; a hot spot is a cell that rose by at least that much. The threshold is a choice, so I show 3, 5, 10 and 15 index points. The right panel keeps only the cells where the change is also clear.\n\n")
-for (th in c(3, 5, 10, 15)) fig(sprintf("S6_coldhot_20km_big5_%dpts", th), what = (th == 3))
-cat("\n### Trend and uncertainty of the regional MSI\n\n")
-fig("S6_trend_20km_big5", what = TRUE)
-fig("S6_uncertainty_20km_big5", what = TRUE)
-cat("\n### Other grid sizes\n\n")
-for (km in c(10, 50)) {
-  ids <- c(sprintf("S6_regional_index_%dkm_big5", km), sprintf("S6_change_%dkm_big5", km), sprintf("S6_coldhot_%dkm_big5_%dpts", km, c(3, 5, 10, 15)),
-           sprintf("S6_trend_%dkm_big5", km), sprintf("S6_uncertainty_%dkm_big5", km))
-  browse(sprintf("%d km grid", km), ids)
-}
+fig("S6_regional_index_10km_big5")
+fig("S6_change_10km_big5", what = TRUE)
+cat("
+### Trend and uncertainty of the regional MSI
+
+")
+cat("The trend map shows the slope of the regional index over all years, in **index points per decade**. A cell at -3 loses on average 3 points every ten years, that is 3% of its own 2005 value per decade (about 6 points over the 20 years); a cell at -6 loses twice as fast; a cell at +2 gains 2 points per decade. It is not a difference between two years and not a percentage of the species counts. The right panel keeps only the cells where the 90% interval of the slope over the replicates excludes zero.
+
+")
+fig("S6_trend_10km_big5", what = TRUE)
+fig("S6_uncertainty_10km_big5", what = TRUE)
 ```
 
 ## 3.5 Trend per pixel
@@ -219,26 +217,25 @@ g23 <- gv(2023); g11 <- gv(2011); e23 <- 100 * ref$smoothed[ref$year == 2023] / 
 si <- read.csv(file.path(runDir, "annual_report_ens_brt-glm-gam-rf-nn_germany", "species_index.csv"), check.names = FALSE, row.names = 1)
 jp <- data.frame(species = rownames(si), up = si[["2022"]] - si[["2021"]], y21 = si[["2021"]], y22 = si[["2022"]], y25 = si[["2025"]]); jp <- jp[order(-jp$up), ][1:3, ]
 jumpTxt <- paste(sprintf("%s: %s in 2021, %s in 2022, %s in 2025", speciesCanonical$english_name[match(jp$species, speciesCanonical$latin_name)], fmt(jp$y21), fmt(jp$y22), fmt(jp$y25)), collapse = "; ")
-tt <- tab("S4_trendtest_shares"); tt <- tt[tt$variant == "big5", ]; spots <- tab("S6_cold_hot_spot_counts")
-sp20 <- spots[spots$variant == "big5" & spots$km == 20 & spots$spotPoints == 10, ]
+tt <- tab("S4_trendtest_shares"); tt <- tt[tt$variant == "big5", ]
 ord <- s[s$species != "COMBINED (SBI)", ]
+bfn <- c("Whinchat", "Eurasian Skylark", "Yellowhammer", "Corn Bunting", "Woodlark", "Northern Lapwing", "Red-backed Shrike", "Red Kite", "Little Owl", "Black-tailed Godwit")     # the ten species of the BfN diagram
+andList <- function(x) if (length(x) < 2) x else paste0(paste(x[-length(x)], collapse = ", "), " and ", x[length(x)])
+overlapTxt <- sprintf("%d of them are among our %d; the %s are not, and our %s are not in it.", sum(bfn %in% speciesCanonical$english_name), nSp, andList(setdiff(bfn, speciesCanonical$english_name)), andList(setdiff(speciesCanonical$english_name, bfn)))
 above <- ord[ord$main > 100, ]
 aboveTxt <- if (nrow(above)) sprintf("%s is above 100 (%s, interval %s to %s); I would not read that as an increase without the interval.", paste(above$english, collapse = " and "), paste(fmt(above$main), collapse = " and "), fmt(above$lwr[1]), fmt(above$upr[1])) else "No species is above 100."
-cat(sprintf(gsub("@NSP@", nSp, '
+cat(sprintf(gsub("@OVERLAP@", overlapTxt, gsub("@NSP@", nSp, '
 **Why does our index fall by only about %s%% when the European farmland bird index falls so much more?**
 The two indices measure different quantities (abundance of 39 farmland species across Europe, against the probability that one of @NSP@ species occurs in a pixel in Germany); the European index falls from 100 in 1980 to %s in 2005 and %s in 2024, which is a fall of about %s%% from 2005 to 2024, while ours falls %s%% to 2025. I tested whether occurrence against abundance is part of the reason, with the DDA territory data (see [section 3.7](#observed-trends-the-dda-territory-data)). With the rules of Kamp et al. (2021) and 2006 as the reference year, the observed abundance of the @NSP@ species falls by %s from 2006 to 2018 and the observed occupancy by %s, against %s for our model (Kamp et al. report %s for their 19 farmland species over the same years). So occurrence against abundance accounts for part of the gap: about %s of it for the @NSP@ species together by 2018, and %s; but only %s. Our model still falls far less than either observed index, and the share is not stable: by 2024 the observed abundance has recovered to %s, the occupancy is at %s and our model at %s. The temporal signal of the model is therefore the larger part of the problem, and occurrence against abundance a smaller part, larger for some species. Caveats: the plots are a sample of 1 km squares whose number grows from 305 to about 1,400, the estimator is simple, and the landscape scale of our model is fitted on part of these data. See [the comparison figures](#against-the-european-farmland-bird-index).
 
 **Is there a farmland bird indicator for Germany only, and how does it compare?**
-Yes: the national indicator Agrarland of the UBA and BfN (DDA data). It is based on the abundance of about ten selected farmland species and is given as percent of a target value. Set to 100 in 2005, it falls to %s in 2023, a fall of %s%%; the European Farmland Bird Index is at %s in 2023 (a fall of %s%%) and our index at %s (a fall of %s%%); by 2025 ours has fallen %s%%. The shape differs too: the German indicator falls by about %s%% between 2005 and 2011 and is roughly stable afterwards, while our index is about flat until 2011 and declines slowly after it. See [the figure with all three](#against-the-european-farmland-bird-index). According to the BfN diagram of the indicator (version of 2020/21; the indicator has been revised since) it has ten species: Whinchat, Eurasian Skylark, Yellowhammer, Corn Bunting, Woodlark, Northern Lapwing, Red-backed Shrike, Red Kite, Little Owl and Black-tailed Godwit. Seven of them are among our 11; the Red Kite, the Little Owl and the Black-tailed Godwit are not, and our Common Buzzard, Common Starling, Grey Partridge and Meadow Pipit are not in it.
+Yes: the national indicator Agrarland of the UBA and BfN (DDA data). It is based on the abundance of about ten selected farmland species and is given as percent of a target value. Set to 100 in 2005, it falls to %s in 2023, a fall of %s%%; the European Farmland Bird Index is at %s in 2023 (a fall of %s%%) and our index at %s (a fall of %s%%); by 2025 ours has fallen %s%%. The shape differs too: the German indicator falls by about %s%% between 2005 and 2011 and is roughly stable afterwards, while our index is about flat until 2011 and declines slowly after it. See [the figure with all three](#against-the-european-farmland-bird-index). According to the BfN diagram of the indicator (version of 2020/21; the indicator has been revised since) it has ten species: Whinchat, Eurasian Skylark, Yellowhammer, Corn Bunting, Woodlark, Northern Lapwing, Red-backed Shrike, Red Kite, Little Owl and Black-tailed Godwit. @OVERLAP@
 
 **What does the interval cover?**
 How much the result changes when the models are trained on resampled data (a spatial-block bootstrap with 25 replicates). It does not cover the hindcast assumption, the model structure or the hyperparameters, and it is not a range for what an observer would count.
 
 **What is "clear"?**
 A pixel is coloured when the whole 90%% interval over the replicates lies on one side of zero. Grey means the interval includes zero, which is not the same as no change.
-
-**What is a cold spot, and what are 10 points?**
-Every grid cell is 100 in 2005. A cell at 90 in 2025 has lost 10 points, that is 10%% of its own 2005 value. A cold spot is a cell that fell by at least the threshold; I show 3, 5, 10 and 15 points. On the 20 km grid, %d of %d cells fell by 10 points or more and %d rose by 10 points or more; the mean change of the cells is %s points.
 
 **Is the trend significant?**
 I use two criteria and show both. The main one is the 90%% interval of the slope over the replicates. The second is a Mann-Kendall test on the yearly maps of the main model. The replicate interval excludes zero in %s to %s%% of the pixels of a species and the test gives p < 0.05 in %s to %s%%; the test flags more because it ignores the uncertainty of the model and is repeated for about nine million pixels. The numbers are in the table at the end.
@@ -254,11 +251,10 @@ No single algorithm is right everywhere, so at each scale I average five and com
 
 **Is it Germany only? Are the maps smoothed?**
 Yes, all indices and maps here are computed from the German pixels only. The raw maps are shown; only the separate "smoothed" regional files are smoothed, and they are not used here.
-', fixed = TRUE),
+', fixed = TRUE), fixed = TRUE),
   fmt(100 - cb$main[1]), fmt(e05), fmt(e24), fmt(100 * (1 - e24 / e05), 0), fmt(100 - cb$main[1]),
   pc((100 - o18$observedAbundance) / 100), pc((100 - o18$observedOccupancy) / 100), pc((100 - o18$modelled) / 100), "17.1%", shAgg, shBig, shSmall, fmt(oc$observedAbundance, 0), fmt(oc$observedOccupancy, 0), fmt(oc$modelled, 0),
   fmt(g23), fmt(100 - g23), fmt(e23), fmt(100 - e23), fmt(o23), fmt(100 - o23), fmt(100 - cb$main[1]), fmt(100 - g11),
-  sp20$coldSpot, sp20$nCells, sp20$hotSpot, fmt(sp20$meanChange),
   fmt(100 * min(tt$replicateClearShare), 0), fmt(100 * max(tt$replicateClearShare), 0), fmt(100 * min(tt$sigShare), 0), fmt(100 * max(tt$sigShare), 0),
   fmt(j21), fmt(j22), fmt(j25), jumpTxt,
   paste(sprintf("%s (%s)", ord$english[1:4], fmt(ord$main[1:4], 0)), collapse = ", "), aboveTxt))
@@ -277,10 +273,6 @@ knitr::kable(data.frame(Species = w$Species, `Change 2025 vs 2005: clear decline
 knitr::kable(data.frame(Species = en[tt$species], `Mann-Kendall p < 0.05 (%)` = fmt(100 * tt$sigShare, 0), `Replicate interval excludes zero (%)` = fmt(100 * tt$replicateClearShare, 0),
                         `Both (%)` = fmt(100 * tt$bothShare, 0), check.names = FALSE)[order(en[tt$species]), ], row.names = FALSE,
              caption = "Pixel trend: share of pixels flagged by the Mann-Kendall test, by the replicate interval, and by both.")
-sp2 <- spots[spots$variant == "big5", ]
-knitr::kable(data.frame(`Grid (km)` = sp2$km, `Threshold (points)` = sp2$spotPoints, Cells = sp2$nCells, `Cold spots` = sp2$coldSpot, `of which clear` = sp2$coldSpotAndClear,
-                        `Hot spots` = sp2$hotSpot, `of which clear` = sp2$hotSpotAndClear, check.names = FALSE), row.names = FALSE,
-             caption = "Regional index: number of cold and hot spots (2025 vs 2005) and how many of them are also clear.")
 ```
 
 <details class="more"><summary>Where every figure comes from</summary>
@@ -288,7 +280,7 @@ knitr::kable(data.frame(`Grid (km)` = sp2$km, `Threshold (points)` = sp2$spotPoi
 In the paths below, `<ensemble>` is the suffix of the folders and files of the model ensemble.
 
 ```{r sources}
-d <- man[, c("id", "title", "source")]; d$id <- gsub("_big5", "", d$id, fixed = TRUE); d$source <- paste0("`", gsub("ens_brt-glm-gam-rf-nn", "<ensemble>", gsub("_big5", "_<ensemble>", d$source, fixed = TRUE), fixed = TRUE), "`")
+man <- man[!grepl("coldhot|_(20|50)km_", man$id), ]; d <- man[, c("id", "title", "source")]; d$id <- gsub("_big5", "", d$id, fixed = TRUE); d$source <- paste0("`", gsub("ens_brt-glm-gam-rf-nn", "<ensemble>", gsub("_big5", "_<ensemble>", d$source, fixed = TRUE), fixed = TRUE), "`")
 knitr::kable(d, row.names = FALSE)
 ```
 
