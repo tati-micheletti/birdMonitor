@@ -630,7 +630,6 @@ Streptopelia turtur,,rapeseed,rapeseed
 Streptopelia turtur,,sunflower,sunflower
 Streptopelia turtur,,vegetables,vegetables
 Streptopelia turtur,,legumes,legumes
-Streptopelia turtur,,hedges,hedges
 Streptopelia turtur,,fallow,fallow
 Streptopelia turtur,,grapevine,grapevine
 Streptopelia turtur,,hops,hops
@@ -645,7 +644,6 @@ Streptopelia turtur,,wetland_peat,wetland_peat
 Streptopelia turtur,,elevation,elevation
 Streptopelia turtur,,slope,slope
 Streptopelia turtur,,dist_to_woodland,dist_to_woodland
-Streptopelia turtur,,landscape_heterogeneity,landscape_heterogeneity
 Streptopelia turtur,,unmapped_other,unmapped_other
 Motacilla flava,bio1,,
 Motacilla flava,bio2,,
@@ -675,7 +673,6 @@ Motacilla flava,,rapeseed,rapeseed
 Motacilla flava,,sunflower,sunflower
 Motacilla flava,,vegetables,vegetables
 Motacilla flava,,legumes,legumes
-Motacilla flava,,hedges,hedges
 Motacilla flava,,fallow,fallow
 Motacilla flava,,grapevine,grapevine
 Motacilla flava,,hops,hops
@@ -690,7 +687,6 @@ Motacilla flava,,wetland_peat,wetland_peat
 Motacilla flava,,elevation,elevation
 Motacilla flava,,slope,slope
 Motacilla flava,,dist_to_woodland,dist_to_woodland
-Motacilla flava,,landscape_heterogeneity,landscape_heterogeneity
 Motacilla flava,,unmapped_other,unmapped_other
 Falco tinnunculus,bio1,,
 Falco tinnunculus,bio2,,
