@@ -176,6 +176,7 @@ A check against data, not a model result. The DDA territory data (2005 to 2024) 
 
 ```{r s37, results='asis'}
 figs(c("S9_observed_vs_modelled_combined", "S9_observed_vs_modelled_species"), what = TRUE)
+if (file.exists(file.path(figDir, "S3_indices", "S9_observed_vs_modelled_species_atroutes.png"))) figs("S9_observed_vs_modelled_species_atroutes", what = TRUE)
 ```
 
 Kamp, J., Frank, C., Trautmann, S., Busch, M., Dröschmeister, R., Flade, M., Gerlach, B., Karthäuser, J., Kunz, F., Mitschke, A., Schwarz, J., Sudfeldt, C. (2021). Population trends of common breeding birds in Germany 1990–2018. *Journal of Ornithology* 162: 1–15. https://doi.org/10.1007/s10336-020-01830-4. Their farmland birds (19 species) fall by 32.4% from 1990 to 2018 and by 17.1% from 2006 to 2018 (Table 1).

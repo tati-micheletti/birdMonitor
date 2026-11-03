@@ -762,6 +762,18 @@ if ("S9" %in% sections) {
     ser <- do.call(rbind, seriesRows); rownames(ser) <- NULL
     ours <- IDX[[vsK]]$main                                              # main-model species index, species x years (2005 = 100); set to 100 in the reference year here
     ser$modelled <- mapply(function(sp, y) 100 * ours[sp, as.character(y)] / ours[sp, as.character(obsBase)], ser$species, ser$year)
+    # OPTIONAL: our ensemble maps read ONLY at the survey routes (tools/modelAtRoutes.R on EVE -> outputs/<run>/diagnostics/model_at_routes.csv), run through the SAME plot-and-year estimator as the observed series
+    # (ipf over the surveyed plot-years), so that observed and modelled series come from the same plots and years: meta = final map (mean of the 1 km square), landscape = the 1 km model trained on these data.
+    routesCsv <- getArg("--routes-csv", file.path(root, "diagnostics", "model_at_routes.csv")); atRoutes <- file.exists(routesCsv)
+    if (atRoutes) {
+      mr <- fread(routesCsv); mr[, ROUTENCODE := tolower(ROUTENCODE)]; say("S9: model at the survey routes read from ", routesCsv, " (", nrow(mr), " rows)")
+      for (col in c("meta", "landscape")) { ser[[paste0(col, "AtRoutes")]] <- NA_real_
+        for (sp in allSpecies) {
+          d <- mr[species == sp & year %in% yrsObs & ROUTENCODE %in% plots]
+          Mm <- matrix(NA_real_, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mm[cbind(match(d$ROUTENCODE, plots), match(d$year, yrsObs))] <- d[[col]]
+          Sm <- S & !is.na(Mm); Mm[!Sm] <- NA
+          if (sum(Sm) > 0) ser[[paste0(col, "AtRoutes")]][ser$species == sp] <- ipf(Mm, Sm) } }
+    }
     geo <- function(v) exp(mean(log(pmax(v, 1e-3))))
     comb <- function(spp) do.call(rbind, lapply(yrsObs, function(y) { d <- ser[ser$year == y & ser$species %in% spp, ]
       data.frame(year = y, abundance = geo(d$abundance), occupancy = geo(d$occupancy), modelled = geo(d$modelled)) }))
@@ -824,6 +836,27 @@ if ("S9" %in% sections) {
         for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]]) }
       plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index"), col = col3, lwd = 3, bty = "n", cex = 1.05)
       bigTitle("Observed and modelled index, per species") })
+    if (atRoutes) {
+      colR <- "#1f78b4"
+      figure("S3_indices", "S9_observed_vs_modelled_species_atroutes", sprintf("Observed abundance and occupancy against our modelled index, per species, with our model read only at the survey routes, %d-%d", min(yrsObs), last),
+             sprintf(paste0("The three series of the figure before for each of the ", NSP, " species, plus one line: our final ensemble map read only at the survey routes and run through the same plot-and-year model as the observed series (so the same plots and years are used). If this line follows the observed ones, the comparison with all of Germany was the problem; if it does not, the model is. All set to 100 in %d."), obsBase),
+             paste(routesCsv, vf, df, sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
+        par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
+        for (sp in allSpecies) { d <- ser[ser$species == sp, ]; yl <- range(c(d$abundance, d$occupancy, d$modelled, d$metaAtRoutes, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
+          plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
+          for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]])
+          lines(d$year, d$metaAtRoutes, lwd = 2.8, col = colR) }
+        plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index, all of Germany", "our model at the survey routes only"), col = c(col3, colR), lwd = 3, bty = "n", cex = 1.05)
+        bigTitle("Observed and modelled index, per species, model at the survey routes") })
+      sl <- function(v, yr) { ok <- is.finite(v) & v > 0; round(unname(coef(lm(log(v[ok] / 100) ~ yr[ok]))[2]) * 100, 2) }
+      agree <- do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp, ]; h <- d$year <= 2021
+        data.frame(species = sp, english = english[[sp]], obsAbundancePctPerYr = sl(d$abundance, d$year), obsOccupancyPctPerYr = sl(d$occupancy, d$year), modelGermanyPctPerYr = sl(d$modelled, d$year),
+                   modelAtRoutesPctPerYr = sl(d$metaAtRoutes, d$year), landscapeAtRoutesPctPerYr = sl(d$landscapeAtRoutes, d$year),
+                   rOccupancyModelGermany = round(cor(d$occupancy, d$modelled, use = "complete"), 2), rOccupancyModelAtRoutes = round(cor(d$occupancy, d$metaAtRoutes, use = "complete"), 2),
+                   rOccupancyLandscapeAtRoutes = round(cor(d$occupancy, d$landscapeAtRoutes, use = "complete"), 2),
+                   rOccupancyModelAtRoutes_to2021 = round(cor(d$occupancy[h], d$metaAtRoutes[h], use = "complete"), 2), rOccupancyModelAtRoutes_from2022 = round(cor(d$occupancy[!h], d$metaAtRoutes[!h], use = "complete"), 2)) }))
+      tableOut(agree, "S9_agreement_at_routes"); tableOut(ser[, intersect(names(ser), c("species", "english", "year", "abundance", "occupancy", "modelled", "metaAtRoutes", "landscapeAtRoutes", "plotsSurveyed"))], "S9_observed_vs_modelled_series_atroutes")
+    }
   }
 }
 
