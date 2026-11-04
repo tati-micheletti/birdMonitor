@@ -753,10 +753,13 @@ if ("S9" %in% sections) {
     S <- matrix(FALSE, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); S[cbind(match(plotYears$plot, plots), match(plotYears$year, yrsObs))] <- TRUE
     seriesRows <- list()
     for (sp in allSpecies) {
-      e <- speciesCanonical$euring_code[speciesCanonical$latin_name == sp]; d <- dat[EURING == e, .(n = sum(Reviere)), by = .(plot = ROUTENCODE, year)]
+      # Reviere = -1 means "seen, not counted" (DECISIONS.md 2026-10-21): it is NA for the count (na.rm = TRUE, so it adds no territory) and a PRESENCE for occupancy, as in the pipeline (occurrencePrepGerLandscape.R).
+      # Before 2026-11-04 the -1 was summed as a number (636 rows of 698,273): it changed no index by more than 0.6 points (abundance) or 1.6 points (occupancy).
+      e <- speciesCanonical$euring_code[speciesCanonical$latin_name == sp]
+      d <- dat[EURING == e, .(n = sum(ifelse(Reviere == -1, NA, Reviere), na.rm = TRUE), pres = any(Reviere > 0 | Reviere == -1, na.rm = TRUE)), by = .(plot = ROUTENCODE, year)]
       d <- d[!is.na(match(d$plot, plots)) & !is.na(match(d$year, yrsObs)), ]
       Mn <- matrix(0, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mn[cbind(match(d$plot, plots), match(d$year, yrsObs))] <- d$n; Mn[!S] <- NA
-      Mp <- (Mn > 0) * 1
+      Mp <- matrix(0, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mp[cbind(match(d$plot, plots), match(d$year, yrsObs))] <- as.numeric(d$pres); Mp[!S] <- NA
       seriesRows[[sp]] <- data.frame(species = sp, year = yrsObs, abundance = ipf(Mn, S), occupancy = ipf(Mp, S), abundanceChain = chain(Mn, S), occupancyChain = chain(Mp, S), plotsSurveyed = colSums(S))
     }
     ser <- do.call(rbind, seriesRows); rownames(ser) <- NULL
