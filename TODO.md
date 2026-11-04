@@ -13,7 +13,8 @@ implementation for several items below, especially #4.
 4. **Connector check.** After the connector job: count the rows of `/data/birds/viz/_manifest.csv` whose run is not v3 (an empty `_missing.csv` does not prove that everything comes from v3; audit table S5-49).
 5. **Audit table, part F** (unexpected results): DDA presence rising for the Red-backed Shrike and the Whitethroat while ours does not; the Grauammer map; the linear features in the Red-backed Shrike maps; the jumps of the combined index in 2017, 2022 and 2024 and its difference from the European farmland index; the 2024-25 maize area (S2-69).
 6. **Documentation texts that are wrong** (all listed as red or yellow in the audit table): the `metaHonestEval` parameter text in `models_Monitor.R` (FALSE changes the weights and the maps), the README on `brutzeitcode_filter`, the NN size in `DECISIONS.md`, the `sharedConfig.R` comment on the habitat years, and the claim "no pseudo-absence sampling" in the methods document.
-7. **S9 figures for v3** with the fixed handling of `Reviere = -1` (in the working tree, to be committed) and the check of the v3 manifest.
+7. **Count the GAM/GLM fallbacks of v3:** `Rscript tools/countAlgoFallbacks.R --run v3` (EVE, after the ensemble fits; module load R first). Put the count into the methods document (GAM row of the algorithm table, where it says "count for v3: to be added") and into the audit table (S3-26).
+8. **S9 figures for v3** with the fixed handling of `Reviere = -1` (in the working tree, to be committed) and the check of the v3 manifest.
 
 ## 0. Found while reading the paper — methodology-fidelity gaps
 

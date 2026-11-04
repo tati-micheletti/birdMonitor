@@ -71,7 +71,7 @@ The big 5 replaces the single boosted regression tree at each scale by five algo
 | --- | --- |
 | BRT | Boosted regression tree, as in section 3 |
 | GLM | Logistic regression with linear and quadratic terms, selected by AIC (as in Wiedenroth et al.) |
-| GAM | Logistic additive model (`mgcv`) with a smooth of up to four degrees of freedom per predictor; if the default fit does not converge, more robust settings are tried before any predictor is dropped |
+| GAM | Logistic additive model (`mgcv`) with a smooth of up to four degrees of freedom per predictor; if the default fit does not converge, more robust settings are tried before any predictor is dropped (REML with more iterations, then the extended Fellner-Schall optimiser, then k = 3, and only then the sparsest predictor is dropped). A GAM that needed one of these fallbacks is a simpler or differently estimated model than the plain description, still a valid fit; each fit records which setting was used, and `tools/countAlgoFallbacks.R` lists the species and scales concerned after a run (count for v3: to be added) |
 | Random forest | `ranger`, 1000 trees, one third of the predictors tried at each split, minimum node size 5 (the published work used `randomForest`; `ranger` is much faster with the same defaults) |
 | Neural network | `nnet`, one hidden layer of 3 units, weight decay 0.1, up to 1000 iterations, standardised predictors, the mean of 5 random starts; these settings come from the sensitivity analysis described below |
 
