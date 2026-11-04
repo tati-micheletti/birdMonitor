@@ -1,0 +1,134 @@
+---
+title: "birdMonitor: audit table of decisions, assumptions and flags"
+author: "Tatiane Micheletti"
+date: "4 November 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+d <- read.csv("6_Audit_table_data.csv", encoding = "UTF-8", stringsAsFactors = FALSE, check.names = FALSE)
+d$flag <- tolower(trimws(d$flag))
+d$stage <- sub("^S([0-9]+)-.*$", "\\1", d$id); d$num <- as.integer(sub("^S[0-9]+-", "", d$id))
+d <- d[order(as.integer(d$stage), d$num), ]
+parts <- c("1" = "A. Study design and data", "2" = "B. Predictors", "3" = "C. Models and ensemble",
+           "4" = "D. Validation, uncertainty and indices", "5" = "E. Outputs, plots and operations")
+esc <- function(x) htmltools::htmlEscape(ifelse(is.na(x), "", x))
+cell <- function(x) { x <- esc(x); ifelse(nzchar(x), x, "<span class='none'>-</span>") }
+row_html <- function(r) {
+  sprintf("<tr data-flag='%s' data-needs='%s'><td class='id'><b>%s</b>%s</td><td><b>%s</b></td><td>%s</td><td>%s</td><td>%s</td><td class='code'>%s</td><td>%s</td><td>%s<br><span class='ref'>%s</span></td><td class='fl fl-%s'><b>%s</b><br>%s<br><span class='ver'>Checked: %s</span></td></tr>",
+          r$flag, tolower(r$needs_results), esc(r$id), if (tolower(r$needs_results) == "yes") "<br><span class='needs'>needs v3</span>" else "",
+          esc(r$item), cell(r$decision), cell(r$reason_documented), cell(r$alternatives_not_chosen), cell(r$code_ref), cell(r$docs_ref),
+          cell(r$scientific_refs), esc(r$ref_status), r$flag, toupper(r$flag), esc(r$flag_reason), esc(r$verified))
+}
+tbl <- function(x) {
+  head <- "<tr><th>ID</th><th>Item</th><th>What was done</th><th>Why (as documented)</th><th>Alternatives not chosen</th><th>Where in the code (module | file | function | lines)</th><th>Documentation</th><th>Scientific references</th><th>Flag and reason</th></tr>"
+  # passed to pandoc as a raw HTML block, so that nothing inside the cells is read as markdown ($, *, ~, backticks, quotes, ...)
+  paste0("\n````{=html}\n<table class='audit'>", head, paste(vapply(seq_len(nrow(x)), function(i) row_html(x[i, ]), ""), collapse = ""), "</table>\n````\n")
+}
+```
+
+<style>
+.main-container { max-width: 100% !important; width: 100% !important; }
+table.audit { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; margin-bottom: 28px; }
+table.audit th { position: sticky; top: 0; background: #f0f0f0; border: 1px solid #bbb; padding: 4px 6px; text-align: left; z-index: 2; }
+table.audit td { border: 1px solid #ccc; padding: 4px 6px; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
+table.audit th:nth-child(1), table.audit td:nth-child(1) { width: 5%; }
+table.audit th:nth-child(2), table.audit td:nth-child(2) { width: 9%; }
+table.audit th:nth-child(3), table.audit td:nth-child(3) { width: 18%; }
+table.audit th:nth-child(4), table.audit td:nth-child(4) { width: 11%; }
+table.audit th:nth-child(5), table.audit td:nth-child(5) { width: 11%; }
+table.audit th:nth-child(6), table.audit td:nth-child(6) { width: 11%; }
+table.audit th:nth-child(7), table.audit td:nth-child(7) { width: 7%; }
+table.audit th:nth-child(8), table.audit td:nth-child(8) { width: 8%; }
+table.audit th:nth-child(9), table.audit td:nth-child(9) { width: 20%; }
+td.code { font-family: Consolas, monospace; font-size: 11px; }
+td.fl-red { background: #fbd5d1; } td.fl-yellow { background: #fff2bf; } td.fl-green { background: #dcf1dc; }
+.none { color: #aaa; } .ref { color: #777; font-size: 11px; } .ver { color: #555; font-size: 11px; font-style: italic; }
+.needs { background: #dde7f5; border-radius: 3px; padding: 0 4px; font-size: 10px; }
+.filterbar button { margin: 0 6px 8px 0; padding: 3px 10px; border: 1px solid #888; background: #fff; cursor: pointer; border-radius: 3px; }
+.filterbar button.active { background: #333; color: #fff; }
+</style>
+
+## How to read this table
+
+This table lists the decisions and assumptions behind the whole birdMonitor process, in the order of the modelling workflow: study design and data, predictors, models, validation with uncertainty and indices, and outputs with operations. Each row is one decision or assumption. It says what was done (with the values found in the code), why (only when the repository says so), which alternatives were not chosen, where it lives in the code (module, file, function and line numbers), where it is documented, and which published work justifies or discusses it. Every row also has a flag.
+
+| Flag | Meaning |
+|---|---|
+| **green** | Sound and documented. |
+| **yellow** | Questionable, undocumented, unverified, or with a known limitation. The row says what would test or fix it. |
+| **red** | Likely wrong, contradicted by evidence, or misleading for people who use the results. |
+
+**How the rows were made, and how far to trust them.** Five reading passes went through the code, one per stage of the workflow, each checking the code, `DECISIONS.md`, `improvements.md` and the handover against each other. All cited line numbers were then checked mechanically: every cited file and line range exists (1,094 ranges, state of commit `2c7ac5a`, dataPrep_Monitor `101aecd`; the line numbers of `tools/makeResultFigures.R` after line 756 already include the S9 fix of 4 November, which is not committed yet and moves later lines by 5). Ten rows picked at random were also compared with the cited lines, and the content matched. That does **not** mean every statement is right. The last line of each flag cell says what has been re-checked individually. Where it only says "audit pass", the statement comes from a reading pass and has not been confirmed one by one. Rows marked **needs v3** can only be judged once the v3 results exist. Scientific references that I could not verify say "needs verification"; none of them has a made-up DOI. The list of papers to fetch and check is kept outside this document.
+
+<div class="filterbar">
+<button class="active" onclick="flt('all', this)">All</button>
+<button onclick="flt('red', this)">Red</button>
+<button onclick="flt('yellow', this)">Yellow</button>
+<button onclick="flt('green', this)">Green</button>
+<button onclick="flt('needs', this)">Needs v3 results</button>
+</div>
+<script>
+function flt(what, btn) {
+  document.querySelectorAll('.filterbar button').forEach(function(b) { b.classList.remove('active'); }); btn.classList.add('active');
+  document.querySelectorAll('table.audit tr[data-flag]').forEach(function(tr) {
+    var show = what === 'all' || (what === 'needs' ? tr.dataset.needs === 'yes' : tr.dataset.flag === what);
+    tr.style.display = show ? '' : 'none';
+  });
+}
+</script>
+
+## Summary of the flags
+
+```{r summary, results='asis'}
+ct <- table(factor(parts[d$stage], levels = parts), factor(d$flag, levels = c("red", "yellow", "green")))
+ct <- cbind(as.data.frame.matrix(ct), total = rowSums(ct), `needs v3 results` = as.integer(tapply(tolower(d$needs_results) == "yes", factor(parts[d$stage], levels = parts), sum)))
+ct <- rbind(ct, Total = colSums(ct))
+cat(knitr::kable(ct, format = "html", table.attr = "style='width:auto'"), "\n")
+```
+
+### Red flags
+
+```{r red, results='asis'}
+cat(tbl(d[d$flag == "red", ]))
+```
+
+### What I re-checked myself
+
+These rows were confirmed by opening the code or the output files, not only by the reading passes (the `Checked` line of each row says what exactly).
+
+```{r rechecked, results='asis'}
+rc <- d[grepl("^(re-checked|code side|config re-checked|computed)", d$verified), c("id", "item", "flag")]
+cat(knitr::kable(rc, format = "html", row.names = FALSE, table.attr = "style='width:auto'"), "\n")
+```
+
+```{r parts, results='asis'}
+for (s in names(parts)) {
+  x <- d[d$stage == s, ]
+  cat("\n\n## ", parts[[s]], "\n\n", sep = "")
+  for (sub in unique(x$subsection)) {
+    cat("### ", ifelse(nzchar(sub), sub, "General"), "\n\n", sep = "")
+    cat(tbl(x[x$subsection == sub, ]))
+  }
+}
+```
+
+## F. Unexpected results and their explanations
+
+This part is written after the v3 results are in; the explanations must come from v3, not from v2. The questions it has to answer are:
+
+1. Why does the presence in the DDA territory data go up for some species (for example the Red-backed Shrike and the Whitethroat) while our modelled index does not?
+2. What the Grauammer map looks like in v3, and what to do about the straight edge that the coordinate term draws in the tree-based models (see S3-10).
+3. The bright linear features in the Red-backed Shrike maps.
+4. Whether the jumps of the combined index in 2017, 2022 and 2024 have gone with the new land-use series, and why the combined index differs from the European farmland index.
+5. The 2024-25 maize area, which is above the national statistics (see S2-69), and its effect on the crop-dependent species.
+
+## G. How this document was produced
+
+The data of all tables above is the file `6_Audit_table_data.csv` in this folder (one row per decision, the columns shown). This document only formats it. To change a row, change the CSV and render again (`rmarkdown::render("6_Audit_table.Rmd")`). The line numbers refer to commit `2c7ac5a` of the main repository and `101aecd` of `dataPrep_Monitor`, except that those of `tools/makeResultFigures.R` after line 756 include the uncommitted S9 fix of 4 November (5 more lines). They move when the code changes, and the function names stay valid longer.
