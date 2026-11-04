@@ -356,6 +356,8 @@ after all), rather than blindly recomputing per species regardless of overlap.
 
 ## 5. Test excluding hedges as a covariate
 
+**Status 4 November 2026 (the backfill described below is no longer used):** since 3 November the hedge layer is ONE fixed layer in every land-use file (the mean of the layers of the years with CTM hedge data, 2017-2021 and 2024-2025; `completeHedges(mode = "mean")`, DECISIONS.md 2026-11-03), so hedges carry no time signal and the "temporally constant" worry below is now by design. The test asked for here (hedges against no hedges) was run on the DDA data with a GLM: no benefit for Motacilla flava and Streptopelia turtur (hedges and heterogeneity removed for them), a dAIC of +2.0 and +1.2 for hedges in Passer montanus and Falco tinnunculus (no benefit; heterogeneity helps both, dAIC -44.6 and -28.3), which keep hedges for now (audit table S2-58, S2-66; outputs/v2/diagnostics/hedges_vs_heterogeneity_glm.csv). The text below is the original description, kept for history.
+
 **The problem:** Lisa's notes flag this as a "MAJOR DISCUSSION POINT" already:
 `hedges` data only genuinely exists for 2017-2022 and 2024-2025 in the Thünen
 dataset. All other years are backfilled with a flat value from a reference

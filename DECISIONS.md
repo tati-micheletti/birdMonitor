@@ -16,6 +16,8 @@ Each entry: **What** (the decision) · **Why** (the reasoning) · **Status**
 
 ## 2026-09 — Hedges dropped as a candidate predictor (default), backfill toggle added
 
+> **Superseded in part, 2026-11-03/04.** The "backfill from the nearest real year" described below is no longer the rule: the hedge layer is now one fixed mean layer in every land-use file (see the entries of 2026-10-21 and 2026-11-03). The entry is kept as written, for the history of the decision.
+
 **What:** By default, `hedges` is excluded from every model's candidate
 predictor set. A code-level toggle (`hedgesTreatment`, `"drop"`/`"backfill"`)
 can re-enable it; per-species inclusion once enabled goes through the
@@ -1459,7 +1461,7 @@ Decided with Tati. For the first clean run (every cache key changes anyway):
    contains the category list, so it is recomputed.
 3. **All species get all five new layers** at habitat and landscape scale (`data/speciesConfig_predictors.csv`, 60 rows) and `covariatePredictorColumns()` lists them (inputs_Monitor). Which species benefit is read
    from the results.
-4. **`hedges` is no longer special.** (a) `completeHedges()` fills the hedge layer of the years without hedge data IN THE LAND-USE FILES (nearest PRECEDING year with data, else the first; the years are read
+4. **`hedges` is no longer special.** (a) **[Replaced 2026-11-03: `completeHedges()` now writes ONE fixed mean layer, `mode = "mean"`; the nearest-preceding-year rule below is `mode = "nearest"`, not used.]** `completeHedges()` fills the hedge layer of the years without hedge data IN THE LAND-USE FILES (nearest PRECEDING year with data, else the first; the years are read
    from the files, not hard-coded; real years untouched). Tested on real files: 2010 <- 2017, 2022 <- 2021, names and other layers unchanged, second call does nothing. (b) The occurrence step no longer exempts
    `hedges` from the "no NA" rule. (c) `hedges` is **excluded from the heterogeneity index**: it is no share of the cell's area and exists only for some years, so including it made the index change its
    definition in 2017, 2022 and 2024 (an artefact in the covariate series of the four species that use the index).

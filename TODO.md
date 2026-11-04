@@ -5,6 +5,16 @@ the paper this pipeline is based on. Their reference code/data links are on Zeno
 https://doi.org/10.5281/zenodo.20828528 — worth pulling and diffing against our
 implementation for several items below, especially #4.
 
+## A. Right after the v3 results (set 4 November 2026, in this order)
+
+1. **Residual spatial clustering.** Take the out-of-fold residuals of the v3 models (per species and scale) and compute Moran's I per spatial block. If there is no clustering, nothing more is needed for space; if there is, it decides what replaces the `x`/`y` coordinate term (a smooth term only in GAM/NN, or a regional factor).
+2. **Grauammer without `x`/`y`.** The coordinate term draws a straight north-south edge at about 10.7 E in the BRT and RF maps (audit table S3-10; verified on the v2 outputs). Set `spatial_term` blank for the three Emberiza calandra rows of `data/speciesConfig_general.csv`, rerun this species only (BRT at three scales, ensemble, meta-model, uncertainty, indices) and compare the map with v3. Check that the straight line is gone and that the east-west gradient stays.
+3. **Guard in `completeHedges()`** (audit table S2-28): refuse to run when only some of the land-use years carry the fixed hedge layer, so that a partial recompute cannot overwrite all years with the hedges of the recomputed ones.
+4. **Connector check.** After the connector job: count the rows of `/data/birds/viz/_manifest.csv` whose run is not v3 (an empty `_missing.csv` does not prove that everything comes from v3; audit table S5-49).
+5. **Audit table, part F** (unexpected results): DDA presence rising for the Red-backed Shrike and the Whitethroat while ours does not; the Grauammer map; the linear features in the Red-backed Shrike maps; the jumps of the combined index in 2017, 2022 and 2024 and its difference from the European farmland index; the 2024-25 maize area (S2-69).
+6. **Documentation texts that are wrong** (all listed as red or yellow in the audit table): the `metaHonestEval` parameter text in `models_Monitor.R` (FALSE changes the weights and the maps), the README on `brutzeitcode_filter`, the NN size in `DECISIONS.md`, the `sharedConfig.R` comment on the habitat years, and the claim "no pseudo-absence sampling" in the methods document.
+7. **S9 figures for v3** with the fixed handling of `Reviere = -1` (in the working tree, to be committed) and the check of the v3 manifest.
+
 ## 0. Found while reading the paper — methodology-fidelity gaps
 
 Not on your original list, but concrete and worth fixing before treating any
