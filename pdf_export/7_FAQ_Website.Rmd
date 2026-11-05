@@ -13,7 +13,9 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 sp <- read.csv("../data/speciesCanonical.csv", stringsAsFactors = FALSE); sp <- sp[nzchar(trimws(sp$include)), ]; nSp <- nrow(sp)
-spList <- paste0(sp$english_name, " (*", sp$latin_name, "*)", collapse = ", ")
+formerly <- c("Curruca communis" = "Sylvia communis")   # genus changed; the old name is still in the BirdLife EBBA2 file and in older literature
+old <- ifelse(sp$latin_name %in% names(formerly), paste0(", formerly *", formerly[sp$latin_name], "*"), "")
+spList <- paste0(sp$english_name, " (*", sp$latin_name, "*", old, ")", collapse = ", ")
 ```
 
 <style>

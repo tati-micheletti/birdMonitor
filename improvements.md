@@ -941,6 +941,12 @@ models are saved); the other ensemble members do not keep their fold models, so 
 **If the effect is small:** keep the design and state the limit (already in the Methods document). **If it is large:** one block layout for all scales in the next version (this changes the spatial blocking in `inputs_Monitor`, so all fits and
 the uncertainty replicates have to be rerun).
 
+## 26. Water mask for the Monitor maps (last step, on the viz copies only)
+
+**Request (project lead, 2026-11-05).** A probability of occurrence must not be shown over lakes and big rivers. The mask is applied at the very end, to the copies that the connector writes to `viz/`, so the original outputs (`outputs/v3`) are never overwritten.
+
+**Open design points (not decided).** (1) The water source: the `water` share layer we already have at the model scales (a cell counts as water above a threshold share; at 200 m a river like the Rhine fills most of a cell, small rivers do not), or a polygon layer of lakes and larger rivers (BKG/ATKIS or CLMS water bodies), which gives a cleaner outline but is a new input. (2) Which layers: every layer of the viz files (mean, lwr, upr, width, richness, the regional index maps) or only what is drawn as a probability. (3) NA (transparent) or a grey water colour in the Monitor. (4) The indices are computed before the mask and stay unchanged: the mask is display only. (5) A check: the share of cells masked and the maps of two lake-rich regions before and after.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
