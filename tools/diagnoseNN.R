@@ -36,4 +36,4 @@ out <- do.call(rbind, lapply(seq_len(nrow(grid)), function(i) {
 }))
 print(out, row.names = FALSE)
 cat("\nReading: hitIterationLimit = fits that stopped at maxit WITHOUT converging. Compare AUC/D2 with the other members of this scale",
-    "(see <sp>_perf_members_*.rds). The current setting is size 10, decay 0.1, maxit 300.\n")
+    "(see <sp>_perf_members_*.rds). The pipeline default (since 2026-10-08, chosen from this table) is size 3, decay 0.1, maxit 1000.\n")

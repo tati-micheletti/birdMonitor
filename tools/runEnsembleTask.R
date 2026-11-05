@@ -5,7 +5,7 @@
 #   Rscript tools/runEnsembleTask.R --step ens --scale habitat --index 5 [--members brt,glm,gam,rf]
 #                                          the ensemble of the chosen members for species 5 (default brt,glm,gam,rf = "ens"; any subset works,
 #                                          each subset gets its own name and files, see ensTag())
-# --index = species number in the roster (1..11). Options: --threads N (default $SLURM_CPUS_PER_TASK; used by the random forest),
+# --index = species number in the roster (1..length(sharedSpecies), currently 1..14). Options: --threads N (default $SLURM_CPUS_PER_TASK; used by the random forest),
 #          --years 2005,2010,2020:2025 (default all prediction years + habitat years).
 # Run name: BIRDMONITOR_RUNNAME (default test4). The BIRDMONITOR_SPECIES filter works as in the other tools.
 args <- commandArgs(trailingOnly = TRUE)

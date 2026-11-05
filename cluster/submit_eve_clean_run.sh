@@ -150,6 +150,6 @@ fi
 
 echo
 echo "================================================================================"
-echo "ALL QUEUED (run ${RUN}, ${NSP} species). Expect about 5-6 days from the start of prep (measured: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h; plus queue waits). Read-only monitor:  cd ~/projects/birdMonitor && bash cluster/monitor_tonight.sh"
+echo "ALL QUEUED (run ${RUN}, ${NSP} species). Expect about 4 days from the start of prep (v2 took about 4 days; stage times: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h; longer if the queue is slow). Read-only monitor:  cd ~/projects/birdMonitor && bash cluster/monitor_tonight.sh"
 echo "WHEN THE POST-RUN JOB (${pr}) IS DONE:  cat outputs/${RUN}/POSTRUN_SUMMARY.txt   (the same text as the e-mail; by hand: bash cluster/post_run_checks.sh)"
 echo "================================================================================"

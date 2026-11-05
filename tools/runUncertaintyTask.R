@@ -23,7 +23,7 @@
 #'   regionband      per species x band (index as bandpredict): cell sums for the regional index  [models_Monitor/R/uncRegional.R]
 #'   regionassemble  per species: add the bands up -> regional_means_<km>km.rds
 #'   ridgeredo       per species: move the replicate ridge file aside and recompute it with the current penalty rule
-#'   maskmaps        index 1..11 = species, 12 = community: Germany-only copies of the finished maps (maps_germany/, community_germany/)
+#'   maskmaps        index 1..n = species (n = length(sharedSpecies), now 14), n + 1 = community: Germany-only copies of the finished maps (maps_germany/, community_germany/)
 #'   regionindex     once: regional index per replicate + intervals, change, trend, parity  [runIndex_Monitor]
 #'
 #' Settings come from environment variables:

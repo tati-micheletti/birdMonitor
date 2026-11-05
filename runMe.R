@@ -92,8 +92,8 @@ speciesPredictorTable <- if (file.exists(speciesPredictorsConfigFile)) {
 } else NULL
 
 # Per-species+scale resolution override (default: NA everywhere until you
-# actually need a species at a non-default resolution, e.g. Milvus milvus
-# at 15km landscape) -- see DECISIONS.md's 2026-09-28 entry. Distinct
+# actually need a species at a non-default resolution, e.g. Buteo buteo
+# at 5000 m landscape) -- see DECISIONS.md's 2026-09-28 entry. Distinct
 # resolutions actually needed per scale are computed below and used by
 # dataPrep_Monitor to generate each one exactly once (not once per species).
 resolutionConfig <- extractResolutionConfig(perSpeciesGeneralConfig)
@@ -308,7 +308,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         baselineYear = 2005,
         allYears = predictionYears,
         currentYear = max(sharedHabitatYears),
-        restrictedYears = sharedHabitatYears,
+        restrictedYears = 2022:2025,   # years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
         cellSizesM = sharedRegionalCellSizesM,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,

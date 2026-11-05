@@ -1204,6 +1204,9 @@ very different from each other; check `replicate_log.csv` and, if needed, the se
   this surfaced). Worth a real fix (e.g. `set.seed()` inside, or an explicit
   seed argument) at some point for fully reproducible performance metrics,
   but out of scope for the caching work that found it.
+  Update 2026-11-05: no longer open. `blockCVPredictBRT()` sets a stable seed per fold (`set.seed(stableSeed(c("cvBRT", k, ...)))`)
+  and `evalSDM()` has no random step (threshold from `PresenceAbsence::optimal.thresholds()`), so the performance metrics repeat
+  exactly on an unchanged model.
 - **Minimum 10 presences before attempting to fit a model at all**
   (`occurrencePrepGerHabitat()`/`GerLandscape()`/`Europe()`, `nPres < 10` ->
   skip species/year entirely). **Checked directly against Wiedenroth et al.'s
@@ -1253,6 +1256,10 @@ fold to get out-of-fold inputs (about 4x the previous BRT fitting cost per repli
 Verified locally: replicate 0 equals the baseline (area mean relative difference 3e-11). Maps are rebuilt automatically when the
 weights differ from those of the existing maps (`<species>_meta_ridgeid.txt`). improvements.md item 16 is closed by this.
 
+Update 2026-11-05: `metaHonestEval` (default TRUE) switches BOTH the reported accuracy and the ridge weights, and with them the
+binary-map threshold and every meta map. FALSE trains the ridge on in-sample inputs. The parameter text of `models_Monitor.R`, which
+said that the maps do not depend on it, was wrong and has been corrected.
+
 ## 2026-10-07 -- Climate layers 2022-2025 were inconsistent with 2005-2021 (found while explaining last-year drops)
 
 **Found while investigating why the index of Anthus pratensis / Lullula arborea drops in 2025** (tools/diagnoseYearJump.R on the local
@@ -1286,6 +1293,9 @@ one out, two out"). Design:
   `s(x, k = 4)`, random forest = REGRESSION forest with 1000 trees but run with `ranger` (several times faster, uses all cores; defaults matched
   to `randomForest`: mtry = max(floor(p/3), 1), min.node.size 5) -- a documented deviation. `nn` = `nnet`, 1 hidden layer (10 units), decay 0.1,
   standardised inputs, mean of 5 starts: first version, hyper-parameters NOT tuned, beyond Wiedenroth et al.
+  Update 2026-11-05: the 10 units / up to 300 iterations above describe the first version only. Since 2026-10-08 the code
+  (`algoFitNN()` in `algoModels.R`) uses 3 hidden units, decay 0.1, up to 1000 iterations, still the mean of 5 starts. The earlier setting
+  did not converge in 15 of 15 landscape fits in a pilot (`tools/diagnoseNN.R`). The values are fixed, not tuned per species.
 - The BRT is a member like the others: its out-of-fold predictions are rebuilt from its saved fold models (`brtMemberRun()`); not refitted.
 - Every model uses the SAME predictors and spatial folds as the BRT of that scale. Files: `<sp>_<algo>_<scale>.rds`, `_perf_`, `_cvpred_`, `_oofhab_`,
   `_pred_<algo>_<scale>_<year>.tif` next to the BRT outputs (new names only).

@@ -6,7 +6,8 @@
 #' earlier version of this script, this does NOT bypass SpaDES: every
 #' cluster task gets the same automatic parameter validation, `reqdPkgs`
 #' loading, and self-documentation as the full `runMe.R` pipeline -- it's
-#' just told to handle one species/stage instead of all eleven. In
+#' just told to handle one species/stage instead of all of them (14 in
+#' the roster, `length(sharedSpecies)`). In
 #' particular, SpaDES's own module loading now handles attaching `terra`
 #' etc. correctly, so the manual package-loading (and the bug it needed
 #' working around) this script used to do is no longer needed at all.
@@ -74,7 +75,7 @@ if (is.null(opt$scale) || !opt$scale %in% c("europe", "habitat", "landscape", "m
 ## sharedConfig.R's own header for why this replaces a hand-typed copy.
 source(file.path(opt$repoRoot, "tools", "sharedConfig.R"))
 
-## Per-species/scale resolution overrides (e.g. Milvus milvus's coarser
+## Per-species/scale resolution overrides (e.g. Buteo buteo's coarser
 ## landscape window) -- same speciesConfig_general.csv resolutionConfig
 ## the full runMe.R pipeline builds, so a cluster task can never silently
 ## disagree with a full run on a species' resolution (see DECISIONS.md's

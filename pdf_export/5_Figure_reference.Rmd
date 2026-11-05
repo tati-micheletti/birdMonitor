@@ -1,7 +1,7 @@
 ---
 title: "birdMonitor: results reference"
 author: "Tati Micheletti"
-date: "16 October 2026"
+date: "5 November 2026"
 output:
   html_document:
     toc: true
@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 source("figure_reference_helpers.R")
 ```
 
-*This page is built from the results of the run `r runName`, with the `r nSp` species that have results in it (species can be added to or removed from the roster; nothing on the page is typed per species). It is made again at the end of a full run: first the figures, `tools/makeResultFigures.R` on EVE, then `BIRDMONITOR_RUNNAME=<run> Rscript R/render_figure_reference.R` on the PC. The run `v2` is the first clean run; the copy of 29 October showed the test run `test4` (11 species).*
+*This page is built from the results of the run `r runName`, with the `r nSp` species that have results in it (species can be added to or removed from the roster; nothing on the page is typed per species). It is made again at the end of a full run: first the figures, `tools/makeResultFigures.R` on EVE, then `BIRDMONITOR_RUNNAME=<run> Rscript R/render_figure_reference.R` on the PC. The run `v3` is the clean run with the new land-use rule of 3 November (`v2` was the first clean run); the copy of 29 October showed the test run `test4` (11 species). The numbers and figures of an earlier run must not be read as results of `v3`. All results on this page are preliminary.*
 
 <style>
 .main-container { max-width: 1500px !important; }
@@ -37,7 +37,7 @@ details.more > summary { cursor: pointer; font-weight: bold; color: #555; margin
 
 This is the page I will have open on Friday. It has every figure we made, in the order of the results pipeline below, and one page for each species at the end. Click a figure to open it in full size (the full-size files are in the folder `figures_fullreport`, next to this page). Everything is for Germany and comes from the model ensemble. The FAQ at the end has short answers to the questions I expect.
 
-![**Results pipeline.** For each bird species (`r nSp`) and each year (2005 to 2025), three single scale models are combined into one probability map (step 1). Everything is repeated on 25 resampled datasets, the replicates (step 2), and everything derived is computed inside every replicate and then summarised (step 3). All results come from the model ensemble of five algorithms. Species x `r nSp`, years x 21, replicates x 25; replicate 0 is the main model. The maps in the figure are illustrative (made up); the structure is the real one. The habitat model is trained on the MhB point counts of 2022 to 2025; the climate and landscape models were trained on longer windows. Red = decline, blue = increase (change and trend maps).](birdMonitor_results_pipeline.png)
+![**Results pipeline.** For each bird species (`r nSp`) and each year (2005 to 2025), three single scale models are combined into one probability map (step 1). Everything is repeated on 25 resampled datasets, the replicates (step 2), and everything derived is computed inside every replicate and then summarised (step 3). All results come from the model ensemble of five algorithms. Species x `r nSp`, years x 21, replicates x 25; replicate 0 is the main model. The maps in the figure are illustrative (made up); the structure is the real one. The habitat model and the meta-model are trained on the MhB point counts of 2022 to 2025; the landscape model of most species on the DDA territory data of 2005 to 2024, and the climate model on the European atlas with one climate window (2012 to 2017). Red = decline, blue = increase (change and trend maps).](birdMonitor_results_pipeline.png)
 
 **Jump to a species:**
 ```{r jump, results='asis'}
@@ -46,13 +46,13 @@ cat('<p class="tocjump">', paste(sprintf('<a href="#sp-%s">%s</a>', spId(species
 
 ## How to read the maps
 
-* **Probability, not counts.** Every map is built from the yearly probability of occurrence of a species in a 200 m pixel. Nothing here is a number of birds.
+* **Probability, not counts.** Every map is built from the yearly probability of occurrence of a species in a 200 m pixel. Nothing here is a number of birds. The probabilities are not calibrated occupancy: the models are fitted to presence and absence records, and how high the values are depends on how the absences were defined at each scale, so read the colours as relative values within one species, and compare changes between years rather than levels between species.
 * **Colours.** Red means a decline, blue an increase. Grey means "not clear" (see the next point).
-* **Clear.** A pixel or cell is coloured in the "only where it is clear" maps when the whole 90% interval over the replicates lies below zero or above zero. Grey means the interval includes zero. That does not mean nothing changed; it means the data do not settle it.
+* **Clear.** A pixel or cell is coloured in the "only where it is clear" maps when the whole 90% interval over the replicates lies below zero or above zero. Grey means the interval includes zero. That does not mean nothing changed; it means the data do not settle it. "Clear" is not a significance test: it means that the change is consistent across the 25 replicates (with 25 values the 5th and 95th percentile are interpolated between the second and third and the 23rd and 24th ordered values), it is checked for about nine million pixels without a correction for that, and the interval covers the resampling of the training data only. The colours show the change of the main model, the mask comes from the replicates, so a coloured pixel can have a main-model value outside its own interval.
 * **The interval.** It is the 5th to the 95th percentile over the 25 replicates. It shows how much the result depends on the training data. It is not a range for what an observer would count in the field.
 * **Best estimate.** The line or map of the main model (replicate 0), fitted once on all training data. The intervals come from the replicates.
 * **Index points.** The species and combined indices are 100 in 2005. In the regional maps every grid cell is 100 in 2005, so a cell at 90 in 2025 has lost 10 points, which is 10% of its own 2005 value.
-* **Hindcast.** The habitat model is trained on the MhB point counts of 2022 to 2025; the climate and landscape models were trained on longer windows. For 2005 to 2021 the habitat scale is only predicted, not trained (a hindcast), so before 2022 its maps follow the covariate layers of each year.
+* **Hindcast.** The habitat model and the meta-model that combines the three scales are trained on the MhB point counts of 2022 to 2025; the landscape model of most species on the DDA territory data of 2005 to 2024, and the climate model on one climate window (2012 to 2017). For 2005 to 2021 the habitat scale and the combination are only predicted, not trained (a hindcast), so before 2022 the maps follow the covariate layers of each year through a response that was learned later. This is an assumption that has not been tested against independent data. The DDA territory data end in 2024, so the 2025 landscape map of the species that use them is a forecast.
 
 ## The numbers in one table
 
@@ -66,12 +66,21 @@ knitr::kable(data.frame(Species = nm, `Index 2025` = f(s), check.names = FALSE),
 
 # 1. Step 1: three scale models, one probability map
 
-For each species and year, a climate model (50 km, the Europe atlas), a landscape model (1 km, territory mapping; for the Common Buzzard and the Common Starling point counts, and a different grid size for the Red-backed Shrike and the Common Buzzard) and a habitat model (200 m, point counts 2022 to 2025) are fitted. At each scale, five algorithms (BRT, GLM, GAM, random forest and a neural network) are fitted and averaged. A ridge model, the meta-model, then weights the three scales. It is trained on predictions the models did not see, which is why I call it honest. The maps of every species are on its page at the end.
+For each species and year, a climate model (50 km, the Europe atlas), a landscape model (1 km, territory mapping; for the Common Buzzard and the Common Starling point counts, and a different grid size for the Red-backed Shrike and the Common Buzzard) and a habitat model (200 m, point counts 2022 to 2025) are fitted. At each scale, five algorithms (BRT, GLM, GAM, random forest and a neural network) are fitted and averaged. A ridge model, the meta-model, then weights the three scales; the weights are never negative. It is trained on predictions the models did not see, which is why I call it honest, and only on the years 2022 to 2025. The three scales do not use the same kind of survey record, so their accuracies and their maps are not comparable one to one. The maps of every species are on its page at the end.
 
 ```{r s1, results='asis'}
 a <- tab("S1_auc_by_scale"); m <- a[a$scale == "meta" & a$variant == "big5", ]
 cat(sprintf("The honest accuracy (AUC) of the final map goes from %s to %s.\n\n", fmt(min(m$AUC), 2), fmt(max(m$AUC), 2)))
-figs(c("S1_auc_by_scale", "S1_scale_weights"), what = TRUE)
+figs("S1_auc_by_scale", what = TRUE)
+cat("\nThe accuracy of different scales cannot be compared with each other, because each scale is tested on other records (atlas squares, territory plots, point counts). The climate scale is a continental test: the model is fitted on all of Europe and its blocks are up to 1,500 km, so its AUC says little about skill within Germany. The final map is tested on the habitat records of 2022 to 2025 only.\n\n")
+fig("S1_scale_weights")
+sc <- c("climate", "landscape", "habitat"); w <- if (file.exists(file.path(tabDir, "S1_scale_weights.csv"))) tab("S1_scale_weights") else NULL
+if (!is.null(w)) { w <- w[w$variant == "big5", ]; w <- w[stats::complete.cases(w[, sc]), ] }
+if (!is.null(w) && nrow(w)) {
+  top <- factor(sc[max.col(as.matrix(w[, sc]), ties.method = "first")], levels = sc)
+  cat(sprintf("\nIn the table `S1_scale_weights` the habitat scale has the largest share in %d of %d species, the landscape scale in %d and the climate scale in %d.\n\n", sum(top == "habitat"), nrow(w), sum(top == "landscape"), sum(top == "climate")))
+}
+cat("What the bars show: they are not the weights that multiply the three maps. Each bar is the importance of a scale, the fall in the explained deviance of the meta-model when that scale is removed, set to zero if it does not fall and scaled so that the three add up to 1 for each species. It is a unique contribution: two scales that carry the same information split it or lose it, so a small bar does not mean that the scale is unimportant. The weights themselves are the ridge coefficients of the meta-model, on the scale of probabilities; they are in the log of the meta-model of the run (for the earlier run `test4` in section 7.5 of the handover).\n\n")
 ```
 
 # 2. Step 2: the replicates
@@ -111,7 +120,7 @@ fig("S3_species_2025_summary", what = TRUE)
 
 ## 3.3 Multi-species indicator (MSI)
 
-The multi-species indicator is the geometric mean of the `r nSp` species indices. I show it three ways, SBI, MSI (Monte Carlo) and the chain index. The figures draw the 90% Monte Carlo interval (MSI). The interval over the replicates (SBI) and the chain index interval are computed as well, so that I can keep an eye on them as more species are added; they are in the table `S3_combined_intervals_big5` (folder `tables`). The years after the last published national indicator year (2023, to be confirmed) are drawn dashed and marked as preliminary.
+The multi-species indicator is the geometric mean of the `r nSp` species indices. I show it three ways, SBI, MSI (Monte Carlo) and the chain index. The figures draw the 90% Monte Carlo interval (MSI). The black line is the combined index of the main model (SBI), while the band is centred on the mean of the replicates, so the line need not lie in the middle of the band; for the earlier run `test4` the combined index of 2025 was 93.3 for the main model and 93.5 as the replicate mean (handover, section 7.8). The interval over the replicates (SBI) and the chain index interval are computed as well, so that I can keep an eye on them as more species are added; they are in the table `S3_combined_intervals_big5` (folder `tables`). The years after the last published national indicator year (2023, to be confirmed) are drawn dashed and marked as preliminary.
 
 ```{r s33, results='asis'}
 ens("S3_combined", what = TRUE)
@@ -152,7 +161,7 @@ fig("S6_uncertainty_10km_big5", what = TRUE)
 
 ## 3.5 Trend per pixel
 
-The linear trend per decade is computed at every pixel in every replicate. To identify statistically significant trends I use two criteria and show both. The main one is the 90% interval of the slope over the replicates: the pixel is coloured when the whole interval lies on one side of zero. The second is a Mann-Kendall test with the Sen slope on the yearly maps of the main model. That test only compares the predicted values with their own year-to-year variation, it leaves out the uncertainty of the model, and with about nine million pixels about 5% are significant at p < 0.05 by chance, so it flags many more pixels. Here is one example, the Whinchat; all species are on their own pages, and the regional version is under 3.4.
+The linear trend per decade is computed at every pixel in every replicate, over all 21 years including the hindcast years 2005 to 2021, so it mostly reflects how the covariate layers change through a response learned in 2022 to 2025; a straight line through a series with a step is not robust. [AFTER v3: check whether the pixel trends are dominated by the boundary at 2022.] To identify statistically significant trends I use two criteria and show both. The main one is the 90% interval of the slope over the replicates: the pixel is coloured when the whole interval lies on one side of zero. The second is a Mann-Kendall test with the Sen slope on the yearly maps of the main model. That test only compares the predicted values with their own year-to-year variation, it leaves out the uncertainty of the model, and with about nine million pixels about 5% are significant at p < 0.05 by chance, so it flags many more pixels. Here is one example, the Whinchat; all species are on their own pages, and the regional version is under 3.4.
 
 ```{r s35, results='asis'}
 figs(c("S4_trend_Saxicola_rubetra_big5", "S4_trendtest_Saxicola_rubetra_big5"), what = TRUE)
@@ -160,7 +169,7 @@ figs(c("S4_trend_Saxicola_rubetra_big5", "S4_trendtest_Saxicola_rubetra_big5"), 
 
 ## 3.6 Across species
 
-Expected richness is the sum of the probabilities of the `r nSp` species in a pixel. Turnover (Bray-Curtis) shows species swaps that richness hides. Gains and losses come from the presence/absence maps and are supporting material only.
+Expected richness is the sum of the probabilities of the `r nSp` species in a pixel. It is the expected number of these species only if the probabilities were calibrated, which they are not, it covers only the `r nSp` species of the roster (not the bird community), and its level depends on that list. Turnover (Bray-Curtis) shows species swaps that richness hides. Gains and losses come from the presence/absence maps and are supporting material only.
 
 ```{r s36, results='asis'}
 ens("S5_community_change", what = TRUE)
@@ -183,7 +192,7 @@ Kamp, J., Frank, C., Trautmann, S., Busch, M., Dröschmeister, R., Flade, M., Ge
 
 # 4. Species pages
 
-Each page has the same figures in the same order: the three scale models and the final map, the probability maps, the presence/absence maps, the change maps, the trend (with the Mann-Kendall check), the gains and losses and the disagreement among the five algorithms.
+Each page has the same figures in the same order: the three scale models and the final map, the probability maps, the presence/absence maps, the change maps, the trend (with the Mann-Kendall check), the gains and losses and the disagreement among the five algorithms. Two things to know when you read the first figures of a page. The probability maps (2005, 2015 and 2025) and the four panels of the scale figure all use the same colour scale from 0 to 1, so a species with low probabilities looks flat and its pattern is hard to see; the largest value is not printed on the panels. And the panel titles of the scale figure say "Landscape model (1 km)" for every species, although the landscape grid of the Red-backed Shrike is 700 m and that of the Common Buzzard 5 km.
 
 ```{r species, results='asis'}
 for (i in seq_len(nrow(speciesCanonical))) {

@@ -73,13 +73,16 @@ sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2
 # availability) -- no longer also the prediction range, see
 # `predictionYears` above.
 # Widened back to the full range 2026-10-01 (see predictionYears above for
-# why) -- DDA territories genuinely span 2005:2025, and real MhB
-# point-count occurrence data for the habitat-scale species in scope now
-# also goes back to 2005 (confirmed via actual historical
-# Lanius_collurio_habitat_2005.rds-era files). The 2022:2025 narrowing
-# was specific to Buteo buteo/Sturnus vulgaris's MhB-routed landscape
-# data; both habitat's fitting-year constraint AND metaModel's training
-# window share this same value (see DECISIONS.md's 2026-09-28 entry).
+# why) -- DDA territories genuinely span 2005:2025. These two values are
+# only the DEFAULT fitting years: every row of speciesConfig_general.csv
+# that uses MhB point counts has years_override = 2022:2025 (DECISIONS.md,
+# 2026-10-02: earlier MhB records are inconsistent). In practice that means
+# the habitat models of all species and the landscape models of Buteo buteo
+# and Sturnus vulgaris are trained on 2022:2025 only, and 2005-2021 is
+# hindcast. Only the DDA-based landscape models use the 2005:2025 default.
+# Both habitat's fitting-year constraint AND metaModel's training window
+# share the resolved per-species habitat years (see DECISIONS.md's
+# 2026-09-28 entry).
 sharedLandscapeYears <- 2005:2025
 sharedHabitatYears <- 2005:2025
 # DEBUG ONLY: BIRDMONITOR_YEARS="2022:2025" restricts the prediction years and the fitting years of both scales to that range (a fast local test of the real pipeline, e.g. with

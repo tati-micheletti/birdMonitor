@@ -13,20 +13,20 @@ output:
     theme: readable
 ---
 
-*Note of 29 October 2026: the numbers in this summary are those of the 11-species runs of 12 and 13 October. The roster for the first version of the Monitor has 14 species (28 October); a clean run recomputes everything, and the pipeline has meanwhile been extended with one study area for all inputs, complete predictor layers and a connector that fills the folder the Monitor reads. This summary has not been changed otherwise.*
+*Note of 29 October 2026: the numbers in this summary are those of the 11-species runs of 12 and 13 October. The roster for the first version of the Monitor has 14 species (28 October); a clean run recomputes everything, and the pipeline has meanwhile been extended with one study area for all inputs, complete predictor layers and a connector that fills the folder the Monitor reads. This summary has not been changed otherwise. Note of 5 November 2026: the clean run is the big 5 only (14 species, 25 replicates, 90% intervals), the habitat scale is trained on 2022-2025 (2005-2021 are hindcasts), the combined index is the geometric mean of the species indices, and the hedge layer is one fixed layer since 3 November. The BRT-only results below are those of the October run.*
 
 The birdMonitor modelling pipeline turns bird records and environmental data into yearly maps and national indices for 11 species (2005-2025), with confidence intervals on everything, all within Germany's borders.
 
 ## At a glance
 
 - **A model pipeline** combines three spatial scales (climate 50 km, landscape 1 km, habitat 200 m) for 11 species and 21 years, following the pre-print Wiedenroth et al. method.
-- **Honest accuracy.** The weights that combine the scales are trained and tested on predictions the models did not see, which differs from the original  method, but is likely more robust.
-- **Uncertainty throughout.** A spatial bootstrap with 50 replicates of the models gives an interval for every map, change map, trend and index, including the regional indices on 10, 20 and 50 km grids.
+- **Honest accuracy.** The weights that combine the scales are trained and tested on out-of-fold predictions, made for records of blocks the models did not see (approximately so for the climate and landscape scales), which differs from the original  method, but is likely more robust.
+- **Uncertainty throughout.** A spatial bootstrap with 50 replicates of the models (25 with the big 5) gives a 90% interval for every map, change map, trend and index, including the regional indices on 10, 20 and 50 km grids.
 - **An ensemble of five algorithms (the "big 5"),** with its own uncertainty. It is more accurate than the single algorithm and shows a stronger decline.
 
 ## Everything done and still to do, in order of work
 
-Of 21 steps, 18 are done and 3 are still ahead. The problems we found along the way, and how they were fixed, are listed in the handover document (section 7.10).
+Of 21 steps, 18 are done, 1 is built and waits for the clean run, and 2 are still ahead. The problems we found along the way, and how they were fixed, are listed in the handover document (section 7.10).
 
 | # | Phase | What it delivers | Status |
 | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Of 21 steps, 18 are done and 3 are still ahead. The problems we found along the 
 | 16 | Check for near-absent species in the regional maps (none found) | Stable regional maps | Done |
 | 17 | Backup of the results and the input data on the project storage (/data/birds) | A safe copy of the data | Done |
 | 18 | Final checks of every number | Confidence that the results are right | Done |
-| 19 | Predict only inside Germany by cutting every input to the study-area outline at the source, instead of using the bounding box of Germany | A cleaner pipeline in which nothing is computed outside Germany | Planned |
+| 19 | Predict only inside Germany by cutting every input to the study-area outline at the source, instead of using the bounding box of Germany | A cleaner pipeline in which nothing is computed outside Germany | Built (layers cropped to the study area plus a buffer; the final maps are still cut to the reporting area); first used in the clean run |
 | 20 | Check the intervals (a second interval for the grey partridge, a check of the block size of the bootstrap, replicates 26-100) | More reliable intervals | Planned |
 | 21 | Further sources of uncertainty (predictor error, tuning) and the floor and cap rule of the regional index | A more complete picture of uncertainty and stable regional maps | Planned |
 

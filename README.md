@@ -106,12 +106,12 @@ landscape/habitat):
 
 | column | wired to real effect? | what it does |
 |---|---|---|
-| `resolution_m` | **Yes** | per-species resolution override (e.g. Milvus milvus's coarser landscape window) — `dataPrep_Monitor` generates each scale's distinct resolutions and re-keys occurrence extraction by it; `inputs_Monitor` groups spatial blocking by it; `models_Monitor` resolves each species' own model/prediction directory from it |
+| `resolution_m` | **Yes** | per-species resolution override (e.g. Lanius collurio's finer 700 m landscape window, Buteo buteo's coarser 5000 m one) — `dataPrep_Monitor` generates each scale's distinct resolutions and re-keys occurrence extraction by it; `inputs_Monitor` groups spatial blocking by it; `models_Monitor` resolves each species' own model/prediction directory from it |
 | `data_source` | **Yes** (landscape rows only) | `"DDA territories"` (default) or `"MhB point counts"` — routes that species' landscape-scale occurrence construction through a different raw source entirely, see `DECISIONS.md` |
 | `thinning_dist_m` | **Yes** | per-species spatial thinning distance override |
-| `brutzeitcode_filter` | **Yes** (habitat rows only) | ATLAS_CODE prefix filter (e.g. `"C"` = confirmed-breeding only), on top of the existing global filter |
+| `brutzeitcode_filter` | **Yes** (habitat rows, and landscape rows of species whose `data_source` is `"MhB point counts"`) | ATLAS_CODE prefix filter (e.g. `"C"` = confirmed-breeding only), on top of the existing global filter. Currently used once: the landscape row of Buteo buteo. DDA territories have no ATLAS_CODE, so the filter does nothing on a DDA row |
 | `spatial_term` | **Yes** | x/y coordinates as predictors for that species and scale (see `DECISIONS.md`) |
-| `years_override` | **Yes** | fitting years of that species and scale instead of the shared years (habitat: `2022:2025` for all species) |
+| `years_override` | **Yes** | fitting years of that species and scale instead of the shared years (habitat: `2022:2025` for all species; landscape: `2022:2025` for the two MhB-routed species Buteo buteo and Sturnus vulgaris) |
 
 `data/speciesCanonical.csv` (17 species; column `include` = `X` for the 14 that run) is the roster;
 `sharedSpecies` is built from it. A new species needs a row there, three rows in
@@ -184,10 +184,11 @@ for each of `sharedRegionalCellSizesM`'s grid sizes (10/20/50km by default).
 **New to EVE? Follow [`EVE_GUIDE.md`](EVE_GUIDE.md)** (step by step, one-command setup via
 `cluster/setup_eve.sh`). The notes below are the technical reference.
 
-**Status as of 2026-10-29:** the baseline, the BRT-only and the algorithm-ensemble ("big 5")
-uncertainty runs of 11 species have been run on EVE (run `test4`, 12-13 October). The first clean
-run for the Monitor (run folder `v2`, 14 species, one script: `cluster/submit_eve_clean_run.sh`) is
-written and has been tried as a dry run only; it has NOT been submitted. See the
+**Status as of 2026-11-05:** the baseline, the BRT-only and the algorithm-ensemble ("big 5")
+uncertainty runs of 11 species were run on EVE in October (run `test4`, 12-13 October). The clean
+run for the Monitor (14 species, one script: `cluster/submit_eve_clean_run.sh`) has been used twice:
+`v2` (first submitted 29 October) finished after about 4 days, and `v3` (same chain, new land-use
+rule and one fixed mean hedge layer, DECISIONS.md 2026-11-03) is the current run. See the
 `.claude/skills/eve-cluster/` skill for onboarding constraints (VPN-only
 access, module system, Transfer Queue for downloads, memory/node sizing,
 fair-share priority).
@@ -263,11 +264,11 @@ Rscript tools/runClusterTask.R --scale habitat --index 3 --run-name test4
 **A full run for a new run folder** (first version of the Monitor, a new study area, a new species
 set, changed layers): one command on an EVE login node. It chains the checks, the preparation, the
 BRT arrays at three scales, the ensemble, the reporting-area copies and the index, the uncertainty
-(25 replicates), the regional steps, the copy to `/data/birds` and the connector. About 5 to 6 days (measured on the first run, see START_HERE.md).
+(25 replicates), the regional steps, the copy to `/data/birds` and the connector. About 4 days (v2 took about 4 days, see START_HERE.md).
 ```bash
 cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive
 DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh      # runs the checks, prints the chain, submits nothing
-bash --login cluster/submit_eve_clean_run.sh                # sends it (run folder v2; BIRDMONITOR_RUNNAME=<name> for another)
+bash --login cluster/submit_eve_clean_run.sh                # sends it (run folder v3 by default; BIRDMONITOR_RUNNAME=<name> for another)
 ```
 It stops, and says why, if the run folder exists (`RESUME=1` continues it), if the code on EVE has
 uncommitted changes or a module is not at its pinned commit, if a species of the roster has no

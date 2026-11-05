@@ -1,7 +1,7 @@
 ---
 title: "BirdMonitor: frequently asked questions (draft for the website)"
 author: "Tatiane Micheletti, based on the first draft by Lisa Hildebrand"
-date: "4 November 2026"
+date: "5 November 2026"
 output:
   html_document:
     toc: true
@@ -80,7 +80,7 @@ Use the tab for feedback and error reports in the BirdMonitor (in the German ver
 
 ### What is probability of occurrence?
 
-Probability of occurrence describes how likely it is that a species is present in a particular map square in a given year. It ranges from 0 to 1. Values close to 0 mean the species is very unlikely to occur there, and values close to 1 mean it is very likely to occur there. For example, a value of 0.7 means that out of 10 squares with the same conditions, the species would be expected to occur in about 7.
+Probability of occurrence describes how likely it is that a species is present in a particular map square in a given year. It ranges from 0 to 1. Values close to 0 mean the species is very unlikely to occur there, and values close to 1 mean it is very likely to occur there. It is a relative measure: a square with 0.7 suits the species better than a square with 0.3. It is not a calibrated chance, because the models are fitted to records of presence and absence and how high the values are depends on how the absences were defined at each scale, so 0.7 should not be read as "present in 7 of 10 such squares".
 
 The values come from a statistical model. The model uses the survey data to learn which environmental conditions a species prefers, such as land use, landscape structure and climate. It then estimates the probability for every square in Germany, including squares that were never surveyed. *More: How were the values calculated?*
 
@@ -130,8 +130,8 @@ par(op)
 What the figure means:
 
 - **Habitat scale (200 m) and the final combination of the three scales.** The bird data for the habitat scale are point counts from 2022 to 2025 only. The final model that combines the three scales was also learned from these four years. For 2022-2025 the maps are therefore close to the data they were learned from. **For 2005-2021 the maps are hindcasts:** the model applies what it learned from 2022-2025 to the environment of earlier years. This is a reasonable thing to do for habitat preferences that stay the same over time, but it is an assumption, and it has not been checked against independent habitat-scale bird data for those years.
-- **Landscape scale (1 km).** For most species this scale is learned from the DDA territory mapping of 2005-2024, so it carries real information about the earlier years. For the Common Buzzard and the Starling it uses the point counts of 2022-2025 as well.
-- **Climate scale (50 km).** It is learned once from the European breeding bird atlas (2013-2017) and applied to the climate of every year.
+- **Landscape scale (1 km).** For most species this scale is learned from the DDA territory mapping of 2005-2024, so it carries real information about the earlier years. The territory data end in 2024, so for these species the 2025 map at this scale is a forecast, not a map fitted to 2025 data. For the Common Buzzard and the Starling it uses the point counts of 2022-2025 instead.
+- **Climate scale (50 km).** It is learned once from the European breeding bird atlas (2013-2017), paired with the climate of the six years 2012-2017, and applied to the climate of every year.
 - **Maps in 2024 and 2025.** The latest official national indicator of the farmland birds ends before 2024 <span class="todo">[CONFIRM the last published year; 2023 is a placeholder]</span>. In the national trend, the years after it are marked "preliminary". The newest land-use map for 2024-2025 is a different product from the one for earlier years and was converted to match it, which makes these two years the least certain ones for crop-related species.
 
 <span class="todo">[CONFIRM / TO BUILD: the Monitor should mark the hindcast years (2005-2021) in the maps and in the time slider, with a short text such as "Model reconstruction: this year lies before the period of the bird data used for the final model." At the moment the files give no such marker; only the national trend marks "preliminary" years. This is the labelling gap found in the audit (row S5-55).]</span>
@@ -140,7 +140,7 @@ What the figure means:
 
 Expected species richness estimates how many of the `r nSp` species can be expected to occur in a 200 x 200 m square in a given year. It is calculated by adding up the probabilities of occurrence of all species in a square. For example, if three species each have a probability of 0.5 in a square and the others have 0, the expected richness is 1.5. This is why the values have decimals: they are a summed probability, not a count. Values can range from 0 to `r nSp`; in practice, values at the very ends are rare.
 
-*What it does not tell you:* it does not count the species actually present, and it covers only these `r nSp` species, not birds in general. A square with a low value may still be rich in other birds.
+*What it does not tell you:* it does not count the species actually present, and it covers only these `r nSp` species, not birds in general. A square with a low value may still be rich in other birds. Because the probabilities it adds up are not calibrated, read the values as relative: where richness is higher or lower, and how it changes.
 
 ### What does the multi-species indicator represent?
 
@@ -158,7 +158,7 @@ Combining species with the geometric mean is the usual approach in bird monitori
 
 ### What does a "clear" change or trend mean?
 
-On the change and trend maps, a square is coloured only where the change is clear: where the whole 90% interval over the repeated model runs lies on one side of zero. Grey means that the interval includes zero. That is not the same as "no change": it means that the models cannot tell. *More: How certain are you about the values?*
+On the change and trend maps, a square is coloured only where the change is clear: where the whole 90% interval over the repeated model runs lies on one side of zero. Grey means that the interval includes zero. That is not the same as "no change": it means that the models cannot tell. "Clear" means consistent across the 25 repeated runs; it is not a statistical test, and it only covers how sensitive the result is to the survey data. *More: How certain are you about the values?*
 
 ### Can I look up a single location, such as my garden?
 
@@ -176,9 +176,9 @@ The BirdMonitor combines bird survey data with environmental data describing cli
 
 *Territory mapping of the Common Breeding Bird Monitoring (DDA).* The Common Breeding Bird Monitoring (Monitoring haeufiger Brutvoegel, MhB) is coordinated by the Dachverband Deutscher Avifaunisten (DDA). Experienced volunteer ornithologists survey about 2,300 fixed sample plots of 1 x 1 km across Germany four times each breeding season, following a standardized method, and record territories. The DDA has coordinated bird monitoring in Germany since 1989; the BirdMonitor uses data from 2005 onwards, when stricter survey standards were introduced, up to 2024. *Link to the DDA page.*
 
-*Point counts of the Common Breeding Bird Monitoring (MhB), 2022-2025.* For the finest scale (200 m) we use the point counts along the survey routes of the most recent four years.
+*Point counts of the Common Breeding Bird Monitoring (MhB), 2022-2025.* For the finest scale (200 m) we use the point counts along the survey routes of the most recent four years. For the Common Buzzard and the Starling the point counts are also used at the 1 km scale, and for the Buzzard only a record with a confirmed-breeding code counts as a presence, so its maps depend on how observers record breeding evidence.
 
-*European Breeding Bird Atlas 2 (EBBA2).* For the climate scale we use the atlas, which records whether each species is present or absent in 50 x 50 km squares across all of Europe (fieldwork 2013-2017). Using European-wide data lets the model learn the full range of climate that a species can live in, beyond the climate found in Germany. *Link to the EBBA2 website.*
+*European Breeding Bird Atlas 2 (EBBA2).* For the climate scale we use the atlas, which records in which 50 x 50 km squares each species is present across all of Europe (fieldwork 2013-2017). A species counts as absent from a square where it is not listed only if another of the species of the Monitor's extract was recorded there; squares with none of them are left out. Using European-wide data lets the model learn the full range of climate that a species can live in, beyond the climate found in Germany. *Link to the EBBA2 website.*
 
 **Environmental data**
 
@@ -232,19 +232,19 @@ Like any estimate based on a model, the values in the BirdMonitor come with unce
 
 *How the uncertainty is measured.* We repeat the whole modelling process 25 times, each time with a slightly different random selection of the survey data (resampling whole blocks of space, so that neighbouring records are kept together). Where the 25 results agree closely, the estimate is more certain; where they differ, it is less certain. From this we calculate a 90% interval for every square: the range that contains the middle 90% of the repeated results. The uncertainty is carried through every step, from the single scales to the final maps, the expected species richness and the multi-species indicator.
 
-*What the interval does not cover.* It does not include the assumption that habitat preferences learned from 2022-2025 hold in earlier years, the choice of model type, or errors in the environmental maps. It is a measure of how sensitive the result is to the survey data, not a range for what an observer would count.
+*What the interval does not cover.* It does not include the assumption that habitat preferences learned from 2022-2025 hold in earlier years, the choice of model type, the model settings (for example the number of trees), which stay fixed in every repeat, or errors in the environmental maps. It is a measure of how sensitive the result is to the survey data, not a range for what an observer would count.
 
 *How you can see it.* The uncertainty can be displayed on top of each map layer using a toggle. As a general rule, patterns across larger areas and longer periods are more reliable than the value of a single square or a single year.
 
 ### How accurate is the model?
 
-We test every model with spatial cross-validation: the model is repeatedly fitted on part of the country and tested on a block of the country that it has not seen, which is a harder and more honest test than testing on neighbouring squares. For every species we report how well the model separates places with and without the species (the AUC, from 0.5 for no better than chance to 1 for perfect). <span class="after">[AFTER v3: the range of the AUC across species and scales, and the plot of observed against modelled trends for the species of the national indicator.]</span> The accuracy numbers refer to places and years with survey data; they say little about how well the earlier years are reconstructed.
+We test every model with spatial cross-validation: the model is repeatedly fitted on part of the country and tested on a block of the country that it has not seen, which is a harder and more honest test than testing on neighbouring squares. For every species we report how well the model separates places with and without the species (the AUC, from 0.5 for no better than chance to 1 for perfect). The values of the three scales cannot be compared with each other, because each scale is tested on different records. <span class="after">[AFTER v3: the range of the AUC across species and scales, and the plot of observed against modelled trends for the species of the national indicator.]</span> The accuracy numbers refer to places and years with survey data; they say little about how well the earlier years are reconstructed.
 
 ### Why does the map show a species where I have never seen it, or not where I have?
 
 The maps show probabilities from a model, not records of individual sightings, so differences from your own observations are normal.
 
-*A probability is not a certainty.* Take 10 squares that all have a probability of 0.3. The species would be expected in about 3 of them and absent from the other 7, so if you have seen it in a square with a low value, you may be in one of those 3. The same holds the other way round: among 10 squares with a high value of 0.8, the species would be missing from about 2.
+*A probability is not a certainty.* A square with a low value can still hold the species, and a square with a high value can be empty, so if you have seen the species in a square with a low value, the map is not necessarily wrong. The values are relative and not calibrated (see *What is probability of occurrence?*), so they do not tell you in how many of a set of squares the species would be found.
 
 *The model sees the landscape in a simplified way.* It uses land use, landscape structure and climate from national, European and global data sets. A single hedgerow, a fallow strip or the timing of mowing may matter to a bird but may not be visible in these data.
 
@@ -302,4 +302,5 @@ What I changed compared with Lisa's draft, and why:
 6. **"Compare a species with itself, not with others"** was added to *probability of occurrence*, because the absolute level of the probability depends on the survey design of each species.
 7. **Data section updated:** DDA territory mapping and point counts are named separately with their years; the crop type maps are described as two products; climate variables are calculated for every year.
 8. **Left open on purpose:** the two questions whose answers depend on the v3 results (the DDA trend against ours, and the jumps of the indicator), every number marked "AFTER v3", and the facts nobody has supplied yet (funders, contact, downloads and licence, update plan, the last published year of the national indicator, the reference of Wiedenroth et al., the links). Facts that Lisa's draft supplied (policy list, number of plots and visits, the toggle for the uncertainty, the click function) are taken as correct on Tati's instruction of 4 November 2026.
-9. **Language.** The text is in English, in the neutral "we" form of the Monitor's other pages. The website also needs the German version. I would translate it once the marks are resolved, so that the numbers are translated only once.
+9. **Checked against the code on 5 November.** Probability of occurrence, expected richness and the "clear" mark are no longer described as calibrated or as a test (the models are fitted to presence and absence records whose proportion depends on how absences were defined; calibration has not been tested). The landscape bullet now says that the DDA territory data end in 2024, so the 2025 landscape map is a forecast, and that the Buzzard and the Starling use point counts instead of territories; the Buzzard counts as present only with a confirmed-breeding code. The climate bullet names the climate window (2012-2017) that is paired with the atlas, and the data text says how absences are made from the atlas extract. No open mark was changed.
+10. **Language.** The text is in English, in the neutral "we" form of the Monitor's other pages. The website also needs the German version. I would translate it once the marks are resolved, so that the numbers are translated only once.

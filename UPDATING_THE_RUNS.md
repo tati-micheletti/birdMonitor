@@ -8,7 +8,7 @@ One script chains everything (prep, BRT, ensemble, uncertainty, copy to `/data/b
 cd ~/projects/birdMonitor && git pull && git submodule update --init --recursive && DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh
 ```
 `DRY_RUN=1` runs the checks (clean run folder, code state, records of every species at the three scales, study area) and prints the chain without submitting. When it is happy, the same command without `DRY_RUN=1 ` submits it
-(run folder `v2`, the second full run; another name with `BIRDMONITOR_RUNNAME`). Expect about 5 to 6 days (measured on the first run, see START_HERE.md). Cropping to the study area is done in place on `inputs/predictors/processed`: it is fine for the same or a smaller area; for a larger one the
+(run folder `v3` by default, the third full run after test4 and v2; another name with `BIRDMONITOR_RUNNAME`). Expect about 4 days (v2 took about 4 days, see START_HERE.md). Cropping to the study area is done in place on `inputs/predictors/processed`: it is fine for the same or a smaller area; for a larger one the
 script/preparation stops and the processed layers of that scale have to be re-made first.
 
 ## 1. Get the latest version (PC and EVE)
@@ -25,7 +25,7 @@ Without this you change an old version. On the PC use the same command in the re
 | change predictors or models of a species | `data/speciesConfig_predictors.csv`, `data/speciesConfig_general.csv` |
 | change code | in the module: `modules/<module>/R/...` |
 | run only the 10 km map of the regional index (all the Monitor shows) | `export BIRDMONITOR_REGIONAL_KM=10` before submitting (default: 10, 20, 50 km) |
-| use another run folder | `export BIRDMONITOR_RUNNAME=<name>` before every step (default `test4`) |
+| use another run folder | `export BIRDMONITOR_RUNNAME=<name>` before every step (default `test4`; the clean-run script `submit_eve_clean_run.sh` defaults to `v3`) |
 
 Commit and push **the module first, then the main repo** (a module is its own repository):
 ```bash

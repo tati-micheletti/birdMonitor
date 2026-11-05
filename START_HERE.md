@@ -2,8 +2,9 @@
 
 Written on 29 October 2026 for whoever takes over the project. Everything below is in this GitHub
 repository (`tati-micheletti/birdMonitor`) unless it says otherwise. The state described is the one of
-29 October: 14 species in the roster, the first clean run (run folder `v2`) submitted on 29 October (first prep killed for memory, fixed and resubmitted; running on 30 October), **not yet
-finished**, the Bird Monitor reads `/data/birds/viz`.
+29 October: 14 species in the roster, the first clean run (run folder `v2`) submitted on 29 October (first prep killed for memory, fixed and resubmitted). Update 5 November: v2 finished
+(about 4 days). The current run is `v3` (the same chain with the new land-use rule and one fixed mean hedge layer, DECISIONS.md 2026-11-03), still running on EVE; its results are the ensemble
+(`ens_brt-glm-gam-rf-nn`). The Bird Monitor reads `/data/birds/viz`.
 
 ## 1. Read, in this order
 
@@ -25,7 +26,7 @@ where it and the handover differ, the handover is newer.
 | File | What to check, and why |
 |---|---|
 | `data/speciesCanonical.csv` | Column `include`: the 14 species marked `X` are the ones that run (the table holds 17). Off: Perdix perdix, Streptopelia turtur, Milvus milvus. The submit scripts read the number of species from here. |
-| `data/speciesConfig_general.csv` | Three rows per species (climate, landscape, habitat): data source, resolution, thinning, `years_override`. Habitat uses `2022:2025` for all species. The Falco tinnunculus rows were copied from Passer montanus. |
+| `data/speciesConfig_general.csv` | Three rows per species (climate, landscape, habitat): data source, resolution, thinning, `years_override`. Habitat uses `2022:2025` for all species (so 2005-2021 are hindcasts); the landscape rows of Buteo buteo and Sturnus vulgaris use it too. The Falco tinnunculus rows were copied from Passer montanus. |
 | `data/speciesConfig_predictors.csv` | The candidate predictors of each species and scale. A species missing here is a hard error. Falco tinnunculus has a provisional full set; the layer guidance for the four new species is in `DECISIONS.md` of 2026-10-28. |
 | `tools/sharedConfig.R` | `sharedStudyArea` (Germany); `predictionYears` (2005:2025); `sharedHabitatYears` and `sharedLandscapeYears`; the three resolutions; `sharedEbba2CsvSubpath` (the 28 October file) and the two name-alias tables; the buffers; `sharedRegionalCellSizesM` (10, 20, 50 km); `sharedNationalIndicatorLastYear` (2023, still to be confirmed with the DDA contact; only the connector uses it). `sharedClmsTokenJSONPath` is a path on the PC of the previous maintainer and only matters if the CORINE land cover has to be rebuilt. |
 
@@ -33,7 +34,7 @@ where it and the handover differ, the handover is newer.
 
 - These must be empty: `echo $BIRDMONITOR_SPECIES $BIRDMONITOR_YEARS $BIRDMONITOR_STUDY_AREA`. The script refuses the first two;
   the third is the study-area test switch (a test with another area crops the processed layers in place).
-- The run folder is `v2` by default (`BIRDMONITOR_RUNNAME`); `outputs/v2` must not exist yet.
+- The run folder is `v3` by default (`BIRDMONITOR_RUNNAME`); `outputs/v3` must not exist yet (the script stops if it does, unless `RESUME=1`). For a later run, set a new name.
 
 ## 4. Checks to run, in this order (one step at a time on EVE)
 
@@ -41,11 +42,11 @@ where it and the handover differ, the handover is newer.
 2. **Compare `inputs/` with the `/data/birds` copy:** `COPY_INPUTS=1 MODE=verify bash cluster/copy_to_data_birds.sh`. If it lists differences, run `sbatch cluster/eve_copy_data_birds.sbatch` (adds and updates, never deletes).
 3. **Check the EBBA2 file** in `inputs/response/raw/ornitho/`: `md5sum ebba2_data_occurrence_50km_2026-10-28.csv` must give `58ad0369ec0cbeb7cf17d1dc1b66a0c0` (1,913,376 bytes, 53,447 rows, 17 species).
 4. **Dry run:** `DRY_RUN=1 bash --login cluster/submit_eve_clean_run.sh`. It runs all the checks (including that every species has records at the three scales) and prints the chain without submitting.
-5. **Send it** (about 5 to 6 days in total; estimated from the October timings and the first prep of v2: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h, plus queue waits): `bash --login cluster/submit_eve_clean_run.sh`. Afterwards `cat /data/birds/viz/_missing.csv` must be empty and `grep -H RESULT outputs/v2/uncertainty*/*/parity_check.txt` must say `RESULT: OK` for every species.
+5. **Send it** (about 4 days in total; v2 took about 4 days. Stage times: prep ~22 h, ensemble fits ~7 h, uncertainty prepare up to ~24 h, bands ~38 h, the rest ~7 h; allow longer if the queue is slow): `bash --login cluster/submit_eve_clean_run.sh`. Afterwards `cat /data/birds/viz/_missing.csv` must be empty and `grep -H RESULT outputs/<run>/uncertainty*/*/parity_check.txt` must say `RESULT: OK` for every species.
 
 ## 5. What is not settled or not verified (so that you do not assume it is)
 
-- The clean-run script was used for the first time on 29 October (run v2, still running on 30 October): until it has finished, its end-to-end result is not verified; the pieces ran separately in October.
+- The clean-run script was used for the first time on 29 October (run v2, finished after about 4 days). v3 is the first run with the new land-use rule: until it has finished and passed the post-run checks, its end-to-end result is not verified.
 - The connector (`modules/connector_Monitor`) has been tested on synthetic files only, never on real results.
 - Richness with uncertainty for every year is a change in the community step that has not run on real replicate data.
 - The cut-off year of the preliminary national trend (2023) is a placeholder; the figure code for the dashed line is not written.

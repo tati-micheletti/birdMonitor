@@ -765,7 +765,7 @@ out-of-fold training; if they barely differ the issue is immaterial and this ite
 **Update 2026-10-06:** the check was run (`tools/runMetaCheck.R`): the pipeline's meta-model AUC (~0.99) was inflated; the honest
 number is about that of the habitat BRT alone. Two parts of this item exist:
 (a) the REPORTED ACCURACY -- DONE: `metaModel()` now reports the out-of-fold accuracy (`metaHonestEval`, default TRUE), the old
-    number stays in `<species>_perf_meta_inSample.rds`;
+    number stays in `<species>_perf_meta_inSample.rds` (note: the same switch also decides the weights, see (b));
 (b) the WEIGHTS (ridge trained on out-of-fold inputs) -- DONE 2026-10-06 as well (baseline and replicates; DECISIONS.md).
 
 ---
@@ -921,6 +921,23 @@ and the same function is used for the Europe (100 km) and landscape tables (`occ
   random draws (for instance by sampling from a differently ordered vector). (3) `reproducible::Cache()` of the occurrence tables may or may not include the code of `thin()` in its key: check on one species before the full run; if the key changes, all tables are
   rebuilt once (acceptable, but plan for it). (4) The repository checks that duplicated functions are identical across modules (`tools/check_duplicated_functions.R`); `thin.R` exists only in `dataPrep_Monitor`, so there is nothing to copy.
 - **Done 2026-11-03 (project lead: yes, before the v3 run).** `thin.R` now follows the plan above; `modules/dataPrep_Monitor/tests/test_thin.R` keeps the old function as `thinOld` and checks identical retained points on 16 constructed cases (1,000 points on a 200 m grid at several distances including exactly the grid spacing and just below/above it, identical coordinates, chains, no neighbours, 1 and 2 points, 25 clusters), 40 random sets and runs = 1, 3, 10 (all identical), plus 1,800 further random comparisons. Speed: 750 clustered points 12.3 s -> 0.08 s; 5,000 points 0.59 s (the old function: about 55 minutes). Cache keys are no concern in v3 because every occurrence table is rebuilt anyway (the land-use layers changed). NOT yet done: the check on one real big species-year (Alauda arvensis 2022) on EVE; the v2 tables are the reference for it.
+
+## 25. One block layout for all three scales: exact out-of-fold inputs for the meta-model
+
+**Noted 2026-11-05 (idea from a colleague's tip on stacking, not changed; v3 keeps the current design).** The meta-model weights are trained on out-of-fold predictions, but the folds are exact only at the habitat scale. For climate and landscape,
+a habitat record gets the fold of the NEAREST record of that scale's own table (`uncOofContext()` in `uncOof.R`) and is predicted by the model that left that fold out (audit table S3-45). Near a block border the nearest record can lie in another
+block, so the model that predicts the record may have seen its neighbourhood; at the 50 km climate scale the nearest cell is far from the habitat point. The out-of-fold inputs are then slightly too good for those two scales, and the weights
+could favour them a little too much. The size of the effect is not known.
+
+**The fix.** Cut Germany into blocks ONCE (one layout, one fold assignment for every record of every scale) and use it for all three scales. Every habitat record then has one clear fold, and the model that predicts it for any scale is the one
+that left exactly that fold out. This also makes the per-scale accuracies comparable (same held-out regions).
+
+**Test it before changing anything (needs the v3 outputs; see TODO.md section A, item 9).** (1) Per species, how often does the nearest-record fold differ from the fold of the block polygon that really contains the habitat record, per scale,
+and how far is the nearest record? (2) For the species where the share is high (and for Vanellus vanellus, audit S3-47): recompute the ridge weights and the honest AUC with the exact folds and compare. Part (2) is cheap for the BRT member (the fold
+models are saved); the other ensemble members do not keep their fold models, so an exact ensemble check would mean refitting their folds.
+
+**If the effect is small:** keep the design and state the limit (already in the Methods document). **If it is large:** one block layout for all scales in the next version (this changes the spatial blocking in `inputs_Monitor`, so all fits and
+the uncertainty replicates have to be rerun).
 
 ---
 
