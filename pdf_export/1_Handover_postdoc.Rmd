@@ -320,6 +320,9 @@ What was done, tested, found and changed, day by day from 23 September to 12 Oct
 | 28 Oct | National trend: only the national trend shows the period after the last published national indicator year as a dashed, preliminary line; regional MSI, maps and per-species products use all data; receive all the newest DDA data; implement it, show the DDA that it does not undermine the BfN indicator, then talk | Project lead with the DDA contact (option A) | DECISIONS (viz entry), `modules/connector_Monitor/README.md` |
 | 28 Oct | Go ahead with the current viz structure (one raster per metric, richness every year, national trend table) and re-run only if the Monitor's requirements change | Project lead | DECISIONS "2026-10-28" (viz files) |
 | 3 Nov | Land use: HCTM for every year up to 2023, CTM v302 for 2024-2025 recoded to HCTM classes; hedges as ONE fixed mean layer in every land-use file; hedges and heterogeneity removed for Motacilla flava and Streptopelia turtur; no year term; new run `v3` | Project lead ("we need to address the humps; it does not matter if it takes longer to run") | DECISIONS "2026-11-03" |
+| 5 Nov | Hedge cells at the rim of the larger land-use grids are filled from the nearest valid cell (no recompute of the land use) | Project lead | DECISIONS "2026-11-05" (hedge gaps) |
+| 5 Nov | Water mask on the Monitor maps: no probability over lakes and big rivers; applied last, to the viz copies only; OpenStreetMap water polygons (ODbL) | Project lead | DECISIONS "2026-11-05" (water mask) |
+| 5 Nov | Grauammer (Emberiza calandra) without the x/y coordinate term, at all three scales; no species uses coordinates any more | Project lead | DECISIONS "2026-11-05" (Grauammer) |
 
 
 # 3. How the modules work

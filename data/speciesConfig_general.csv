@@ -17,9 +17,9 @@ Alauda arvensis,habitat,200,MhB point counts,400,,,2022:2025
 Saxicola rubetra,climate,50000,EBBA2/CHELSA,100000,,,
 Saxicola rubetra,landscape,1000,DDA territories,2000,,,
 Saxicola rubetra,habitat,200,MhB point counts,400,,,2022:2025
-Emberiza calandra,climate,50000,EBBA2/CHELSA,100000,,X,
-Emberiza calandra,landscape,1000,DDA territories,2000,,X,
-Emberiza calandra,habitat,200,MhB point counts,400,,X,2022:2025
+Emberiza calandra,climate,50000,EBBA2/CHELSA,100000,,,
+Emberiza calandra,landscape,1000,DDA territories,2000,,,
+Emberiza calandra,habitat,200,MhB point counts,400,,,2022:2025
 Emberiza citrinella,climate,50000,EBBA2/CHELSA,100000,,,
 Emberiza citrinella,landscape,1000,DDA territories,2000,,,
 Emberiza citrinella,habitat,200,MhB point counts,400,,,2022:2025
