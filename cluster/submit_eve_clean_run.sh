@@ -71,6 +71,15 @@ for y in 2017 2018 2019 2020 2021; do [ -f "${LUDIR}/CTM_GER_${y}_rst_v202_COG.t
 [ -f "data/landuseRecodeCTMtoHCTM.csv" ] || miss="${miss} data/landuseRecodeCTMtoHCTM.csv(git pull?)"
 [ -z "${miss}" ] || { echo "STOP: land-use inputs missing in ${LUDIR}:${miss}" >&2; exit 1; }
 echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"
+# The water layer for the mask of the Monitor maps (sharedWaterMaskFile in tools/sharedConfig.R; "none" = no mask, on purpose). The connector is the LAST job of the chain: a missing file would only show after days, so it is checked here.
+WATER=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedWaterMaskFile)' 2>/dev/null | tail -1); WF="${BIRDMONITOR_WATER_FILE:-${WATER}}"
+if [ "${WF}" = "none" ]; then
+  echo "water mask: OFF on purpose (none)"
+elif [ -f "${WF}" ]; then
+  echo "water layer: ${WF} -> $(stat -c %s "${WF}") bytes, md5 $(md5sum "${WF}" | cut -c1-32)"
+else
+  echo "STOP: the water layer ${WF} for the mask of the Monitor maps is not on this machine (sharedWaterMaskFile in tools/sharedConfig.R). Put it there, or set it to \"none\" on purpose." >&2; exit 1
+fi
 # The EBBA2 file the pipeline will read (sharedEbba2CsvSubpath in tools/sharedConfig.R -> runMe.R -> dataPrep_Monitor, and the same variable in checkSpeciesData.R below): print its name, size and checksum so it can be compared with the local copy.
 EBBA2=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedEbba2CsvSubpath)' 2>/dev/null | tail -1)
 [ -f "inputs/${EBBA2}" ] || { echo "STOP: the EBBA2 file inputs/${EBBA2} (sharedEbba2CsvSubpath) is not on this machine. Copy it to inputs/$(dirname "${EBBA2}")/ first." >&2; exit 1; }

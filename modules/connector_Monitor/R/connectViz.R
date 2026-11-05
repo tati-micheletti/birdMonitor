@@ -29,11 +29,24 @@
 #' @param allowWorkSources Logical. Allow links to files under `/work` (they break when EVE cleans `/work`).
 #' @param dryRun Logical. Only report what would be done.
 #' @param failIfIncomplete Logical. Stop with an error when something expected is missing (default: warn and write `_missing.csv`).
+#' @param waterFile Character or NULL. Polygons of lakes and wider rivers (or a water raster): in the files of `waterProducts` the cells whose water share is at least `waterMinShare` are set to NA
+#'   in the COPY in the viz folder (a probability of occurrence is not shown over water); the source files are never changed and files of those products are written, not linked.
+#'   The file must exist (stops at once if not). NULL/NA: no mask. A file written with another mask setting is written again. The regional index (MSI) is not masked: it is an index per square, not a probability.
+#' @param waterMinShare Numeric in (0, 1]. Share of a cell that must be water for the cell to be masked (default 0.5). @param waterProducts Character. Products that are masked.
 #' @return Invisibly, a list with `manifest`, `missing` and `done` (number of files written or linked in this call).
 connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)",
                        folders = list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
                                       msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national"),
-                       nationalLastPublishedYear = NA_integer_, linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE) {
+                       nationalLastPublishedYear = NA_integer_, linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE,
+                       waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year")) {
+  # water mask (2026-11-05): checked FIRST, so a missing file stops the job at once and not after the files were written
+  doMask <- !is.null(waterFile) && !is.na(waterFile)
+  if (doMask) {
+    if (!file.exists(waterFile)) stop("connectViz(): the water layer ", waterFile, " does not exist. Put the file there, or switch the mask off on purpose (BIRDMONITOR_WATER_FILE=none).")
+    if (!is.numeric(waterMinShare) || length(waterMinShare) != 1L || is.na(waterMinShare) || waterMinShare <= 0 || waterMinShare > 1) stop("connectViz(): waterMinShare must be a number in (0, 1].")
+    maskTxt <- paste0("written; water mask ", basename(waterFile), " (", file.size(waterFile), " bytes), cells with a water share >= ", waterMinShare, " are NA")
+    message("connectViz(): water mask ON (", waterFile, ", share >= ", waterMinShare, ") for ", paste(waterProducts, collapse = ", "), "; the source files are not changed")
+  } else message("connectViz(): water mask OFF")
   spUnder <- gsub(" ", "_", species)
   src <- vizSources(runsRoot, runs, excludeRuns, tag, cellKm)
   if (!nrow(src)) stop("connectViz(): no result files for tag '", tag, "' found in the run folders of ", runsRoot)
@@ -72,11 +85,14 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
     for (j in seq_len(nrow(lay))) {
       dest <- vizDest(row$product, row$species, yrs[j], lay$label[j], folders, cellKm); destAbs <- file.path(vizPath, dest)
       k <- which(man$dest == dest)
-      current <- length(k) == 1L && file.exists(destAbs) && file.exists(man$src[k]) && !(row$mtime > man$srcMtime[k] + 1)
+      maskThis <- doMask && row$product %in% waterProducts                                   # a file written with another mask setting is made again (also when only the setting changed)
+      wasMasked <- length(k) == 1L && isTRUE(grepl("^written; water mask", man$mode[k]))
+      current <- length(k) == 1L && file.exists(destAbs) && file.exists(man$src[k]) && !(row$mtime > man$srcMtime[k] + 1) && identical(maskThis, wasMasked) && (!maskThis || identical(man$mode[k], maskTxt))
       if (current) next
       plan <- plan + 1L
-      if (dryRun) { message("would write ", dest, "  <-  ", row$run, "/", basename(row$file)); next }
-      mode <- if (nl == 1L && row$product == "meta_prob_year") vizLink(row$file, destAbs, linkMode, allowWorkSources) else { vizWriteLayer(row$file, lay$index[j], destAbs); "written" }
+      if (dryRun) { message("would write ", dest, "  <-  ", row$run, "/", basename(row$file), if (maskThis) "  (water mask)" else ""); next }
+      mode <- if (maskThis) { vizWriteLayer(row$file, lay$index[j], destAbs, waterFile, waterMinShare); maskTxt                          # never a link: the copy is masked, the source stays as it is
+              } else if (nl == 1L && row$product == "meta_prob_year") vizLink(row$file, destAbs, linkMode, allowWorkSources) else { vizWriteLayer(row$file, lay$index[j], destAbs); "written" }
       entry <- data.frame(product = row$product, species = row$species, year = yrs[j], layer = lay$label[j], dest = dest, src = normalizePath(row$file, winslash = "/"),
                           srcMtime = row$mtime, run = row$run, mode = mode, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
       man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L

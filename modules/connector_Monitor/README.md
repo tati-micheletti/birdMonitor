@@ -34,3 +34,7 @@ On EVE, after `cluster/copy_to_data_birds.sh` has copied the new results to `/da
 `BIRDMONITOR_VIZ_DRY`.
 
 The expected richness is built for every mapped year by the community step (it was the report year only until 2026-10-28). The national trend marks the years after `sharedNationalIndicatorLastYear` (tools/sharedConfig.R, or `BIRDMONITOR_NATIONAL_LAST_YEAR`) as preliminary; changing it needs only a new connector run, not new models.
+
+## Water mask (since 2026-11-05)
+
+No probability of occurrence is shown over lakes and big rivers. With `waterFile` (parameter; `tools/runConnector.R` takes `sharedWaterMaskFile` from `tools/sharedConfig.R` or `BIRDMONITOR_WATER_FILE`, value `none` = off on purpose) the cells whose water share is at least `waterMinShare` (0.5) are NA in the COPY in the viz folder, for the products in `waterProducts` (species probability, its uncertainty layers, richness). The source files are never changed, masked files are written and never linked, the regional index (MSI) is not masked, and the manifest records the setting (a changed setting makes the files again). The file is OpenStreetMap water polygons prepared by `tools/prepareWaterLayer.R` (credit: contains data from OpenStreetMap contributors, ODbL 1.0); a missing file stops the job at its start. See DECISIONS.md 2026-11-05.

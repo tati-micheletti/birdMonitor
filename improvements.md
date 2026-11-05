@@ -943,9 +943,9 @@ the uncertainty replicates have to be rerun).
 
 ## 26. Water mask for the Monitor maps (last step, on the viz copies only)
 
-**Request (project lead, 2026-11-05).** A probability of occurrence must not be shown over lakes and big rivers. The mask is applied at the very end, to the copies that the connector writes to `viz/`, so the original outputs (`outputs/v3`) are never overwritten.
+**DONE 2026-11-05 for v3 (code, tests, water layer; not yet run on EVE).** See DECISIONS.md 2026-11-05 (water mask) and audit table S5-80. `connectViz(waterFile = ...)` sets the cells whose water share is at least 0.5 to NA in the viz COPIES of the species probability, its uncertainty layers and the richness layers; the originals in `outputs/v3` are never changed; the regional index is not masked. Water layer: OpenStreetMap water polygons (HOT/oex export, ODbL) prepared by `tools/prepareWaterLayer.R` into `inputs/predictors/raw/water/water_bodies.gpkg`.
 
-**Open design points (not decided).** (1) The water source: the `water` share layer we already have at the model scales (a cell counts as water above a threshold share; at 200 m a river like the Rhine fills most of a cell, small rivers do not), or a polygon layer of lakes and larger rivers (BKG/ATKIS or CLMS water bodies), which gives a cleaner outline but is a new input. (2) Which layers: every layer of the viz files (mean, lwr, upr, width, richness, the regional index maps) or only what is drawn as a probability. (3) NA (transparent) or a grey water colour in the Monitor. (4) The indices are computed before the mask and stay unchanged: the mask is display only. (5) A check: the share of cells masked and the maps of two lake-rich regions before and after.
+**Left:** (1) copy `water_bodies.gpkg` to `inputs/predictors/raw/water/` on EVE before the chain is submitted (the submit script checks); (2) look at the first v3 maps at the coast (Wadden Sea, bays are not masked) and at the widest rivers; (3) add the credit "Contains data from OpenStreetMap contributors (ODbL 1.0)" to the Monitor; (4) if the OSM layer is not accepted, the official BKG DLM250 hydrography can replace it (the connector takes any polygon file); (5) a threshold other than 0.5 needs no model rerun.
 
 ---
 

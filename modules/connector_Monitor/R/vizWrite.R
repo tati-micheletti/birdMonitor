@@ -49,12 +49,50 @@ vizWriteNational <- function(src, dest, lastPublishedYear = NA_integer_) {
   file.rename(part, dest); invisible(d)
 }
 
+vizWaterCache <- new.env(parent = emptyenv())
+
+#' Share (0 to 1) of every cell of `template` that is water (2026-11-05)
+#'
+#' `waterFile`: polygons of lakes and wider rivers (any vector format terra reads: shapefile, GeoPackage, GeoJSON) or a raster (any value above 0 is water). The polygons are put on the grid of `template`
+#' (`terra::rasterize(cover = TRUE)`: the fraction of the cell covered), so a river that fills most of a cell counts and a thin stream does not. Narrow waters that are only lines in the source are NOT used.
+#' The result is kept per grid for the rest of the session (all species maps share one grid, so it is made once).
+#' @param template SpatRaster whose grid is used. @param waterFile Character. Path of the water layer.
+#' @return SpatRaster, one layer `waterShare`.
+vizWaterShare <- function(template, waterFile) {
+  tpl <- terra::rast(template)[[1]]
+  key <- paste(c(normalizePath(waterFile, winslash = "/", mustWork = TRUE), file.size(waterFile), round(as.vector(terra::ext(tpl)), 3), terra::res(tpl), terra::crs(tpl, proj = TRUE)), collapse = "|")
+  if (!is.null(vizWaterCache[[key]])) return(vizWaterCache[[key]])
+  if (grepl("[.](tif|tiff|img|nc)$", waterFile, ignore.case = TRUE)) {
+    wr <- terra::rast(waterFile)[[1]]; wr <- terra::ifel(is.na(wr), 0, terra::ifel(wr > 0, 1, 0))
+    share <- terra::resample(wr, tpl, method = if (all(terra::res(wr) < terra::res(tpl))) "average" else "bilinear")
+  } else {
+    w <- terra::vect(waterFile)
+    if (!identical(terra::geomtype(w), "polygons")) stop("vizWaterShare(): ", waterFile, " holds ", terra::geomtype(w), ", but polygons (lakes, rivers) are needed.")
+    if (!nzchar(terra::crs(w))) stop("vizWaterShare(): ", waterFile, " has no coordinate reference system.")
+    if (!terra::same.crs(w, tpl)) w <- terra::project(w, tpl)
+    w <- terra::crop(w, terra::ext(tpl))
+    share <- if (nrow(w) == 0) terra::init(tpl, 0) else terra::rasterize(w, tpl, cover = TRUE, background = 0)
+  }
+  share <- terra::clamp(share, 0, 1); names(share) <- "waterShare"
+  vizWaterCache[[key]] <- share
+  share
+}
+
+#' Set the cells of a raster that are mostly water to NA (2026-11-05): no probability of occurrence over lakes and big rivers
+#' @param r SpatRaster (one layer). @param waterFile Character. See `vizWaterShare()`. @param minShare Numeric. A cell is masked when its water share is at least this (default 0.5).
+vizApplyWater <- function(r, waterFile, minShare = 0.5) {
+  share <- vizWaterShare(r, waterFile); nm <- names(r)
+  out <- terra::ifel(share >= minShare, NA, r); names(out) <- nm
+  out
+}
+
 #' Put one layer of a source raster into the viz folder as its own single-layer file
 #'
-#' Written to a `.part` file first and then renamed, so a reader (the upload to the bucket) never sees a half-written file.
-vizWriteLayer <- function(src, index, dest) {
+#' Written to a `.part` file first and then renamed, so a reader (the upload to the bucket) never sees a half-written file. With `waterFile` the cells that are mostly water are set to NA in this copy.
+vizWriteLayer <- function(src, index, dest, waterFile = NULL, waterMinShare = 0.5) {
   dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
   r <- terra::rast(src)[[index]]
+  if (!is.null(waterFile)) r <- vizApplyWater(r, waterFile, waterMinShare)        # only the COPY in the viz folder is masked; the source file is never changed
   part <- paste0(dest, ".part")
   terra::writeRaster(r, part, filetype = "GTiff", overwrite = TRUE, datatype = "FLT4S", gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3"))
   if (file.exists(dest)) file.remove(dest)

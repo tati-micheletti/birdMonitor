@@ -140,6 +140,12 @@ sharedEbba2NameAliases <- c("Sylvia communis" = "Curruca communis")
 # Only the national trend uses it: maps, regional MSI and per-species products use the full data. TO CONFIRM with Tobi; it is read by the connector only, so changing it needs no new model run
 # (override without editing: BIRDMONITOR_NATIONAL_LAST_YEAR).
 sharedNationalIndicatorLastYear <- 2023L
+# Water mask of the Monitor maps (connector_Monitor, 2026-11-05): no probability of occurrence is shown over lakes and big rivers. The mask is applied only to the COPIES the connector writes to the viz folder
+# (species probability and uncertainty, richness); outputs/<run> is never changed. sharedWaterMaskFile: polygons of lakes and wider rivers (shapefile, GeoPackage, ...) or a water raster, relative to the repo root;
+# "none" switches the mask off on purpose. A cell is masked when at least sharedWaterMaskMinShare of it is water. The file has to be on EVE BEFORE the chain is submitted (cluster/submit_eve_clean_run.sh checks).
+# Source and licence of the file: TO CONFIRM (candidate: BKG DLM250 hydrography, open data, credit "(c) GeoBasis-DE / BKG"); record it in DECISIONS.md and in the acknowledgements.
+sharedWaterMaskFile <- "inputs/predictors/raw/water/water_bodies.gpkg"
+sharedWaterMaskMinShare <- 0.5
 options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor's uncOutlineLAEA() (the reporting-area outline of the masks and the regional steps) in every script that sources this file
 sharedRecordsBufferM <- 1000
 sharedClimatePredictBufferM <- 50000

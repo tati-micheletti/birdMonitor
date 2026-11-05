@@ -35,6 +35,11 @@ params <- list(vizPath = vizPath, runsRoot = runsRoot, tag = env("BIRDMONITOR_VI
                nationalLastPublishedYear = as.integer(env("BIRDMONITOR_NATIONAL_LAST_YEAR", as.character(sharedNationalIndicatorLastYear))),
                dryRun = env("BIRDMONITOR_VIZ_DRY") == "1", failIfIncomplete = env("BIRDMONITOR_VIZ_FAIL") == "1")
 if (!is.null(runs)) params$runFolders <- runs
+# water mask (2026-11-05): ON by default for the Monitor (no probability of occurrence over lakes and big rivers). The file is sharedWaterMaskFile (tools/sharedConfig.R) or BIRDMONITOR_WATER_FILE;
+# the value "none" switches it off ON PURPOSE (a missing file stops the job, so the mask is never dropped by accident). BIRDMONITOR_WATER_MIN_SHARE overrides sharedWaterMaskMinShare.
+waterFile <- env("BIRDMONITOR_WATER_FILE", sharedWaterMaskFile)
+if (tolower(waterFile) == "none") { message("=== water mask: OFF on purpose ==="); waterFile <- NA_character_ }
+params$waterFile <- waterFile; params$waterMinShare <- as.numeric(env("BIRDMONITOR_WATER_MIN_SHARE", as.character(sharedWaterMaskMinShare)))
 sim <- SpaDES.core::simInitAndSpades(times = list(start = 2005, end = 2005), modules = "connector_Monitor",
                                      paths = list(modulePath = file.path(repoRoot, "modules"), inputPath = file.path(repoRoot, "inputs"), outputPath = file.path(repoRoot, "outputs", "connector")),
                                      params = list(connector_Monitor = params))

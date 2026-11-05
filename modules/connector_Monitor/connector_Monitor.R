@@ -51,6 +51,12 @@ defineModule(sim, list(
                     "'symlink' (default) for files that need no splitting (single-layer files); 'copy' to copy them. Multilayer files are always written as new files."),
     defineParameter("allowWorkSources", "logical", FALSE, NA, NA,
                     "Allow symbolic links to files under /work. They break when EVE deletes old files there (60 days): keep FALSE and use the copy in /data/birds as runsRoot."),
+    defineParameter("waterFile", "character", NA_character_, NA, NA,
+                    "Polygons of lakes and wider rivers (shapefile, GeoPackage, ...) or a water raster. In the files of waterProducts the cells that are mostly water are NA in the viz COPY",
+                    "(no probability of occurrence over water); the source files are never changed. NA (default): no mask. The file must exist (stops at once if not)."),
+    defineParameter("waterMinShare", "numeric", 0.5, 0, 1, "Share of a cell that must be water for the cell to be masked (cover of the polygons on the grid of the map)."),
+    defineParameter("waterProducts", "character", c("meta_prob_year", "meta_unc_year", "richness_year"), NA, NA,
+                    "Products that get the water mask. The regional index (msi_regional, msi_regional_unc) is not masked: an index per square is not a probability of occurrence."),
     defineParameter("dryRun", "logical", FALSE, NA, NA, "TRUE: only report what would be written."),
     defineParameter("failIfIncomplete", "logical", FALSE, NA, NA,
                     "TRUE: stop with an error if a result the Monitor needs is missing from the viz folder (default: warning and a _missing.csv in the folder).")
@@ -80,7 +86,8 @@ doEvent.connector_Monitor = function(sim, eventTime, eventType) {
       runsRoot <- if (is.na(P(sim)$runsRoot)) dirname(normalizePath(outputPath(sim), winslash = "/", mustWork = FALSE)) else P(sim)$runsRoot
       res <- connectViz(runsRoot = runsRoot, vizPath = P(sim)$vizPath, tag = P(sim)$tag, species = P(sim)$species, years = as.integer(P(sim)$years),
                         cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, nationalLastPublishedYear = as.integer(P(sim)$nationalLastPublishedYear), linkMode = P(sim)$linkMode,
-                        allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete)
+                        allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete,
+                        waterFile = if (is.na(P(sim)$waterFile)) NULL else P(sim)$waterFile, waterMinShare = P(sim)$waterMinShare, waterProducts = P(sim)$waterProducts)
       sim$vizManifest <- res$manifest
       # ! ----- STOP EDITING ----- ! #
     },
