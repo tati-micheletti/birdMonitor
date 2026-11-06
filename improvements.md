@@ -947,6 +947,14 @@ the uncertainty replicates have to be rerun).
 
 **Left:** (1) copy `water_bodies.gpkg` to `inputs/predictors/raw/water/` on EVE before the chain is submitted (the submit script checks); (2) look at the first v3 maps at the coast (Wadden Sea, bays are not masked) and at the widest rivers; (3) add the credit "Contains data from OpenStreetMap contributors (ODbL 1.0)" to the Monitor; (4) if the OSM layer is not accepted, the official BKG DLM250 hydrography can replace it (the connector takes any polygon file); (5) a threshold other than 0.5 needs no model rerun.
 
+## 27. URGENT, right after the v3 run: one template grid per scale (`rasterToMatch`) and the study area for EVERY processed layer, with `Cache` (project lead, 2026-11-06)
+
+**Why.** The v3 prep failed twice for the same reason: layers that are on different grids and are put right afterwards. (1) The land-use files of different years are on different grids (HCTM footprint for 2005-2023, the larger CTM grid for 2024-2025), so the fixed hedge mean had no value in the rim of the larger grids (DECISIONS 2026-11-05, audit S2-70). (2) The heterogeneity and unmapped-share files were created on the uncropped land-use grid and the later crop step skipped them because of an old marker (DECISIONS 2026-11-06, audit S1-71). Today every layer is made on the grid of its own source and cropped later in place (`applyStudyAreaToProcessed()`, marker `<file>.studyarea`, DECISIONS 2026-10-21 item 3).
+
+**Proposal.** Define one template raster per scale (the study area plus the buffer, one fixed origin and cell size) and put EVERY processed layer on it when it is made, with `reproducible::prepInputs()`/`postProcess()` (`studyArea`, `rasterToMatch`) inside `Cache()`: the grid is then the same however and whenever a layer was made, and a rewritten source changes the cache key, so a stale marker cannot exist. The markers and the crop step would go; `completeHedges()` would no longer need its rim fill.
+
+**Cost and risk.** Layers are resampled onto a fixed grid (the method for classes and shares must be chosen: average for shares, nearest for classes), which changes values slightly and therefore the models; every builder (`computeLanduse`, `computeLandcover`, heterogeneity, unmapped share, distance to woodland, DEM) and the loaders in `models_Monitor` are touched; the land-use step has to be rerun (more than 12 h at 200 m). Project lead 2026-11-06: the crop fix of the stale markers is only a shortcut for the v3 run; this item is URGENT for right after v3 (its own branch with tests, compared with v3). Layers must never be created on the grid of their source and fixed afterwards.
+
 ---
 
 *Some of these have started -- for discussion once the current run's
