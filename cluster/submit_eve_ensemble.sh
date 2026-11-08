@@ -39,6 +39,7 @@ for scale in "${SCALES[@]}"; do
     # resources: ranger (rf) uses all cores of the task; GLM/GAM/NN are single-threaded. The habitat maps are the slow part.
     case "${scale}:${algo}" in
       habitat:rf)    RES=(--cpus-per-task=4 --mem-per-cpu=8G --time=12:00:00);;
+      habitat:gam)   RES=(--cpus-per-task=1 --mem-per-cpu=12G --time=36:00:00);;   # 2026-11-08: all 14 habitat GAM tasks of the v3 run hit the 12 h limit (TIMEOUT); memory unchanged (12 GB, peak 8.3 GB in v2)
       habitat:*)     RES=(--cpus-per-task=1 --mem-per-cpu=12G --time=12:00:00);;
       landscape:rf)  RES=(--cpus-per-task=4 --mem-per-cpu=4G --time=06:00:00);;
       landscape:*)   RES=(--cpus-per-task=1 --mem-per-cpu=8G --time=06:00:00);;
