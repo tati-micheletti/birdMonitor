@@ -68,3 +68,9 @@ Decided to KEEP: `birdmon-landscape` 13 GB (peak 9.3), `ens-meta` 13 GB (peak 8.
 **Watch item: `ens-habitat-rf`, 32 GB (4 cpus x 8 GB/core), peak 30.4 GB, margin 1.05, worked 14 of 14.** Not changed. 34 GB on 4 cpus would be 8.5 GB per core, above the ~8 GB per core line of the UFZ onboarding note (the job could be routed to the small high-memory pool and wait). If a task is ever killed at 32 GB, record it under *Failures* and try 5 cpus x 7 GB = 35 GB (stays at <= 8 GB per core; check that the random forest does not take more memory with the extra thread).
 
 Proposed but NOT decided yet (ask the project lead): `ens-climate-*` 8 -> 4 GB; `ens-mean-climate` / `-landscape` / `-habitat` 12 -> 4 / 8 / 6 GB; `ens-habitat-glm` / `-gam` / `-nn` 12 GB x 1 cpu -> 2 cpus x 5 GB (10 GB; the 12 GB tasks waited 5 h at one moment while the 8 GB ones waited minutes; peak 6.7-8.3 GB).
+
+## Time-limit failures (not memory)
+| Date | Job (family) | Limit | What happened | Fix |
+|---|---|---|---|---|
+| 2026-11-08 | `ens-habitat-gam` (v3) | 12 h | all 14 tasks TIMEOUT at 12.0 h, cut at year 2024 of 21 (about 35 min per year = 12.3 h; the v2 run needed up to 9.6 h; other members: glm 0.3 h, nn 0.5 h, rf 3.8 h) | limit 36 h in `cluster/submit_eve_ensemble.sh` (memory unchanged, 12 GB) |
+| 2026-11-09 | `diag-scales` (v3, diagnostic, does not block the chain) | 6 h | TIMEOUT (job 66162416); post-run waits with afterany | rerun by hand with --time=12:00:00, memory unchanged (2 x 12 GB); progress at the cut not seen |
