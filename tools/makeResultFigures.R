@@ -3,7 +3,7 @@
 # that already exist. Nothing is refitted and nothing in outputs/ is changed; the figures go to outputs/<run>/figures_fullreport/.
 # Base R + terra only. Each figure is made independently: if an input is missing it is logged in skipped.csv and the rest continues.
 #
-#   Rscript tools/makeResultFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
+#   Rscript tools/makeResultFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8,S9] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
 #                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--cells-km 10] [--spot-points 3,5,10,15 (off by default)] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
 #
@@ -15,7 +15,7 @@
 #   S5  Step 3  community maps: richness change, turnover, gain/loss
 #   S6  Step 3  regional index (10 km; --cells-km 10,20,50 for more): change in index points, trend, uncertainty (cold and hot spot figures only with --spot-points)
 #   S7  Step 2  robustness: BRT-only against big 5 (regional pattern), spread among the five algorithms
-#   S9  observed trends from the DDA territory data (abundance and occupancy, 2005-2024) against our modelled index; run locally, not part of the default sections
+#   S9  observed trends from the DDA territory data (abundance and occupancy, 2005-2024) against our modelled index; part of the default sections since 2026-11-11 (so the post-run job makes it; it needs inputs/response/processed/territories_csv and data.table, else it is logged in skipped.csv)
 #   S8  Step 1/3 expected species richness with its uncertainty (2025: mean, 5th and 95th percentile, width) and the change in richness since 2005
 # Files written: <out>/<section>/<id>.png, <out>/figures_manifest.csv (what each figure is and where its numbers come from),
 # <out>/tables/*.csv (the numbers behind the figures), <out>/skipped.csv (what could not be made and why), <out>/figures.log.
@@ -48,7 +48,7 @@ spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", ""), ",")[[1]])   #
 spotMain <- if (length(spotPointsVec) && !(10 %in% spotPointsVec)) spotPointsVec[1] else 10
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
-sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7,S8"), ",")[[1]])
+sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7,S8,S9"), ",")[[1]])
 variants   <- strsplit(getArg("--variants", "brt,big5"), ",")[[1]]
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
 cellKm     <- as.integer(strsplit(getArg("--cells-km", "10"), ",")[[1]])
@@ -723,7 +723,9 @@ if ("S8" %in% sections) {
 ## S9  observed trends from the DDA territory data (2005-2024): abundance against occupancy, and against our modelled index (needs inputs/response/processed/territories_csv;
 ##     run locally: Rscript tools/makeResultFigures.R --run test4 --variants big5 --sections S9 --out outputs/test4/figures_fullreport)
 ##     Rules as in Kamp et al. 2021 (J Ornithol 162): only plots surveyed in at least two years, the first year of each plot series is dropped, the reference year is 2006.
-##     Not done: the observer correction (no observer id in the file) and the TRIM-GEE error model; the model here is a plain log-linear model with plot and year effects.
+##     Not done: the observer correction (the territory files have no observer id; the MhB/CBBM point-count file has one but covers only about 18% of the DDA plot-years, nearly all of them 2020-2024).
+##     The model here is a plain log-linear model with plot and year effects. 2026-11-11 added next to it: the TRIM-GEE fit of the CRAN package rtrim (one effect per year, overdispersion and serial
+##     correlation), which gives each yearly index a standard error (columns abundanceTrim/abundanceTrimSE, occupancyTrim/occupancyTrimSE; 90% interval = index +- 1.645 SE). Skipped when rtrim is not installed (or --no-trim).
 ## =================================================================================================================================================
 if ("S9" %in% sections) {
   say("--- S9 ---")
@@ -751,6 +753,20 @@ if ("S9" %in% sections) {
       100 * idx / idx[bi]
     }
     S <- matrix(FALSE, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); S[cbind(match(plotYears$plot, plots), match(plotYears$year, yrsObs))] <- TRUE
+    # 2026-11-11 TRIM (package rtrim): model 3 = one effect per year, with overdispersion and serial correlation (if that fit fails, once more without serial correlation). Same plot-years as above,
+    # all-zero plots dropped (as in ipf). Returns the index (obsBase = 100) and its standard error in index points; NA when rtrim is missing or the fit fails.
+    useTrim <- requireNamespace("rtrim", quietly = TRUE) && !("--no-trim" %in% args)
+    if (!useTrim) note("S9", "rtrim is not installed (or --no-trim): no TRIM lines and no confidence intervals on the observed series")
+    trimIdx <- function(M, S) {
+      out <- list(idx = rep(NA_real_, ncol(M)), se = rep(NA_real_, ncol(M))); if (!useTrim) return(out)
+      ii <- which(S, arr.ind = TRUE); long <- data.frame(site = plots[ii[, 1]], year = yrsObs[ii[, 2]], count = M[ii])
+      keep <- tapply(long$count, long$site, sum, na.rm = TRUE); long <- long[long$site %in% names(keep)[keep > 0], ]; if (!nrow(long)) return(out)
+      fit <- NULL
+      for (sc in c(TRUE, FALSE)) { fit <- tryCatch(suppressWarnings(rtrim::trim(count ~ site + year, data = long, model = 3, overdisp = TRUE, serialcor = sc, max_iter = 500)), error = function(e) NULL); if (!is.null(fit)) break }
+      if (is.null(fit)) return(out)
+      ix <- rtrim::index(fit, which = "imputed", base = obsBase); j <- match(yrsObs, ix$time)
+      list(idx = 100 * ix$imputed[j], se = 100 * ix$se_imp[j])
+    }
     seriesRows <- list()
     for (sp in allSpecies) {
       # Reviere = -1 means "seen, not counted" (DECISIONS.md 2026-10-21): it is NA for the count (na.rm = TRUE, so it adds no territory) and a PRESENCE for occupancy, as in the pipeline (occurrencePrepGerLandscape.R).
@@ -760,7 +776,9 @@ if ("S9" %in% sections) {
       d <- d[!is.na(match(d$plot, plots)) & !is.na(match(d$year, yrsObs)), ]
       Mn <- matrix(0, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mn[cbind(match(d$plot, plots), match(d$year, yrsObs))] <- d$n; Mn[!S] <- NA
       Mp <- matrix(0, length(plots), length(yrsObs), dimnames = list(plots, yrsObs)); Mp[cbind(match(d$plot, plots), match(d$year, yrsObs))] <- as.numeric(d$pres); Mp[!S] <- NA
-      seriesRows[[sp]] <- data.frame(species = sp, year = yrsObs, abundance = ipf(Mn, S), occupancy = ipf(Mp, S), abundanceChain = chain(Mn, S), occupancyChain = chain(Mp, S), plotsSurveyed = colSums(S))
+      tA <- trimIdx(Mn, S); tO <- trimIdx(Mp, S); if (useTrim) say("S9: TRIM ", sp, if (anyNA(tA$idx) || anyNA(tO$idx)) " (a fit failed: NA)" else "")
+      seriesRows[[sp]] <- data.frame(species = sp, year = yrsObs, abundance = ipf(Mn, S), occupancy = ipf(Mp, S), abundanceChain = chain(Mn, S), occupancyChain = chain(Mp, S), plotsSurveyed = colSums(S),
+                                     abundanceTrim = tA$idx, abundanceTrimSE = tA$se, occupancyTrim = tO$idx, occupancyTrimSE = tO$se)
     }
     ser <- do.call(rbind, seriesRows); rownames(ser) <- NULL
     ours <- IDX[[vsK]]$main                                              # main-model species index, species x years (2005 = 100); set to 100 in the reference year here
@@ -782,7 +800,7 @@ if ("S9" %in% sections) {
       data.frame(year = y, abundance = geo(d$abundance), occupancy = geo(d$occupancy), modelled = geo(d$modelled)) }))
     germanList <- c("Saxicola rubetra", "Alauda arvensis", "Emberiza citrinella", "Emberiza calandra", "Lullula arborea", "Vanellus vanellus", "Lanius collurio")   # species of the German indicator that are also in our roster
     c11 <- comb(allSpecies); c7 <- comb(germanList)
-    ser$english <- english[ser$species]; tableOut(ser[, c("species", "english", "year", "abundance", "occupancy", "abundanceChain", "occupancyChain", "modelled", "plotsSurveyed")], "S9_observed_vs_modelled_series")
+    ser$english <- english[ser$species]; tableOut(ser[, c("species", "english", "year", "abundance", "occupancy", "abundanceChain", "occupancyChain", "abundanceTrim", "abundanceTrimSE", "occupancyTrim", "occupancyTrimSE", "modelled", "plotsSurveyed")], "S9_observed_vs_modelled_series")
     at <- function(y) { do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp & ser$year == y, ]; data.frame(species = sp, english = english[[sp]], year = y, observedAbundance = d$abundance, observedOccupancy = d$occupancy, modelled = d$modelled) })) }
     addComb <- function(tb, y) rbind(tb, data.frame(species = paste0("COMBINED (", NSP, " species)"), english = paste0("Combined (", NSP, " species)"), year = y, observedAbundance = c11$abundance[c11$year == y], observedOccupancy = c11$occupancy[c11$year == y], modelled = c11$modelled[c11$year == y]),
                                           data.frame(species = "COMBINED (7 species of the German indicator)", english = "Combined (7 species of the German indicator)", year = y, observedAbundance = c7$abundance[c7$year == y], observedOccupancy = c7$occupancy[c7$year == y], modelled = c7$modelled[c7$year == y]))
@@ -810,25 +828,58 @@ if ("S9" %in% sections) {
       mn <- IDX[[vsK]]$main; cM <- 100 * as.matrix(mn[allSpecies, yy, drop = FALSE]) / mn[allSpecies, as.character(obsBase)]
       xm <- msiMonteCarlo(cM, sdM); nRepMSI <- length(unique(r$replicate))
     } else note("S9", "the closest-comparison figure needs the replicate area means (outputs/<run>/uncertainty_*/<Species>/area_mean_replicates_germany.csv); skipped")
+    xmA <- xmO <- NULL                                                                             # 2026-11-11 TRIM: observed combined index with its 90% Monte Carlo band (species TRIM indices and standard errors, same rule as for our MSI)
+    if (useTrim) { cT <- function(col) { m <- tapply(ser[[col]], list(ser$species, ser$year), mean)[allSpecies, as.character(yrsObs), drop = FALSE]; m }
+      okSp <- function(col) allSpecies[apply(cT(col), 1, function(v) !anyNA(v))]
+      for (k in c("abundance", "occupancy")) { sp0 <- intersect(okSp(paste0(k, "Trim")), okSp(paste0(k, "TrimSE"))); if (!length(sp0)) next
+        e <- msiMonteCarlo(cT(paste0(k, "Trim"))[sp0, , drop = FALSE], cT(paste0(k, "TrimSE"))[sp0, , drop = FALSE]); if (k == "abundance") xmA <- e else xmO <- e } }
     if (!is.null(xm)) {
     cmpV <- merge(data.frame(year = xm$year, ourMSI = xm$estimate * fm, ourMSI_lwr90 = xm$lwr * fm, ourMSI_upr90 = xm$upr * fm), data.frame(year = c11$year, observedOccupancy = c11$occupancy, observedAbundance = c11$abundance), by = "year", all.x = TRUE)
     if (file.exists(gerFile)) { g0 <- read.csv(gerFile); cmpV <- merge(cmpV, data.frame(year = g0$year, germanIndicatorAgrarland = 100 * g0$agrarland_pct_of_target / g0$agrarland_pct_of_target[g0$year == obsBase]), by = "year", all.x = TRUE) }
+    if (!is.null(xmA)) cmpV <- merge(cmpV, data.frame(year = xmA$year, observedAbundanceTrim = xmA$estimate, observedAbundanceTrim_lwr90 = xmA$lwr, observedAbundanceTrim_upr90 = xmA$upr), by = "year", all.x = TRUE)
+    if (!is.null(xmO)) cmpV <- merge(cmpV, data.frame(year = xmO$year, observedOccupancyTrim = xmO$estimate, observedOccupancyTrim_lwr90 = xmO$lwr, observedOccupancyTrim_upr90 = xmO$upr), by = "year", all.x = TRUE)
     cmpV$replicatesForInterval <- nRepMSI
     tableOut(cmpV, "S9_closest_comparison_values")                     # the plotted values, index with the reference year = 100
     for (withGer in c(FALSE, TRUE)) figure("S3_indices", if (withGer) "S9_closest_comparison_german" else "S9_closest_comparison", sprintf(paste0("Our combined index and the observed trends of the same ", NSP, " species in Germany, %d = 100%s"), obsBase, if (withGer) ", with the German indicator" else ""),
            sprintf(paste0("The closest comparison we can make: the same ", NSP, " species in Germany. Observed occupancy (presence on the surveyed DDA plots, same quantity as our probability of occurrence) and observed abundance (number of territories), from the DDA territory data (%s plots), against our MSI (geometric mean of the species indices of the main model; band = 90%% Monte Carlo interval, as in PECBMS, from the spread of the %d bootstrap replicates)%s. All set to 100 in %d."), format(length(plots), big.mark = ","), nRepMSI, if (withGer) ", with the German indicator Agrarland (UBA/BfN, abundance of selected farmland birds, to 2023)" else "", obsBase),
            paste(vf, df, "annual_report*_germany/combined_index_uncertainty.csv", sep = "; "), variant = vsK, w = 11.5, h = 6.8, draw = function() {
-      par(mar = c(4.2, 4.6, 3, 1), oma = c(if (withGer) 8.4 else 6.2, 0, 1, 0)); yl <- c(40, max(110, c11$abundance, c11$occupancy, xm$upr * fm, na.rm = TRUE) + 3)
+      par(mar = c(4.2, 4.6, 3, 1), oma = c(if (withGer) 8.4 else 6.2, 0, 1, 0)); yl <- c(40, max(110, c11$abundance, c11$occupancy, xm$upr * fm, xmA$upr, xmO$upr, na.rm = TRUE) + 3)
       plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "Year", ylab = sprintf("Index (%d = 100)", obsBase), bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
       polygon(c(xm$year, rev(xm$year)), c(xm$lwr * fm, rev(xm$upr * fm)), col = adjustcolor(varCol[[vsK]], 0.25), border = NA)
+      if (!is.null(xmO)) { polygon(c(xmO$year, rev(xmO$year)), c(xmO$lwr, rev(xmO$upr)), col = adjustcolor("#2d8a4e", 0.15), border = NA); lines(xmO$year, xmO$estimate, lwd = 1.5, col = "#7fc99a") }    # 2026-11-11 TRIM
+      if (!is.null(xmA)) { polygon(c(xmA$year, rev(xmA$year)), c(xmA$lwr, rev(xmA$upr)), col = adjustcolor("black", 0.12), border = NA); lines(xmA$year, xmA$estimate, lwd = 1.5, col = "grey20") }
       lines(xm$year, xm$estimate * fm, col = varCol[[vsK]], lwd = 3.5); lines(c11$year, c11$occupancy, col = "#2d8a4e", lwd = 3); lines(c11$year, c11$abundance, col = "black", lwd = 3, lty = 2)
       gerOk <- withGer && file.exists(gerFile); if (gerOk) { g <- read.csv(gerFile); g <- g[g$year >= obsBase & g$year <= last, ]; g$idx <- 100 * g$agrarland_pct_of_target / g$agrarland_pct_of_target[g$year == obsBase]; lines(g$year, g$idx, lwd = 3, col = gerCol, lty = 4) }
       legend("bottomleft", c(sprintf(paste0("Our MSI, ", NSP, " species, probability of occurrence (%.0f in %d)"), (xm$estimate * fm)[nrow(xm)], max(xm$year)), "  its 90% interval (Monte Carlo, as PECBMS, from the spread of the replicates)",
                              sprintf(paste0("Observed occupancy, same ", NSP, " species, DDA plots (%.0f in %d)"), c11$occupancy[nrow(c11)], max(c11$year)), sprintf(paste0("Observed abundance, same ", NSP, " species, DDA territories (%.0f in %d)"), c11$abundance[nrow(c11)], max(c11$year)),
-                             if (gerOk) sprintf("German indicator Agrarland (UBA/BfN), abundance, about 10 species (%.0f in %d)", g$idx[nrow(g)], max(g$year))),
-             col = c(varCol[[vsK]], adjustcolor(varCol[[vsK]], 0.25), "#2d8a4e", "black", if (gerOk) gerCol), lwd = c(3.5, 8, 3, 3, if (gerOk) 3), lty = c(1, 1, 1, 2, if (gerOk) 4), bty = "n", cex = 0.9)
+                             if (gerOk) sprintf("German indicator Agrarland (UBA/BfN), abundance, about 10 species (%.0f in %d)", g$idx[nrow(g)], max(g$year)),
+                             if (!is.null(xmA)) "Observed abundance, TRIM (rtrim) and its 90% interval (Monte Carlo over the species)", if (!is.null(xmO)) "Observed occupancy, TRIM (rtrim) and its 90% interval"),
+             col = c(varCol[[vsK]], adjustcolor(varCol[[vsK]], 0.25), "#2d8a4e", "black", if (gerOk) gerCol, if (!is.null(xmA)) "grey20", if (!is.null(xmO)) "#7fc99a"), lwd = c(3.5, 8, 3, 3, if (gerOk) 3, if (!is.null(xmA)) 1.5, if (!is.null(xmO)) 1.5), lty = c(1, 1, 1, 2, if (gerOk) 4, if (!is.null(xmA)) 1, if (!is.null(xmO)) 1), bty = "n", cex = 0.9)
       mtext(sprintf(paste0("Observed series: DDA territory data, plots surveyed in at least two years, first year of each plot dropped, reference year %d (rules of Kamp et al. 2021);\nplain log-linear model with plot and year effects, no observer correction. Observed and modelled series are geometric means over the ", NSP, " species.\nOur MSI: main model of the ensemble (probability of occurrence, Germany); each species index has the standard deviation across %d bootstrap replicates as its standard error.\n%sOur landscape scale is fitted on part of these data, so this is not an independent test."), obsBase, nRepMSI, if (gerOk) "The German indicator (UBA/BfN, DDA data) is percent of a target value divided by its reference-year value; its species are not the same as ours.\n" else ""), outer = TRUE, side = 1, line = if (gerOk) 3.6 else 2.4, cex = 0.8, col = "grey30") })
     }
+    # 2026-11-11 (project lead: the per-species figure was dropped on 3 Nov by mistake and is wanted for every run): restored from commit b41d589, unchanged; written as an EXTRA figure next to the others
+    # 2026-11-11 (project lead: our own uncertainty was missing in the per-species figure): 90% interval of OUR modelled index = 5th to 95th percentile of the bootstrap replicates of each species,
+    # every replicate set to 100 in the reference year (same replicates as the MSI band below); drawn as a band of the colour of our line. NULL (no band) when the replicate area means are not available.
+    bandSp <- NULL
+    if (!is.null(IDX[[vsK]]$rep)) { rr <- IDX[[vsK]]$rep; rr <- rr[rr$species %in% allSpecies & rr$year %in% yrsObs, ]
+      rr$i0 <- 100 * rr$areaMean / rr$areaMean[match(paste(rr$species, rr$replicate, obsBase), paste(rr$species, rr$replicate, rr$year))]
+      bandSp <- do.call(rbind, lapply(split(rr, list(rr$species, rr$year), drop = TRUE), function(x) data.frame(species = x$species[1], year = x$year[1], lwr = unname(quantile(x$i0, 0.05, na.rm = TRUE)), upr = unname(quantile(x$i0, 0.95, na.rm = TRUE))))); rownames(bandSp) <- NULL
+      tableOut(bandSp, "S9_modelled_index_interval_per_species") }
+    figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
+           sprintf(paste0("The same three series for each of the ", NSP, " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index (coloured band: its 90%% interval from the bootstrap replicates); dashed: the same observed series from TRIM (rtrim, one effect per year, overdispersion and serial correlation), with the 90%% interval of the observed abundance (grey band). All set to 100 in %d."), obsBase),
+           paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
+      par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
+      for (sp in allSpecies) { d <- ser[ser$species == sp, ]; bs <- if (is.null(bandSp)) NULL else bandSp[bandSp$species == sp, ]; bs <- if (!is.null(bs) && nrow(bs)) bs[order(bs$year), ] else NULL
+        yl <- range(c(d$abundance, d$occupancy, d$modelled, 100, d$abundanceTrim + 1.645 * d$abundanceTrimSE, d$abundanceTrim - 1.645 * d$abundanceTrimSE, bs$lwr, bs$upr), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.04 * diff(yl)
+        plot(NA, xlim = range(yrsObs), ylim = yl, xlab = "", ylab = sprintf("Index (%d = 100)", obsBase), main = english[[sp]], cex.main = 1.1, bty = "l", las = 1); abline(h = 100, lty = 3, col = "grey40")
+        okT <- is.finite(d$abundanceTrim) & is.finite(d$abundanceTrimSE)                       # 2026-11-11 TRIM: 90% band of the observed abundance (index +- 1.645 SE), then the TRIM lines (dashed)
+        if (any(okT)) polygon(c(d$year[okT], rev(d$year[okT])), c((d$abundanceTrim - 1.645 * d$abundanceTrimSE)[okT], rev((d$abundanceTrim + 1.645 * d$abundanceTrimSE)[okT])), col = adjustcolor("black", 0.13), border = NA)
+        if (!is.null(bs)) polygon(c(bs$year, rev(bs$year)), c(bs$lwr, rev(bs$upr)), col = adjustcolor(col3[["modelled"]], 0.30), border = NA)       # our own 90% interval (bootstrap replicates)
+        for (n in names(col3)) lines(d$year, d[[n]], lwd = 2.4, col = col3[[n]])
+        lines(d$year, d$abundanceTrim, lwd = 1.6, lty = 2, col = "grey20"); lines(d$year, d$occupancyTrim, lwd = 1.6, lty = 2, col = "#7fc99a") }
+      plot.new(); legend("center", c("observed abundance (territories)", "observed occupancy (presence)", "our modelled index", "  its 90% interval (bootstrap replicates)", "TRIM abundance (dashed), 90% interval (grey)", "TRIM occupancy (dashed)"),
+                         col = c(col3, adjustcolor(col3[["modelled"]], 0.30), "grey20", "#7fc99a"), lwd = c(3, 3, 3, 8, 1.6, 1.6), lty = c(1, 1, 1, 1, 2, 2), bty = "n", cex = 0.95)
+      bigTitle("Observed and modelled index, per species") })
     if (atRoutes) {
       colR <- "#1f78b4"
       sl <- function(v, yr) { ok <- is.finite(v) & v > 0; round(unname(coef(lm(log(v[ok] / 100) ~ yr[ok]))[2]) * 100, 2) }
