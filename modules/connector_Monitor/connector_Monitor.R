@@ -41,7 +41,7 @@ defineModule(sim, list(
                     "Years expected for every species (e.g. predictionYears). No default (errors if unset)."),
     defineParameter("cellKm", "numeric", 10, NA, NA, "Cell size (km) of the regional (MSI) index map shown in the Monitor."),
     defineParameter("folders", "list", list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
-                                            msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national"), NA, NA,
+                                            msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national", msi_regional_clear = "msi_regional_clear"), NA, NA,
                     "Names of the sub-folders of vizPath for the six products. meta_prob_year, meta_unc_year and msi_regional follow the bucket",
                     "(Confluence BirdTwin / Architektur / EVE Cluster); richness_year, msi_regional_unc and msi_national are our names until agreed."),
     defineParameter("nationalLastPublishedYear", "numeric", NA_real_, NA, NA,
@@ -57,6 +57,10 @@ defineModule(sim, list(
     defineParameter("waterMinShare", "numeric", 0.5, 0, 1, "Share of a cell that must be water for the cell to be masked (cover of the polygons on the grid of the map)."),
     defineParameter("waterProducts", "character", c("meta_prob_year", "meta_unc_year", "richness_year"), NA, NA,
                     "Products that get the water mask. The regional index (msi_regional, msi_regional_unc) is not masked: an index per square is not a probability of occurrence."),
+    defineParameter("clearRegional", "logical", TRUE, NA, NA,
+                    "TRUE (default): also write msi_regional_clear/msi_<km>km_<year>.tif = the regional index with every cell whose 90% interval over the replicates includes clearBaseline set to clearBaseline",
+                    "(little or no change); msi_regional itself is not changed. FALSE: do not write it."),
+    defineParameter("clearBaseline", "numeric", 100, NA, NA, "Baseline of the regional index (the baseline year = 100) used by clearRegional."),
     defineParameter("dryRun", "logical", FALSE, NA, NA, "TRUE: only report what would be written."),
     defineParameter("failIfIncomplete", "logical", FALSE, NA, NA,
                     "TRUE: stop with an error if a result the Monitor needs is missing from the viz folder (default: warning and a _missing.csv in the folder).")
@@ -87,7 +91,8 @@ doEvent.connector_Monitor = function(sim, eventTime, eventType) {
       res <- connectViz(runsRoot = runsRoot, vizPath = P(sim)$vizPath, tag = P(sim)$tag, species = P(sim)$species, years = as.integer(P(sim)$years),
                         cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, nationalLastPublishedYear = as.integer(P(sim)$nationalLastPublishedYear), linkMode = P(sim)$linkMode,
                         allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete,
-                        waterFile = if (is.na(P(sim)$waterFile)) NULL else P(sim)$waterFile, waterMinShare = P(sim)$waterMinShare, waterProducts = P(sim)$waterProducts)
+                        waterFile = if (is.na(P(sim)$waterFile)) NULL else P(sim)$waterFile, waterMinShare = P(sim)$waterMinShare, waterProducts = P(sim)$waterProducts,
+                        clearRegional = isTRUE(P(sim)$clearRegional), clearBaseline = P(sim)$clearBaseline)
       sim$vizManifest <- res$manifest
       # ! ----- STOP EDITING ----- ! #
     },

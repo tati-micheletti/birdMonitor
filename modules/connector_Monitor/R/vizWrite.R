@@ -29,7 +29,31 @@ vizDest <- function(product, species, year, label, folders, cellKm) {
          meta_unc_year    = file.path(f, species, sprintf("%s_%d_%s.tif", species, year, label)),
          richness_year    = file.path(f, sprintf("richness_%d_%s.tif", year, label)),
          msi_regional     = file.path(f, sprintf("msi_%skm_%s.tif", km, label)),
-         msi_regional_unc = file.path(f, sprintf("msi_%skm_%d_%s.tif", km, year, label)))
+         msi_regional_unc = file.path(f, sprintf("msi_%skm_%d_%s.tif", km, year, label)),
+         msi_regional_clear = file.path(f, sprintf("msi_%skm_%s.tif", km, label)))
+}
+
+#' The regional index of ONE year with the unclear cells set to the baseline (2026-11-11)
+#'
+#' A cell keeps its index only where the 90% interval over the replicates (layers `lwr` and `upr` of the uncertainty file of that year) lies entirely on one side of
+#' `baseline` (lwr > baseline or upr < baseline: the change since the baseline year is clear). Every other cell is set to `baseline` ("little or no change" in the Monitor's legend).
+#' NA stays NA. A cell with an index but no interval is set to `baseline` as well (nothing is claimed without an interval). The source files are never changed.
+#' @param rawFile Character. Regional index of all years (one layer per year, 100 = baseline year). @param index Integer. Layer of `rawFile` for this year.
+#' @param uncFile Character. Uncertainty file of the same year (5 layers: mean, sd, lwr, upr, width, in index points). @param dest Character. File to write. @param baseline Numeric (default 100).
+vizWriteClearIndex <- function(rawFile, index, uncFile, dest, baseline = 100) {
+  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+  r <- terra::rast(rawFile)[[index]]; u <- terra::rast(uncFile)
+  if (!all(c("lwr", "upr") %in% names(u))) { if (terra::nlyr(u) == 5L) names(u) <- c("mean", "sd", "lwr", "upr", "width") else stop("vizWriteClearIndex(): ", uncFile, " has no layers lwr and upr.") }
+  lwr <- u[["lwr"]]; upr <- u[["upr"]]
+  if (!isTRUE(terra::compareGeom(r, lwr, stopOnError = FALSE))) { lwr <- terra::resample(lwr, r, method = "near"); upr <- terra::resample(upr, r, method = "near") }
+  nNoInterval <- terra::global(!is.na(r) & (is.na(lwr) | is.na(upr)), "sum", na.rm = TRUE)[1, 1]          # an index without an interval should not happen (both come from the same replicates): reported, the cell is set to the baseline
+  if (isTRUE(nNoInterval > 0)) warning("vizWriteClearIndex(): ", nNoInterval, " cell(s) of ", basename(dest), " have an index but no interval (not expected); set to ", baseline, call. = FALSE)
+  clear <- terra::ifel(is.na(lwr) | is.na(upr), 0, terra::ifel((lwr > baseline) | (upr < baseline), 1, 0))
+  out <- terra::ifel(is.na(r), NA, terra::ifel(clear == 1, r, baseline)); names(out) <- names(r)
+  part <- paste0(dest, ".part")
+  terra::writeRaster(out, part, filetype = "GTiff", overwrite = TRUE, datatype = "FLT4S", gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3"))
+  if (file.exists(dest)) file.remove(dest)
+  file.rename(part, dest)
 }
 
 #' Write the national trend table for the Monitor

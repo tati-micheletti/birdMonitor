@@ -16,6 +16,7 @@ must be complete after every run, also after a run of only one species or one sc
 | `richness_year/` | `richness_<year>_<layer>.tif` | expected richness (mean) and its uncertainty, every year |
 | `msi_regional/` | `msi_10km_<year>.tif` | regional index (MSI) 10 km, raw |
 | `msi_regional_unc/` | `msi_10km_<year>_<layer>.tif` | its uncertainty |
+| `msi_regional_clear/` | `msi_10km_<year>.tif` | the regional index with every cell whose 90% interval includes 100 set to 100 (2026-11-11): the file for the Monitor map; `msi_regional` is unchanged |
 | `msi_national/` | `msi_national.csv` | national trend: method, year, estimate, median, lwr, upr, `preliminary` (TRUE for the years after the last published national indicator year) |
 
 - Results that are already there and still current are left alone; a file is replaced only by a **newer** source. **Nothing is ever deleted.**

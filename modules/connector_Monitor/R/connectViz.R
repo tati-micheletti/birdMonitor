@@ -13,6 +13,7 @@
 #'   msi_regional/msi_<km>km_<year>.tif                                regional index (MSI), raw
 #'   msi_regional_unc/msi_<km>km_<year>_<layer>.tif                    its uncertainty
 #'   msi_national/msi_national.csv                                     national trend (method, year, estimate, median, lwr, upr, preliminary)
+#'   msi_regional_clear/msi_<km>km_<year>.tif                          regional index with the unclear cells (90% interval includes 100) set to 100 (2026-11-11; the file the Monitor map should use)
 #'
 #' Richness (mean, sd, lwr, upr, width) is expected for EVERY year in `years`, like the species uncertainty.
 #'
@@ -36,9 +37,9 @@
 #' @return Invisibly, a list with `manifest`, `missing` and `done` (number of files written or linked in this call).
 connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)",
                        folders = list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
-                                      msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national"),
+                                      msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national", msi_regional_clear = "msi_regional_clear"),
                        nationalLastPublishedYear = NA_integer_, linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE,
-                       waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year")) {
+                       waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year"), clearRegional = TRUE, clearBaseline = 100) {
   # water mask (2026-11-05): checked FIRST, so a missing file stops the job at once and not after the files were written
   doMask <- !is.null(waterFile) && !is.na(waterFile)
   if (doMask) {
@@ -100,6 +101,28 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
     if (!dryRun) invisible(gc(verbose = FALSE))      # 2026-11-11: terra's C++ memory is only freed when R runs its garbage collector, and R rarely does while the loop holds only small R objects (connector job 66162461 was OOM-killed at 8 GB after about 50 of 631 results)
     if (!dryRun && i %% 25 == 0) message("  ", i, " of ", nrow(latest), " results checked, ", done, " files written so far")
   }
+  # 2026-11-11: the regional index with the UNCLEAR cells set to the baseline (100), as a NEW product next to msi_regional (which stays as it is): a cell keeps its index only where the 90% interval over
+  # the replicates (lwr/upr of msi_regional_unc of that year) lies entirely on one side of 100; every other cell is 100 = "little or no change" in the Monitor's legend. Upload THIS product for the map.
+  if (clearRegional) {
+    fc <- if (is.null(folders$msi_regional_clear)) "msi_regional_clear" else folders$msi_regional_clear
+    clearTxt <- paste0("written; cells whose 90% interval includes ", clearBaseline, " are set to ", clearBaseline)
+    reg <- latest[latest$product == "msi_regional", , drop = FALSE]; unc <- latest[latest$product == "msi_regional_unc", , drop = FALSE]
+    if (nrow(reg) == 1L && nrow(unc)) {
+      layR <- vizLayers(reg$file, "msi_regional")
+      for (j in seq_len(nrow(layR))) {
+        yr <- as.integer(layR$label[j]); u <- unc[unc$year == yr, , drop = FALSE]; if (nrow(u) != 1L) next
+        dest <- file.path(fc, sprintf("msi_%skm_%s.tif", format(cellKm), layR$label[j])); destAbs <- file.path(vizPath, dest); k <- which(man$dest == dest); mt <- max(reg$mtime, u$mtime)
+        current <- length(k) == 1L && file.exists(destAbs) && !(mt > man$srcMtime[k] + 1) && identical(man$mode[k], clearTxt)
+        if (current) next
+        plan <- plan + 1L
+        if (dryRun) { message("would write ", dest, "  <-  ", reg$run, "/", basename(reg$file), " + ", basename(u$file), " (unclear cells = ", clearBaseline, ")"); next }
+        vizWriteClearIndex(reg$file, layR$index[j], u$file, destAbs, clearBaseline)
+        entry <- data.frame(product = "msi_regional_clear", species = "", year = yr, layer = "", dest = dest, src = normalizePath(u$file, winslash = "/"), srcMtime = mt,
+                            run = u$run, mode = clearTxt, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
+        man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L
+      }
+    }
+  }
   if (dryRun) { message("connectViz(): dry run, ", plan, " files would be written or linked"); return(invisible(list(manifest = man, missing = NULL, done = 0L))) }
   dir.create(vizPath, recursive = TRUE, showWarnings = FALSE)
   man <- man[order(man$product, man$species, man$year, man$layer), ]
@@ -112,7 +135,7 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   have <- paste(man$product, man$species, man$year, ifelse(man$product %in% c("meta_unc_year", "richness_year"), man$layer, ""))
   need$key <- paste(need$product, need$species, need$year, ifelse(need$product %in% c("meta_unc_year", "richness_year"), need$label, ""))
   miss <- need[!need$key %in% have, c("product", "species", "year", "label"), drop = FALSE]
-  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national"), function(p) any(man$product == p), logical(1))
+  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national", if (clearRegional) "msi_regional_clear"), function(p) any(man$product == p), logical(1))
   extra <- if (any(!noOther)) data.frame(product = names(noOther)[!noOther], species = "", year = NA_integer_, label = "", stringsAsFactors = FALSE) else need[0, c("product", "species", "year", "label")]
   miss <- rbind(miss, extra); names(miss)[names(miss) == "label"] <- "layer"
   utils::write.csv(miss, file.path(vizPath, "_missing.csv"), row.names = FALSE)
