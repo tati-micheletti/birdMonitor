@@ -97,6 +97,7 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
                           srcMtime = row$mtime, run = row$run, mode = mode, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
       man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L
     }
+    if (!dryRun) invisible(gc(verbose = FALSE))      # 2026-11-11: terra's C++ memory is only freed when R runs its garbage collector, and R rarely does while the loop holds only small R objects (connector job 66162461 was OOM-killed at 8 GB after about 50 of 631 results)
     if (!dryRun && i %% 25 == 0) message("  ", i, " of ", nrow(latest), " results checked, ", done, " files written so far")
   }
   if (dryRun) { message("connectViz(): dry run, ", plan, " files would be written or linked"); return(invisible(list(manifest = man, missing = NULL, done = 0L))) }

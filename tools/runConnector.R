@@ -17,6 +17,7 @@
 #'   BIRDMONITOR_SPECIES is NOT used here: the viz folder always needs the FULL roster.
 Sys.setenv(OMP_NUM_THREADS = "1", GDAL_NUM_THREADS = "1")
 suppressMessages(library(SpaDES.core))
+terra::terraOptions(memmax = 4)                           # 2026-11-11: under SLURM terra sizes its memory from the whole node, not from the job (as in the completeness check of 29 Oct); the job has 16 GB, terra may use 4 (connector job 66162461 was OOM-killed at 8 GB)
 args <- commandArgs(trailingOnly = TRUE)
 getArg <- function(flag, default = NULL) { i <- which(args == flag); if (length(i) == 0) default else args[i + 1] }
 repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/")

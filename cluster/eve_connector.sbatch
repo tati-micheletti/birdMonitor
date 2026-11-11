@@ -4,7 +4,7 @@
 #   cd ~/projects/birdMonitor && git pull && sbatch cluster/eve_connector.sbatch
 #   BIRDMONITOR_VIZ_DRY=1 sbatch --export=ALL cluster/eve_connector.sbatch      -> only reports what would be written
 #SBATCH --job-name=connector
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=8G
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/connector_%j.out
