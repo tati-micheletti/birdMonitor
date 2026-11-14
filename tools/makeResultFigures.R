@@ -6,6 +6,8 @@
 #   Rscript tools/makeResultFigures.R [--run test4] [--sections S1,S2,S3,S4,S5,S6,S7,S8,S9] [--variants brt,big5] [--species "Alauda arvensis;Perdix perdix"]
 #                                   [--base-year 2005] [--year 2025] [--map-years 2005,2015,2025] [--cells-km 10] [--spot-points 3,5,10,15 (off by default)] [--alpha 0.05] [--out <folder>]
 #   On EVE:  sbatch cluster/eve_figures.sbatch      (about 30-90 minutes; one task, nothing else running)
+#   Species groups (data/speciesGroups.csv): BIRDMONITOR_GROUP=farmland (or --group farmland) draws that group (S2 richness, S3 national index, S5 community, S6 regional index, S8 richness with uncertainty) into
+#   figures_fullreport_farmland; default group "all". --sections S10 = the groups side by side (richness 2005 against 2025, regional index, national index), written to figures_fullreport/S10_groups.
 #
 # Sections follow the methods figure (pdf_export/birdMonitor_schematic.png):
 #   S1  Step 1  the three scale models and the meta-model: scale maps, accuracy (AUC), weights of the scales
@@ -23,6 +25,7 @@ Sys.setenv(OMP_NUM_THREADS = "1")
 args <- commandArgs(trailingOnly = TRUE)
 getArg <- function(flag, default = NULL) { i <- which(args == flag); if (length(i) == 0) default else args[i + 1] }
 repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd(repoRoot)
+source("modules/models_Monitor/R/climateFileCompat.R")        # 2026-11-12: climate-scale BRT files are named "climate" now, "EU" up to v3 (climateFileExisting() finds either)
 libs <- Sys.glob(file.path(path.expand("~"), ".local", "share", "R", "birdMonitor", "packages", "*", "*"))
 if (length(libs)) .libPaths(c(libs, .libPaths()))
 suppressMessages(library(terra))
@@ -31,7 +34,18 @@ speciesCanonical <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FAL
 speciesCanonical <- speciesCanonical[nzchar(trimws(speciesCanonical$include)), ]
 allSpecies <- speciesCanonical$latin_name
 english <- setNames(speciesCanonical$english_name, speciesCanonical$latin_name)
-NSP <- length(allSpecies)                                  # number of species of the roster, used in titles and captions (no species number is written into the texts)
+# 2026-11-14 SPECIES GROUPS (data/speciesGroups.csv): BIRDMONITOR_GROUP or --group picks the group whose combining-step results are drawn (national index, regional index, richness and community maps).
+# "all" (default) = the whole roster, no suffix, nothing changes. Any other group reads the folders with the suffix "_<group>" (annual_report_<tag>_germany_farmland, regional_index_..., community_farmland_germany,
+# regional_farmland) and writes to figures_fullreport_<group>. Per-species figures (S1 scale models, S4 per-pixel trends, S7 spread) are the same for every group and are made only for "all".
+# Section S10 compares the groups side by side (richness 2005 against 2025, regional index, national index) whatever group is selected.
+source("tools/sharedSpeciesGroups.R")
+spGroups <- loadSpeciesGroups("data/speciesGroups.csv", allSpecies)
+group <- local({ a <- which(commandArgs(trailingOnly = TRUE) == "--group"); if (length(a)) commandArgs(trailingOnly = TRUE)[a + 1] else Sys.getenv("BIRDMONITOR_GROUP", "all") })
+if (!nzchar(group)) group <- "all"
+if (!group %in% spGroups$groups) stop("unknown species group '", group, "'; data/speciesGroups.csv has: ", paste(spGroups$groups, collapse = ", "))
+gSfx <- groupSuffix(group); groupLabel <- spGroups$labels[[group]]
+allSpecies <- spGroups$members[[group]]                    # from here on `allSpecies` = the species of the selected group
+NSP <- length(allSpecies)                                  # number of species of the group, used in titles and captions (no species number is written into the texts)
 
 run        <- getArg("--run", Sys.getenv("BIRDMONITOR_RUNNAME", "test4"))
 brtTag     <- getArg("--brt-tag", "honest2")
@@ -48,22 +62,22 @@ spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", ""), ",")[[1]])   #
 spotMain <- if (length(spotPointsVec) && !(10 %in% spotPointsVec)) spotPointsVec[1] else 10
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
-sections   <- toupper(strsplit(getArg("--sections", "S1,S2,S3,S4,S5,S6,S7,S8,S9"), ",")[[1]])
-variants   <- strsplit(getArg("--variants", "brt,big5"), ",")[[1]]
+sections   <- toupper(strsplit(getArg("--sections", if (nzchar(gSfx)) "S2,S3,S5,S6,S8" else "S1,S2,S3,S4,S5,S6,S7,S8,S9"), ",")[[1]])   # S10 (groups side by side) is not a default section: eve_postrun.sbatch asks for it in one call of its own
+variants   <- strsplit(getArg("--variants", if (nzchar(gSfx)) "big5" else "brt,big5"), ",")[[1]]                                                         # the group chain is run for the model ensemble only
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
 cellKm     <- as.integer(strsplit(getArg("--cells-km", "10"), ",")[[1]])
 root       <- file.path("outputs", run)
-out        <- getArg("--out", file.path(root, "figures_fullreport"))
+out        <- getArg("--out", file.path(root, paste0("figures_fullreport", gSfx)))
 for (d in c(out, file.path(out, "tables"))) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 logFile <- file.path(out, "figures.log")
 say <- function(...) { m <- paste0(format(Sys.time(), "%H:%M:%S"), " ", ...); message(m); cat(m, "\n", file = logFile, append = TRUE) }
-say("=== makeResultFigures | run ", run, " | sections ", paste(sections, collapse = ","), " | variants ", paste(variants, collapse = ","), " | ", length(species), " species")
+say("=== makeResultFigures | run ", run, " | group ", group, " (", groupLabel, ") | sections ", paste(sections, collapse = ","), " | variants ", paste(variants, collapse = ","), " | ", length(species), " species")
 
 ## ---- where things are --------------------------------------------------------------------------------------------------------------------
 firstExisting <- function(...) { p <- c(...); p <- p[file.exists(p)]; if (length(p)) p[1] else NA_character_ }
-dirOf <- function(prefix, tag, germany = TRUE) {                        # outputs/<run>/<prefix>[_<tag>][_germany], falls back to the rectangle version
+dirOf <- function(prefix, tag, germany = TRUE, sfx = gSfx) {            # outputs/<run>/<prefix>[_<tag>][_germany][_<group>], falls back to the rectangle version
   base <- file.path(root, paste0(prefix, if (nzchar(tag)) paste0("_", tag) else ""))
-  firstExisting(if (germany) paste0(base, "_germany"), base)
+  firstExisting(if (germany) paste0(base, "_germany", sfx), paste0(base, sfx))
 }
 metaFolder <- function(tag, germany) {                                  # metamodel_<resolutions>[_<tag>][_germany]
   d <- list.dirs(root, recursive = FALSE, full.names = TRUE)
@@ -80,8 +94,8 @@ for (k in names(V)) {
   V[[k]]$metaBase <- metaFolder(v$tag, FALSE)
   V[[k]]$report   <- dirOf("annual_report", v$tag)
   V[[k]]$regional <- dirOf("regional_index", v$tag)
-  V[[k]]$uncComm  <- firstExisting(file.path(v$unc, "community_germany"), file.path(v$unc, "community"))
-  V[[k]]$uncReg   <- file.path(v$unc, "regional")
+  V[[k]]$uncComm  <- firstExisting(file.path(v$unc, paste0("community", gSfx, "_germany")), file.path(v$unc, paste0("community", gSfx)))
+  V[[k]]$uncReg   <- file.path(v$unc, paste0("regional", gSfx))
 }
 uncMapsDir <- function(k, sp) firstExisting(file.path(V[[k]]$unc, gsub(" ", "_", sp), "maps_germany"), file.path(V[[k]]$unc, gsub(" ", "_", sp), "maps"))
 variants <- intersect(variants, names(V))
@@ -107,7 +121,7 @@ dropLab <- function(s) {                                                  # with
   s <- gsub(paste0("[[:space:]]*[(]", l, "[)]"), "", s); s <- gsub(paste0(",[[:space:]]*", l, "(?=[)])"), "", s, perl = TRUE); gsub(paste0("[,:][[:space:]]*", l, "[[:space:]]*$"), "", s)
 }
 figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, variant = "") {
-  title <- dropLab(title); what <- dropLab(what)
+  title <- dropLab(title); what <- dropLab(what); if (nzchar(gSfx) && !startsWith(id, "S10")) title <- paste0(title, " [", groupLabel, "]")
   dir.create(file.path(out, section), showWarnings = FALSE)
   f <- file.path(out, section, paste0(id, ".png"))
   ok <- tryCatch({
@@ -158,7 +172,7 @@ drawClasses <- function(r, main, labels, cols, sub = NULL, legendPos = NULL) {  
   legendBelow(r, labels, cols)
   if (!is.null(sub)) mtext(sub, side = 1, line = -0.4, cex = 0.8, col = "grey30")
 }
-bigTitle <- function(s) mtext(dropLab(s), outer = TRUE, side = 3, line = 0.4, font = 2, cex = 1.45)
+bigTitle <- function(s) mtext(if (nzchar(gSfx)) paste0(dropLab(s), " | ", groupLabel) else dropLab(s), outer = TRUE, side = 3, line = 0.4, font = 2, cex = if (nzchar(gSfx)) 1.2 else 1.45)
 footnote <- function(s) mtext(s, outer = TRUE, side = 1, line = 0.6, cex = 0.85, col = "grey30")
 # "clear" classes from a 90% replicate interval: 1 = whole interval below zero, 2 = whole interval above zero, 3 = interval includes zero
 clearClass <- function(lwr, upr) ifel(is.na(upr), NA, ifel(upr < 0, 1, ifel(lwr > 0, 2, 3)))
@@ -223,10 +237,10 @@ varCol <- c(brt = "#1f4e79", big5 = "#c4551f")
 ## =================================================================================================================================================
 if ("S1" %in% sections) {
   say("--- S1 ---")
-  scaleTag  <- c(climate = "EU", landscape = "landscape", habitat = "habitat")
+  scaleTag  <- c(climate = "climate", landscape = "landscape", habitat = "habitat")
   for (k in variants) for (sp in species) {
     v <- V[[k]]; yr <- curYear
-    f <- c(climate = if (k == "brt") file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_EU_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_%s_climate_%d.tif", spc(sp), v$tag, yr)),
+    f <- c(climate = if (k == "brt") climateFileExisting(file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_climate_%d.tif", spc(sp), yr))) else file.path(scaleDirOf(sp, "climate"), sprintf("%s_pred_%s_climate_%d.tif", spc(sp), v$tag, yr)),
            landscape = if (k == "brt") file.path(scaleDirOf(sp, "landscape"), sprintf("%s_pred_landscape_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "landscape"), sprintf("%s_pred_%s_landscape_%d.tif", spc(sp), v$tag, yr)),
            habitat = if (k == "brt") file.path(scaleDirOf(sp, "habitat"), sprintf("%s_pred_habitat_%d.tif", spc(sp), yr)) else file.path(scaleDirOf(sp, "habitat"), sprintf("%s_pred_%s_habitat_%d.tif", spc(sp), v$tag, yr)),
            final = file.path(v$metaGer, sprintf("%s_meta_suitability_%d.tif", spc(sp), yr)))
@@ -242,7 +256,7 @@ if ("S1" %in% sections) {
   # accuracy: block-CV AUC of each scale (BRT and, if present, the big 5 ensemble) and the honest AUC of the meta-model
   aucTab <- do.call(rbind, lapply(species, function(sp) do.call(rbind, lapply(c("climate", "landscape", "habitat", "meta"), function(sc) do.call(rbind, lapply(variants, function(k) {
     f <- if (sc == "meta") file.path(V[[k]]$metaBase %||% "", sprintf("%s_perf_meta.rds", spc(sp)))
-         else if (k == "brt") file.path(scaleDirOf(sp, sc), sprintf("%s_perf_%s.rds", spc(sp), scaleTag[[sc]]))
+         else if (k == "brt") climateFileExisting(file.path(scaleDirOf(sp, sc), sprintf("%s_perf_%s.rds", spc(sp), scaleTag[[sc]])))
          else file.path(scaleDirOf(sp, sc), sprintf("%s_perf_%s_%s.rds", spc(sp), V[[k]]$tag, sc))
     if (!file.exists(f)) return(NULL)
     p <- readRDS(f); if (sc == "meta" && !identical(p$evalBasis, "out-of-fold inputs")) return(NULL)
@@ -288,7 +302,7 @@ if ("S1" %in% sections) {
 ## =================================================================================================================================================
 if ("S2" %in% sections) {
   say("--- S2 ---")
-  for (k in variants) for (sp in species) {
+  for (k in variants) for (sp in if (nzchar(gSfx)) character(0) else species) {          # per-species maps are the same for every group: made for "all" only
     v <- V[[k]]
     fs <- file.path(v$metaGer, sprintf("%s_meta_suitability_%d.tif", spc(sp), mapYears))
     figure("S2_maps", sprintf("S2_prob_%s_%s", spc(sp), k), sprintf("%s: probability of occurrence %s (%s)", nm(sp), paste(mapYears, collapse = ", "), v$label),
@@ -579,7 +593,7 @@ if ("S5" %in% sections) {
       else { for (i in 1:3) plot.new() }
       bigTitle(sprintf("Community change, %d vs %d (%s)", curYear, baseYear, v$label))
     })
-    for (sp in species) { fg <- file.path(v$report, sprintf("change_vsBaseline_%s.tif", spc(sp)))
+    for (sp in if (nzchar(gSfx)) character(0) else species) { fg <- file.path(v$report, sprintf("change_vsBaseline_%s.tif", spc(sp)))      # per-species: "all" only
       figure("S5_community", sprintf("S5_gainloss_%s_%s", spc(sp), k), sprintf("%s: gain and loss of presence %d vs %d (%s)", nm(sp), curYear, baseYear, v$label),
              "Presence/absence maps compared: pixels where the species is predicted lost (red) or gained (blue) between the two years, stable present (green) or stable absent (light grey).",
              fg, variant = k, w = 6.5, h = 6.4, draw = function() {
@@ -707,7 +721,7 @@ if ("S8" %in% sections) {
            paste0(v$unc, "/<Sp>/area_mean_replicates_germany.csv"), variant = k, w = 9.5, h = 6, draw = function() {
       r <- IDX[[k]]$rep; r0 <- IDX[[k]]$rep0; sr <- aggregate(areaMean ~ replicate + year, r, sum); sr0 <- aggregate(areaMean ~ replicate + year, r0, sum); yrs <- sort(unique(sr$year))
       q <- do.call(rbind, lapply(split(sr, sr$year), function(d) data.frame(year = d$year[1], lwr = quantile(d$areaMean, 0.05), upr = quantile(d$areaMean, 0.95)))); yl <- range(q$lwr, q$upr, sr0$areaMean)
-      par(mar = c(4.2, 4.6, 3, 1)); plot(NA, xlim = range(yrs), ylim = yl, xlab = "Year", ylab = "Expected richness (species per pixel)", main = v$full, bty = "l", las = 1); hindcastBox(yrs, yl)
+      par(mar = c(4.2, 4.6, 3, 1)); plot(NA, xlim = range(yrs), ylim = yl, xlab = "Year", ylab = "Expected richness (species per pixel)", main = if (nzchar(gSfx)) paste0(v$full, " | ", groupLabel) else v$full, bty = "l", las = 1); hindcastBox(yrs, yl)
       polygon(c(q$year, rev(q$year)), c(q$lwr, rev(q$upr)), col = adjustcolor(varCol[[k]], 0.25), border = NA); sr0 <- sr0[order(sr0$year), ]; lines(sr0$year, sr0$areaMean, lwd = 3, col = "black")
       legend("bottomleft", c("Main model", "90% interval over the replicates"), lwd = c(3, 8), col = c("black", adjustcolor(varCol[[k]], 0.4)), bty = "n") })
     figure("S5_community", sprintf("S8_richness_change_%s", k), sprintf("Change in expected richness %d vs %d, in number of species (%s)", curYear, baseYear, v$label),
@@ -918,6 +932,73 @@ if ("S9" %in% sections) {
                      "* Where the landscape scale was trained on these DDA territory data (grey subtitle) its line is in-sample, so it should follow the observed series; the red subtitle marks species whose landscape scale was trained on other data."),
               outer = TRUE, side = 1, line = 3.2, cex = 0.72, col = "grey30") })
     }
+  }
+}
+
+## =================================================================================================================================================
+## S10  the species groups side by side (2026-11-14): expected richness 2005 against 2025, regional index (10 km), national index. Reads the model-ensemble results of EVERY group in
+##      data/speciesGroups.csv (a group whose folders are not there yet is left out); needs at least two groups.
+## =================================================================================================================================================
+if ("S10" %in% sections) {
+  say("--- S10 ---")
+  uncE <- file.path(root, paste0("uncertainty_", ensTag))
+  GP <- lapply(setNames(spGroups$groups, spGroups$groups), function(g) { s <- groupSuffix(g)
+    list(g = g, label = spGroups$labels[[g]], n = length(spGroups$members[[g]]), sfx = s,
+         comm = firstExisting(file.path(uncE, paste0("community", s, "_germany")), file.path(uncE, paste0("community", s))),
+         reg = dirOf("regional_index", ensTag, TRUE, s), report = dirOf("annual_report", ensTag, TRUE, s), uncReg = file.path(uncE, paste0("regional", s))) })
+  GP <- GP[sapply(GP, function(p) !is.na(p$comm) && !is.na(p$reg) && !is.na(p$report))]
+  if (length(GP) < 2) note("S10", "needs the results of at least two species groups (community, regional index and annual report folders of the ensemble run)") else {
+    grpTxt <- paste(sapply(GP, function(p) sprintf("%s: %d species", p$label, p$n)), collapse = "; ")
+    gTitle <- function(s) mtext(s, outer = TRUE, side = 3, line = 0.4, font = 2, cex = 1.45)
+    fRich <- function(p, y) file.path(p$comm, sprintf("richness_expected_unc_%d.tif", y)); fDelta <- function(p) file.path(p$comm, "community_meanDeltaP_unc_vsBaseline.tif")
+    # (a) expected richness in the base year and the current year, the change, and where the change is clear
+    rs <- do.call(rbind, lapply(GP, function(p) { f <- c(fRich(p, baseYear), fRich(p, curYear)); if (!all(file.exists(f))) return(NULL)
+      m <- sapply(f, function(x) global(lay(rast(x), "mean", 1), "mean", na.rm = TRUE)[1, 1])
+      data.frame(group = p$g, label = p$label, nSpecies = p$n, richnessBase = m[1], richnessCurrent = m[2], change = m[2] - m[1], changePercent = 100 * (m[2] - m[1]) / m[1]) }))
+    if (!is.null(rs) && nrow(rs)) { names(rs)[4:5] <- c(paste0("meanRichness", baseYear), paste0("meanRichness", curYear)); tableOut(rs, "S10_richness_by_group") }
+    figure("S10_groups", sprintf("S10_richness_%d_vs_%d", baseYear, curYear), sprintf("Expected species richness %d and %d by species group, and the change", baseYear, curYear),
+           sprintf("One row per group (%s). Expected richness = sum of the probabilities of the group's species per pixel (mean over the replicates), %d and %d on the same colour scale within the row. Third column: change in number of species (red = fewer species expected). Fourth column: the same only where the 90%% interval over the replicates excludes zero; grey = it includes zero. The groups have different numbers of species, so richness is a relative measure and the rows are not on one scale.", grpTxt, baseYear, curYear),
+           paste(unlist(lapply(GP, function(p) c(fRich(p, baseYear), fRich(p, curYear), fDelta(p)))), collapse = "; "), variant = "big5", w = 19, h = 4.9 * length(GP) + 1, draw = function() {
+      need(unlist(lapply(GP, function(p) c(fRich(p, baseYear), fRich(p, curYear), fDelta(p)))))
+      dl <- lapply(GP, function(p) { u <- rast(fDelta(p)); list(d = ger(p$n * lay(u, "deltaMean", 1)), l = lay(u, "deltaLwr", 3), up = lay(u, "deltaUpr", 4)) })
+      lim <- max(sapply(dl, function(z) symLim(z$d)), 0.5); par(mfrow = c(length(GP), 4), oma = c(2.6, 0, 2.8, 0))
+      for (i in seq_along(GP)) { p <- GP[[i]]; a <- ger(lay(rast(fRich(p, baseYear)), "mean", 1)); b <- ger(lay(rast(fRich(p, curYear)), "mean", 1)); zl <- c(0, max(values(a, na.rm = TRUE), values(b, na.rm = TRUE)))
+        drawMap(a, sprintf("%s: %d", p$label, baseYear), palRich, zl, mb = bm); drawMap(b, sprintf("%s: %d", p$label, curYear), palRich, zl, mb = bm)
+        drawMap(dl[[i]]$d, sprintf("Change in expected richness, %d vs %d (species)", curYear, baseYear), palDiv, c(-lim, lim), mb = bm)
+        drawClearOnly(dl[[i]]$d, ger(clearMask(dl[[i]]$l, dl[[i]]$up)), "Only where the change is clear", c(-lim, lim)) }
+      gTitle(sprintf("Expected species richness, %d and %d", baseYear, curYear))
+      footnote(paste0("Expected richness is relative (probabilities summed), not a count of species seen; compare the pattern and the change, not the numbers between rows. ", grpTxt, ".")) })
+    # (b) regional index (10 km): the index in the last year, the change since the base year, and where the change is clear
+    fRaw <- function(p) file.path(p$reg, "regional_index_10km_raw.tif"); fClr <- function(p) file.path(p$uncReg, "regional_index_10km_unc_change_vsBaseline.tif")
+    figure("S10_groups", "S10_regional_index_by_group_10km", sprintf("Regional index %d (10 km cells) by species group: the index, the change since %d, and where the change is clear", curYear, baseYear),
+           sprintf("One row per group (%s). Regional index = combined index (geometric mean of the species indices) of the group's species in each 10 km cell, %d = 100 in every cell. Left: index in %d (red = below %d, blue = above). Middle: change in index points. Right: the same only where the 90%% interval over the replicates excludes zero; grey = it includes zero.", grpTxt, baseYear, curYear, baseYear),
+           paste(unlist(lapply(GP, function(p) c(fRaw(p), fClr(p)))), collapse = "; "), variant = "big5", w = 16, h = 4.9 * length(GP) + 1, draw = function() {
+      need(sapply(GP, fRaw)); yb <- as.character(baseYear); yc <- as.character(curYear)
+      zz <- lapply(GP, function(p) { r <- rast(fRaw(p)); if (!all(c(yb, yc) %in% names(r))) stop("years ", yb, "/", yc, " not in ", basename(fRaw(p))); list(idx = r[[yc]], chg = r[[yc]] - r[[yb]]) })
+      lim <- max(sapply(zz, function(z) symLim(z$chg)), 5); limI <- max(sapply(zz, function(z) symLim(z$idx - 100)), 5); par(mfrow = c(length(GP), 3), oma = c(2.6, 0, 2.8, 0))
+      for (i in seq_along(GP)) { p <- GP[[i]]; z <- zz[[i]]
+        drawMap(z$idx, sprintf("%s: regional index %d (%d = 100)", p$label, curYear, baseYear), palDiv, 100 + c(-1, 1) * limI, mb = bm)
+        drawMap(z$chg, sprintf("Change %d vs %d (index points)", curYear, baseYear), palDiv, c(-lim, lim), mb = bm)
+        if (file.exists(fClr(p))) { u <- rast(fClr(p)); l <- lay(u, c("deltaLwr", "slopeLwr"), 3); up <- lay(u, c("deltaUpr", "slopeUpr"), 4)
+          if (!isTRUE(compareGeom(l, z$chg, stopOnError = FALSE))) { l <- resample(l, z$chg, "near"); up <- resample(up, z$chg, "near") }
+          drawClearOnly(z$chg, clearMask(l, up), "Only where the change is clear", c(-lim, lim)) } else plot.new() }
+      gTitle(sprintf("Regional index (10 km), %d vs %d", curYear, baseYear))
+      footnote("Index points: a cell at 85 in 2025 has lost 15 points relative to its own 2005 value (= 100), i.e. 15% of it. The index is relative to each cell's own 2005 level, so it says nothing about how many birds a cell holds.") })
+    # (c) national index of every group in one panel
+    figure("S10_groups", "S10_national_index_by_group", sprintf("National index %d-%d by species group", baseYear, curYear),
+           "Combined index of each group's species for Germany (line = main model, band = 90% Monte Carlo interval over the replicates), base year = 100. Dashed = preliminary years, after the last year of the published national indicator. Grey = hindcast years.",
+           paste(sapply(GP, function(p) file.path(p$report, "combined_index_sbi.csv + combined_index_uncertainty.csv")), collapse = "; "), variant = "big5", w = 10, h = 6.6, draw = function() {
+      cols <- c("#1f4e79", "#c4551f", "#2d8a4e", "#6a3d9a", "#8a6d1f")[seq_along(GP)]
+      xs <- lapply(GP, function(p) { u <- readCsv(file.path(p$report, "combined_index_uncertainty.csv")); u <- u[u$method == "MSI", ]; u <- u[order(u$year), ]
+                                     s <- readCsv(file.path(p$report, "combined_index_sbi.csv")); names(s) <- tolower(names(s)); list(u = u, s = s[order(s$year), ]) })
+      tableOut(do.call(rbind, lapply(seq_along(GP), function(i) data.frame(group = GP[[i]]$g, year = xs[[i]]$s$year, sbi = xs[[i]]$s$sbi, msiLwr = xs[[i]]$u$lwr[match(xs[[i]]$s$year, xs[[i]]$u$year)], msiUpr = xs[[i]]$u$upr[match(xs[[i]]$s$year, xs[[i]]$u$year)]))), "S10_national_index_by_group")
+      yrs <- sort(unique(unlist(lapply(xs, function(x) x$s$year)))); rng <- range(unlist(lapply(xs, function(x) c(x$u$lwr, x$u$upr, x$s$sbi))), 100, na.rm = TRUE) + c(-0.4, 0.4)
+      par(mar = c(4.2, 4.6, 3.2, 1), oma = c(1, 0, 1, 0)); plot(NA, xlim = range(yrs), ylim = rng, xlab = "Year", ylab = sprintf("Index (%d = 100)", baseYear), main = "Combined index by species group, Germany", cex.main = 1.3, bty = "l", las = 1)
+      hindcastBox(yrs, rng); abline(h = 100, lty = 3, col = "grey40")
+      for (i in seq_along(GP)) { x <- xs[[i]]; polygon(c(x$u$year, rev(x$u$year)), c(x$u$lwr, rev(x$u$upr)), col = adjustcolor(cols[i], 0.2), border = NA)
+        s <- x$s; prelim <- !is.na(natLast) && any(s$year > natLast); sol <- if (prelim) s[s$year <= natLast, ] else s; lines(sol$year, sol$sbi, col = cols[i], lwd = 3)
+        if (prelim) lines(s$year[s$year >= natLast], s$sbi[s$year >= natLast], col = cols[i], lwd = 3, lty = 2) }
+      legend("bottomleft", sapply(GP, function(p) sprintf("%s (%d species)", p$label, p$n)), col = cols, lwd = 3, bty = "n", cex = 0.95) })
   }
 }
 
