@@ -44,6 +44,11 @@ defineModule(sim, list(
                                             msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national", msi_regional_clear = "msi_regional_clear"), NA, NA,
                     "Names of the sub-folders of vizPath for the six products. meta_prob_year, meta_unc_year and msi_regional follow the bucket",
                     "(Confluence BirdTwin / Architektur / EVE Cluster); richness_year, msi_regional_unc and msi_national are our names until agreed."),
+    defineParameter("groupSuffix", "character", "", NA, NA,
+                    "Species GROUP of the group products (richness, regional index and its uncertainty, national trend; 2026-11-14, data/speciesGroups.csv): \"\" (default) = the group \"all\", the folders of the run as always;",
+                    "\"_farmland\" etc. = the folders of that group. Give such a group its own `folders`, `nationalFile` and `missingFile`."),
+    defineParameter("nationalFile", "character", "msi_national.csv", NA, NA, "File name of the national trend inside folders$msi_national (the viz2 layout: msi_national_<group>.csv)."),
+    defineParameter("missingFile", "character", "_missing.csv", NA, NA, "File name of the report of missing results in vizPath (the viz2 layout: one per group)."),
     defineParameter("nationalLastPublishedYear", "numeric", NA_real_, NA, NA,
                     "Last year of the PUBLISHED national indicator (DDA/BfN). The years after it are marked preliminary in msi_national/msi_national.csv",
                     "(dashed line 'Preliminary trend - subject to later update'). Only the national trend is marked. NA: nothing marked."),
@@ -89,7 +94,8 @@ doEvent.connector_Monitor = function(sim, eventTime, eventType) {
       # ! ----- EDIT BELOW ----- ! #
       runsRoot <- if (is.na(P(sim)$runsRoot)) dirname(normalizePath(outputPath(sim), winslash = "/", mustWork = FALSE)) else P(sim)$runsRoot
       res <- connectViz(runsRoot = runsRoot, vizPath = P(sim)$vizPath, tag = P(sim)$tag, species = P(sim)$species, years = as.integer(P(sim)$years),
-                        cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, nationalLastPublishedYear = as.integer(P(sim)$nationalLastPublishedYear), linkMode = P(sim)$linkMode,
+                        cellKm = P(sim)$cellKm, runs = P(sim)$runFolders, excludeRuns = P(sim)$excludeRuns, folders = P(sim)$folders, nationalLastPublishedYear = as.integer(P(sim)$nationalLastPublishedYear),
+                        groupSuffix = P(sim)$groupSuffix, nationalFile = P(sim)$nationalFile, missingFile = P(sim)$missingFile, linkMode = P(sim)$linkMode,
                         allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete,
                         waterFile = if (is.na(P(sim)$waterFile)) NULL else P(sim)$waterFile, waterMinShare = P(sim)$waterMinShare, waterProducts = P(sim)$waterProducts,
                         clearRegional = isTRUE(P(sim)$clearRegional), clearBaseline = P(sim)$clearBaseline)

@@ -52,6 +52,10 @@ source("tools/sharedConfig.R")
 # this one session, exactly as before.
 source("tools/sharedStageConfig.R")
 stageModules <- pipelineStageModules()
+# species GROUPS (2026-11-14): a group (BIRDMONITOR_GROUP) restricts `sharedSpecies` to the species of the group, which is right ONLY for combining them (stage index). Models, inputs and rasters are per
+# species and always cover the whole roster.
+if (sharedGroup != "all" && !identical(Sys.getenv("BIRDMONITOR_STAGE"), "index"))
+  stop("BIRDMONITOR_GROUP='", sharedGroup, "' is set: it is only for BIRDMONITOR_STAGE=index (the combining of species). Unset it for any other stage.", call. = FALSE)
 
 ################### FITTING-YEARS / PREDICTION-YEARS DEPENDENCIES
 # See sharedYearsConfig.R -- computes what dataPrep_Monitor's landuseYears
@@ -314,7 +318,9 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         habitatResolutionM = sharedHabitatResolutionM,
         landscapeResolutionM = sharedLandscapeResolutionM,
         # "" (default) = BRT meta-model; BIRDMONITOR_INDEX_TAG=ens = the ENSEMBLE meta-model (feature/ensemble; own output folders)
-        outputTag = Sys.getenv("BIRDMONITOR_INDEX_TAG", "")
+        outputTag = Sys.getenv("BIRDMONITOR_INDEX_TAG", ""),
+        # species GROUP (2026-11-14, BIRDMONITOR_GROUP -> sharedConfig.R): `species` above is already the species of the group; this suffix ("" = group "all") goes at the end of annual_report_*/regional_index_*
+        groupSuffix = sharedGroupSuffix
         # indexSpecies: left at module default (NULL -> uses `species`) --
         # set to a subset here for a restricted test report/index.
         # changeThresh / nBoot / nSim / useBootstrapSE / pollIntervalSeconds /

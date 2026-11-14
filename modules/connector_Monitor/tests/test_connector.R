@@ -99,6 +99,34 @@ rOff <- run(); check("water mask: switched off, the files are made again without
 resW <- tryCatch(run(waterFile = file.path(root, "does_not_exist.gpkg")), error = function(e) conditionMessage(e)); check("water mask: a missing file stops at once", is.character(resW) && grepl("does not exist", resW))
 check("water mask: a dry run with the mask writes nothing", is.null(run(waterFile = wf, dryRun = TRUE)$missing))
 
+# species GROUPS / viz2 layout (2026-11-14): the group products of a group come from the group's own run folders and go into group-named folders; the per-species products are brought in once
+local({
+  viz2 <- file.path(root, "viz2"); g <- "farmland"; sfx <- "_farmland"
+  rd <- file.path(runs, "runA")                                                              # the group products of the group "farmland": other values (7), so the groups can be told apart
+  for (yr in yrs) w(mk(5, 7, fiveNm), file.path(rd, paste0("uncertainty_", tag), paste0("community", sfx, "_germany"), paste0("richness_expected_unc_", yr, ".tif")))
+  nd <- file.path(rd, paste0("annual_report_", tag, "_germany", sfx)); dir.create(nd, recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(data.frame(method = "MSI", year = 2005:2025, nReplicates = 25, estimate = 70, median = 70, lwr = 65, upr = 75), file.path(nd, "combined_index_uncertainty.csv"), row.names = FALSE)
+  w(mk(2, 7, c("2005", "2006")), file.path(rd, paste0("regional_index_", tag, "_germany", sfx), "regional_index_10km_raw.tif"))
+  for (yr in yrs) w(mk(5, 7, fiveNm), file.path(rd, paste0("uncertainty_", tag), paste0("regional", sfx), paste0("regional_index_10km_unc_", yr, ".tif")))
+  fol <- function(g) list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = paste0("richness_year_", g), msi_regional = paste0("msi_regional_", g),
+                          msi_regional_unc = paste0("msi_regional_unc_", g), msi_national = "msi_national", msi_regional_clear = paste0("msi_regional_clear_", g))
+  one <- function(g, species) connectViz(runs, viz2, tag, species, yrs, runs = NULL, linkMode = "copy", groupSuffix = if (g == "all") "" else paste0("_", g), folders = fol(g),
+                                         nationalFile = paste0("msi_national_", g, ".csv"), missingFile = if (g == "all") "_missing.csv" else paste0("_missing_", g, ".csv"))
+  ra <- one("all", sp2); rf <- one(g, character(0))
+  check("groups: 'all' complete (species + its group products), farmland has nothing missing either", nrow(ra$missing) == 0 && nrow(rf$missing) == 0)
+  check("groups: group-named folders for both groups, the per-species folders once", all(dir.exists(file.path(viz2, c("richness_year_all", "richness_year_farmland", "msi_regional_all", "msi_regional_farmland", "msi_regional_unc_farmland", "msi_regional_clear_farmland", "meta_prob_year")))) && !dir.exists(file.path(viz2, "richness_year")))
+  check("groups: each group has its own national trend file (all = 100, farmland = 70)", read.csv(file.path(viz2, "msi_national", "msi_national_all.csv"))$estimate[1] == 100 && read.csv(file.path(viz2, "msi_national", "msi_national_farmland.csv"))$estimate[1] == 70)
+  check("groups: richness and regional index of a group come from that group's folders (all = 1, farmland = 7), neither overwrites the other", global(rast(file.path(viz2, "richness_year_all", "richness_2005_mean.tif")), "mean")[1, 1] == 1 && global(rast(file.path(viz2, "richness_year_farmland", "richness_2005_mean.tif")), "mean")[1, 1] == 7 && global(rast(file.path(viz2, "msi_regional_farmland", "msi_10km_2005.tif")), "mean")[1, 1] == 7 && global(rast(file.path(viz2, "msi_regional_all", "msi_10km_2005.tif")), "mean")[1, 1] == 1)
+  check("groups: the manifest has no species rows from the farmland call, and every file of it is under a farmland folder or the shared national folder", !any(rf$manifest$species[rf$manifest$dest %in% rf$manifest$dest[grepl("farmland", rf$manifest$dest)]] != ""))
+  check("groups: second run of both groups changes nothing", one("all", sp2)$done == 0L && one(g, character(0))$done == 0L)
+  unlink(file.path(rd, paste0("annual_report_", tag, "_germany", sfx)), recursive = TRUE)                  # a NEW viz folder, and the farmland national trend has no source: it must be reported for farmland only
+  viz3 <- file.path(root, "viz3")
+  one3 <- function(g, species) connectViz(runs, viz3, tag, species, yrs, runs = NULL, linkMode = "copy", groupSuffix = if (g == "all") "" else paste0("_", g), folders = fol(g),
+                                          nationalFile = paste0("msi_national_", g, ".csv"), missingFile = if (g == "all") "_missing.csv" else paste0("_missing_", g, ".csv"))
+  suppressWarnings(one3("all", sp2)); rm3 <- suppressWarnings(one3(g, character(0)))
+  check("groups: a missing result of ONE group is reported for that group only (farmland national trend), the other group's files do not hide it", any(rm3$missing$product == "msi_national") && nrow(read.csv(file.path(viz3, "_missing_farmland.csv"))) == 1 && nrow(read.csv(file.path(viz3, "_missing.csv"))) == 0)
+})
+
 # as a SpaDES module
 if (requireNamespace("SpaDES.core", quietly = TRUE)) {
   unlink(viz, recursive = TRUE)

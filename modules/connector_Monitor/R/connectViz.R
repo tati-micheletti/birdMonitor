@@ -26,6 +26,10 @@
 #' @param runs,excludeRuns See `vizSources()`.
 #' @param nationalLastPublishedYear Integer. Last year of the published national indicator; later years of the national trend are marked `preliminary` (NA: none).
 #' @param folders Named list of folder names (see above).
+#' @param groupSuffix Character. Species group (2026-11-14): "" (default) = the group "all", sources as always; "_farmland" etc. takes the group products (richness, regional index, its uncertainty, national trend)
+#'   from the folders of that group (see `vizSources()`). Give such a group its own `folders`, `nationalFile` and `missingFile`, so it does not overwrite the files of another group.
+#' @param nationalFile Character. File name of the national trend inside `folders$msi_national` (default "msi_national.csv"; the viz2 layout uses msi_national_<group>.csv).
+#' @param missingFile Character. File name of the report of missing results in `vizPath` (default "_missing.csv"; one per group in the viz2 layout).
 #' @param linkMode "symlink" (default) or "copy" for files that need no splitting.
 #' @param allowWorkSources Logical. Allow links to files under `/work` (they break when EVE cleans `/work`).
 #' @param dryRun Logical. Only report what would be done.
@@ -38,7 +42,7 @@
 connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)",
                        folders = list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
                                       msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national", msi_regional_clear = "msi_regional_clear"),
-                       nationalLastPublishedYear = NA_integer_, linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE,
+                       nationalLastPublishedYear = NA_integer_, groupSuffix = "", nationalFile = "msi_national.csv", missingFile = "_missing.csv", linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE,
                        waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year"), clearRegional = TRUE, clearBaseline = 100) {
   # water mask (2026-11-05): checked FIRST, so a missing file stops the job at once and not after the files were written
   doMask <- !is.null(waterFile) && !is.na(waterFile)
@@ -49,11 +53,11 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
     message("connectViz(): water mask ON (", waterFile, ", share >= ", waterMinShare, ") for ", paste(waterProducts, collapse = ", "), "; the source files are not changed")
   } else message("connectViz(): water mask OFF")
   spUnder <- gsub(" ", "_", species)
-  src <- vizSources(runsRoot, runs, excludeRuns, tag, cellKm)
+  src <- vizSources(runsRoot, runs, excludeRuns, tag, cellKm, groupSuffix)
   if (!nrow(src)) stop("connectViz(): no result files for tag '", tag, "' found in the run folders of ", runsRoot)
   perSpecies <- src$product %in% c("meta_prob_year", "meta_unc_year")
   other <- setdiff(unique(src$species[perSpecies]), spUnder)
-  if (length(other)) message("connectViz(): species in the results but not in the roster are ignored: ", paste(other, collapse = ", "))
+  if (length(other) && length(species)) message("connectViz(): species in the results but not in the roster are ignored: ", paste(other, collapse = ", "))
   src <- src[!perSpecies | src$species %in% spUnder, ]
   src <- src[is.na(src$year) | src$year %in% years | !src$product %in% c("meta_prob_year", "meta_unc_year"), ]
   latest <- vizLatest(src)
@@ -68,7 +72,7 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   done <- 0L; plan <- 0L
   nat <- latest[latest$product == "msi_national", , drop = FALSE]; latest <- latest[latest$product != "msi_national", , drop = FALSE]   # the national trend is a table, not a raster
   for (i in seq_len(nrow(nat))) {
-    dest <- file.path(folders$msi_national, "msi_national.csv"); k <- which(man$dest == dest); modeTxt <- paste0("written; last published year ", nationalLastPublishedYear)
+    dest <- file.path(folders$msi_national, nationalFile); k <- which(man$dest == dest); modeTxt <- paste0("written; last published year ", nationalLastPublishedYear)
     current <- length(k) == 1L && file.exists(file.path(vizPath, dest)) && file.exists(man$src[k]) && !(nat$mtime[i] > man$srcMtime[k] + 1) && identical(man$mode[k], modeTxt)
     if (current) next
     plan <- plan + 1L
@@ -132,14 +136,16 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   need <- rbind(expand.grid(product = "meta_prob_year", species = spUnder, year = years, label = "", stringsAsFactors = FALSE),
                 expand.grid(product = "meta_unc_year", species = spUnder, year = years, label = c("mean", "sd", "lwr", "upr", "width"), stringsAsFactors = FALSE))
   need <- rbind(need, expand.grid(product = "richness_year", species = "", year = years, label = c("mean", "sd", "lwr", "upr", "width"), stringsAsFactors = FALSE))   # richness of EVERY year
-  have <- paste(man$product, man$species, man$year, ifelse(man$product %in% c("meta_unc_year", "richness_year"), man$layer, ""))
+  manHere <- man[vapply(man$dest, function(d) any(startsWith(d, paste0(unlist(folders), "/"))), logical(1)), , drop = FALSE]      # only what is in THIS call's folders (a group has its own richness folder)
+  have <- paste(manHere$product, manHere$species, manHere$year, ifelse(manHere$product %in% c("meta_unc_year", "richness_year"), manHere$layer, ""))
   need$key <- paste(need$product, need$species, need$year, ifelse(need$product %in% c("meta_unc_year", "richness_year"), need$label, ""))
   miss <- need[!need$key %in% have, c("product", "species", "year", "label"), drop = FALSE]
-  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national", if (clearRegional) "msi_regional_clear"), function(p) any(man$product == p), logical(1))
+  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national", if (clearRegional) "msi_regional_clear"),
+                    function(p) if (p == "msi_national") any(man$dest == file.path(folders$msi_national, nationalFile)) else any(man$product == p & startsWith(man$dest, paste0(folders[[p]], "/"))), logical(1))
   extra <- if (any(!noOther)) data.frame(product = names(noOther)[!noOther], species = "", year = NA_integer_, label = "", stringsAsFactors = FALSE) else need[0, c("product", "species", "year", "label")]
   miss <- rbind(miss, extra); names(miss)[names(miss) == "label"] <- "layer"
-  utils::write.csv(miss, file.path(vizPath, "_missing.csv"), row.names = FALSE)
-  message("connectViz(): ", done, " files written or linked now; ", nrow(man), " in the manifest; missing: ", nrow(miss), if (nrow(miss)) paste0(" (see ", file.path(vizPath, "_missing.csv"), ")") else "")
+  utils::write.csv(miss, file.path(vizPath, missingFile), row.names = FALSE)
+  message("connectViz(): ", done, " files written or linked now; ", nrow(man), " in the manifest; missing: ", nrow(miss), if (nrow(miss)) paste0(" (see ", file.path(vizPath, missingFile), ")") else "")
   if (nrow(miss)) {
     msg <- paste0("the viz folder is NOT complete: ", nrow(miss), " expected results missing, e.g. ", paste(utils::head(paste(miss$product, miss$species, miss$year, miss$layer), 3), collapse = "; "))
     if (failIfIncomplete) stop("connectViz(): ", msg, call. = FALSE) else warning("connectViz(): ", msg, call. = FALSE)

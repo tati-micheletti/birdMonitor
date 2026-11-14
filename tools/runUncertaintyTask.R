@@ -32,6 +32,9 @@
 #'   BIRDMONITOR_UNC_BANDS (16), BIRDMONITOR_UNC_REPBATCH (10), BIRDMONITOR_UNC_CORES (SLURM_CPUS_PER_TASK),
 #'   BIRDMONITOR_UNC_BLOCKMULT (1), BIRDMONITOR_UNC_PROBS (0.05,0.95), BIRDMONITOR_UNC_TAG (separate folder for
 #'   test runs), BIRDMONITOR_UNC_BASELINE (2005).
+#'   BIRDMONITOR_GROUP (2026-11-14, species groups, data/speciesGroups.csv): only for the steps that COMBINE species -- community, assembleAll, maskmaps (the community task only), regionindex. The species of the
+#'   group are combined, and the folders / files these steps write get the suffix "_<group>" (community_farmland/, regional_farmland/, annual_report_<tag>_farmland/ ...). Unset = the group "all" = as before.
+#'   The per-species steps (fit ... assemble, regionband, regionassemble) are done ONCE per species and refuse to run with a group set.
 
 Sys.setenv(OMP_NUM_THREADS = "1", GDAL_NUM_THREADS = "1")
 suppressMessages(library(SpaDES.core))
@@ -83,8 +86,12 @@ modelParams <- list(
   uncertaintyReps = reps, uncertaintySpecies = sharedSpecies, uncertaintyYears = outYears, uncertaintyBands = nBands,
   uncertaintyRepBatch = as.integer(env("BIRDMONITOR_UNC_REPBATCH", "10")), uncertaintyCores = max(1L, cores),
   uncertaintyBlockMult = as.numeric(env("BIRDMONITOR_UNC_BLOCKMULT", "1")), uncertaintyProbs = probs,
-  uncertaintyTag = tag, uncertaintyMembers = uncMembers, uncertaintyBaselineYear = baselineYear, uncertaintyCurrentYear = currentYear)
+  uncertaintyTag = tag, uncertaintyMembers = uncMembers, uncertaintyBaselineYear = baselineYear, uncertaintyCurrentYear = currentYear,
+  uncertaintyGroupSuffix = sharedGroupSuffix)
 
+# species groups: only the steps that combine species may run on a group (the per-species work is shared by all groups and must always cover the whole roster)
+if (sharedGroup != "all" && !step %in% c("community", "assembleAll", "maskmaps", "regionindex"))
+  stop("BIRDMONITOR_GROUP='", sharedGroup, "' is set, but step '", step, "' is a per-species step: it runs once for the whole roster. Unset BIRDMONITOR_GROUP.", call. = FALSE)
 needIndex <- function(n) if (is.na(index) || index < 1 || index > n) stop("--index must be 1..", n, " for step ", step, " (got ", index, ")")
 message("=== uncertainty task: step = ", step, " | run = ", runName, " | replicates ", min(reps), "-", max(reps),
         " | cores = ", cores, " | ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), " ===")
@@ -105,11 +112,13 @@ speciesBand <- function() {
 # the uncertainty configuration, for the steps that call the module's functions directly (no SpaDES event)
 makeCfg <- function() {
   for (f in sort(list.files("modules/models_Monitor/R", pattern = "[.]R$", full.names = TRUE))) source(f)
-  uncCfgFromParams(inputRoot = inputRoot, outputRoot = outputRoot, species = sharedSpecies, predictionYears = predictionYears,
+  cfg <- uncCfgFromParams(inputRoot = inputRoot, outputRoot = outputRoot, species = sharedSpecies, predictionYears = predictionYears,
                    habitatYears = habitatYearsAll, resolutionConfig = resolutionConfig, climateResolutionM = sharedClimateResolutionM,
                    habitatResolutionM = sharedHabitatResolutionM, landscapeResolutionM = sharedLandscapeResolutionM,
                    climateWindowLength = sharedClimateWindowLength, reps = reps, outYears = outYears, nBands = nBands,
                    tag = tag, baselineYear = baselineYear, currentYear = currentYear, codeRoot = repoRoot)
+  cfg$groupSuffix <- sharedGroupSuffix                 # species group ("" = "all"): community folder names
+  cfg
 }
 
 if (step == "preflight") {
@@ -135,6 +144,7 @@ if (step == "preflight") {
       species = sharedSpecies, allYears = predictionYears, currentYear = currentYear, baselineYear = baselineYear,
       uncertaintyDir = file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else "")),
       uncertaintyOnly = TRUE, uncertaintyProbs = probs, uncertaintyBands = nBands,
+      groupSuffix = sharedGroupSuffix,                                                          # species group ("" = "all"): report folders, community folder, replicate file
       uncertaintyAreaMeanFile = env("BIRDMONITOR_UNC_AREAMEAN", "area_mean_replicates.csv"),    # area_mean_replicates_germany.csv for the Germany-only version
       outputTag = if (nzchar(env("BIRDMONITOR_INDEX_TAG"))) env("BIRDMONITOR_INDEX_TAG") else if (ensembleRun) tag else "")))   # the ensemble's index intervals go to annual_report_<tag>/, the BRT-only ones as before
 } else if (step %in% c("regionband", "regionassemble")) {
@@ -158,6 +168,7 @@ if (step == "preflight") {
 } else if (step == "maskmaps") {
   # Germany-only copies of the finished uncertainty maps: index 1..nSpecies = species maps, nSpecies + 1 = community maps
   needIndex(length(sharedSpecies) + 1L)
+  if (sharedGroup != "all" && index != length(sharedSpecies) + 1L) stop("With BIRDMONITOR_GROUP set only the community task (index ", length(sharedSpecies) + 1L, ") may run: the species maps are masked once for all groups.", call. = FALSE)
   cfg <- makeCfg()
   if (index <= length(sharedSpecies)) uncMaskMaps(cfg, sharedSpecies[index]) else uncMaskMaps(cfg, NULL)
 } else if (step == "regionindex") {
@@ -165,9 +176,9 @@ if (step == "preflight") {
   source("modules/runIndex_Monitor/R/computeRegionalIndexUncertainty.R")
   uncDir <- file.path(outputRoot, paste0("uncertainty", if (nzchar(tag)) paste0("_", tag) else ""))
   computeRegionalIndexUncertainty(
-    species = sharedSpecies, uncertaintyDir = uncDir, outputDir = file.path(uncDir, "regional"), baselineYear = baselineYear,
+    species = sharedSpecies, uncertaintyDir = uncDir, outputDir = file.path(uncDir, paste0("regional", sharedGroupSuffix)), baselineYear = baselineYear,
     currentYear = currentYear, cellSizesM = sharedRegionalCellSizesM, probs = probs, minBaseline = 1e-6,
-    baselineRegionalDir = file.path(outputRoot, paste0("regional_index", if (ensembleRun) paste0("_", tag) else "")))
+    baselineRegionalDir = file.path(outputRoot, paste0("regional_index", if (ensembleRun) paste0("_", tag) else "", sharedGroupSuffix)))
 } else {
   stop("--step must be one of: preflight, covcache, fit, coarse, oof, ridge, bandpredict, summarize, assemble, community, assembleAll, regionband, regionassemble, regionindex, maskmaps, ridgeredo (got: ", step, ")")
 }

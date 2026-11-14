@@ -29,6 +29,11 @@
 source("tools/sharedSpeciesCanonical.R")
 speciesCanonical <- loadSpeciesCanonical("data/speciesCanonical.csv")
 sharedSpecies <- canonicalIncludedSpecies(speciesCanonical)
+# Species GROUPS (2026-11-14): which modelled species go into which index / richness map (data/speciesGroups.csv, tools/sharedSpeciesGroups.R). Checked against the
+# FULL modelled roster here, before any restriction below. Per-species steps never use the group: they always run on the roster.
+source("tools/sharedSpeciesGroups.R")
+speciesGroups <- loadSpeciesGroups("data/speciesGroups.csv", sharedSpecies)
+sharedGroups <- speciesGroups$groups                      # all groups of the file, e.g. "all", "farmland"; every one of them is calculated
 # DEBUG ONLY: BIRDMONITOR_SPECIES="Emberiza citrinella;Emberiza calandra" restricts the run to those species
 # (semicolon-separated Latin names) for a fast test of the real pipeline. Unset = the full roster.
 local({
@@ -41,6 +46,16 @@ local({
     message("BIRDMONITOR_SPECIES set -- running ONLY: ", paste(sharedSpecies, collapse = ", "))
   }
 })
+# BIRDMONITOR_GROUP="farmland" (set ONLY for the steps that combine species: ens-index, community, assembleAll, regionindex, maskmaps of the community, connector): `sharedSpecies` becomes the species of that
+# group, and sharedGroupSuffix ("_farmland"; "" for the group "all" = unset) is added to the folders and files those steps write, so a group never overwrites another. Unset = "all" = the whole
+# roster, everything exactly as before. The per-species steps (models, ensemble, uncertainty bands, summaries, per-species assemble, regional bands) must NEVER run with a group set.
+sharedGroup <- Sys.getenv("BIRDMONITOR_GROUP", "all"); if (!nzchar(sharedGroup)) sharedGroup <- "all"
+if (!sharedGroup %in% sharedGroups) stop("BIRDMONITOR_GROUP='", sharedGroup, "' is not a group of data/speciesGroups.csv (", paste(sharedGroups, collapse = ", "), ").", call. = FALSE)
+sharedGroupSuffix <- groupSuffix(sharedGroup)
+if (sharedGroup != "all") {
+  sharedSpecies <- sharedSpecies[sharedSpecies %in% speciesGroups$members[[sharedGroup]]]
+  message("BIRDMONITOR_GROUP set -- '", sharedGroup, "' (", speciesGroups$labels[[sharedGroup]], "): ", length(sharedSpecies), " species; folders and files get the suffix '", sharedGroupSuffix, "'")
+}
 sharedGermanNames <- canonicalGermanNames(speciesCanonical, sharedSpecies)
 
 sharedTargetCRS <- "EPSG:3035"

@@ -60,6 +60,7 @@ inputs
 # living under data/ ARE tracked, see DECISIONS.md's 2026-09-28 entry)
 /data/*
 !/data/speciesCanonical.csv
+!/data/speciesGroups.csv
 !/data/speciesConfig_general.csv
 !/data/speciesConfig_predictors.csv
 !/data/landuseRecodeCTMtoHCTM.csv

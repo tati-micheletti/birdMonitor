@@ -16,9 +16,11 @@
 #' @param excludeRuns Character. Regular expression of run folders that are never used (test and check folders).
 #' @param tag Character. Ensemble tag of the folders, e.g. `"ens_brt-glm-gam-rf-nn"`.
 #' @param cellKm Numeric. Cell size (km) of the regional index shown in the Monitor.
+#' @param groupSuffix Character. Species group (2026-11-14, data/speciesGroups.csv): "" (default, the group "all") = the folders named above. "_farmland" etc. reads the folders of that group:
+#'   `community_farmland_germany`, `regional_index_<tag>_germany_farmland`, `uncertainty_<tag>/regional_farmland`, `annual_report_<tag>_germany_farmland`. The per-species products have no group.
 #' @return data.frame with one row per source file: product, species ("" when not per species), year (NA when the file has several years or none),
 #'   file, run, mtime (seconds since 1970).
-vizSources <- function(runsRoot, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)", tag, cellKm = 10) {
+vizSources <- function(runsRoot, runs = NULL, excludeRuns = "^(utest|test1|test2|test3|CHECK)", tag, cellKm = 10, groupSuffix = "") {
   if (!dir.exists(runsRoot)) stop("vizSources(): runsRoot does not exist: ", runsRoot)
   allRuns <- list.dirs(runsRoot, recursive = FALSE, full.names = FALSE)
   runs <- if (is.null(runs) || !length(runs)) allRuns[!grepl(excludeRuns, allRuns)] else intersect(runs, allRuns)
@@ -42,15 +44,15 @@ vizSources <- function(runsRoot, runs = NULL, excludeRuns = "^(utest|test1|test2
     fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), "*", "maps_germany", "*_unc_[0-9][0-9][0-9][0-9].tif"))
     if (length(fs)) add("meta_unc_year", fs, run, species = sub("_unc_[0-9]{4}[.]tif$", "", basename(fs)), year = yearOf(fs))
     # expected richness with uncertainty
-    fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), "community_germany", "richness_expected_unc_[0-9][0-9][0-9][0-9].tif"))
+    fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), paste0("community", groupSuffix, "_germany"), "richness_expected_unc_[0-9][0-9][0-9][0-9].tif"))
     if (length(fs)) add("richness_year", fs, run, year = yearOf(fs))
     # regional index (one file, all years) and its uncertainty (one file per year)
-    f <- file.path(rd, paste0("regional_index_", tag, "_germany"), sprintf("regional_index_%skm_raw.tif", km))
+    f <- file.path(rd, paste0("regional_index_", tag, "_germany", groupSuffix), sprintf("regional_index_%skm_raw.tif", km))
     if (file.exists(f)) add("msi_regional", f, run)
-    fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), "regional", sprintf("regional_index_%skm_unc_[0-9][0-9][0-9][0-9].tif", km)))
+    fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), paste0("regional", groupSuffix), sprintf("regional_index_%skm_unc_[0-9][0-9][0-9][0-9].tif", km)))
     if (length(fs)) add("msi_regional_unc", fs, run, year = yearOf(fs))
     # national trend: the combined multi-species index with its interval, from the reporting-area (Germany-only) area means
-    f <- file.path(rd, paste0("annual_report_", tag, "_germany"), "combined_index_uncertainty.csv")
+    f <- file.path(rd, paste0("annual_report_", tag, "_germany", groupSuffix), "combined_index_uncertainty.csv")
     if (file.exists(f)) add("msi_national", f, run)
   }
   if (!length(rows)) return(data.frame(product = character(), species = character(), year = integer(), file = character(), run = character(), mtime = numeric(), stringsAsFactors = FALSE))
