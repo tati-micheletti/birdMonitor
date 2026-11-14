@@ -63,7 +63,7 @@ spotPointsVec <- as.numeric(strsplit(getArg("--spot-points", ""), ",")[[1]])   #
 spotMain <- if (length(spotPointsVec) && !(10 %in% spotPointsVec)) spotPointsVec[1] else 10
 alpha <- as.numeric(getArg("--alpha", 0.05))                             # significance level of the Mann-Kendall test
 minCoverage <- as.numeric(getArg("--min-coverage", 0.5))
-sections   <- toupper(strsplit(getArg("--sections", if (nzchar(gSfx)) "S2,S3,S5,S6,S8" else "S1,S2,S3,S4,S5,S6,S7,S8,S9"), ",")[[1]])
+sections   <- toupper(strsplit(getArg("--sections", if (nzchar(gSfx)) "S2,S3,S5,S6,S8,S9" else "S1,S2,S3,S4,S5,S6,S7,S8,S9"), ",")[[1]])
 variants   <- strsplit(getArg("--variants", if (nzchar(gSfx)) "big5" else "brt,big5"), ",")[[1]]                                                         # the group chain is run for the model ensemble only
 species    <- allSpecies; if (!is.null(getArg("--species"))) species <- intersect(allSpecies, trimws(strsplit(getArg("--species"), ";")[[1]]))
 cellKm     <- as.integer(strsplit(getArg("--cells-km", "10"), ",")[[1]])
@@ -122,7 +122,7 @@ dropLab <- function(s) {                                                  # with
   if (length(variants) != 1) return(s); l <- V[[variants]]$label
   s <- gsub(paste0("[[:space:]]*[(]", l, "[)]"), "", s); s <- gsub(paste0(",[[:space:]]*", l, "(?=[)])"), "", s, perl = TRUE); gsub(paste0("[,:][[:space:]]*", l, "[[:space:]]*$"), "", s)
 }
-perSpeciesId <- "^(S1_|S4_|S7_algorithm|S2_prob_|S2_binary_|S5_gainloss_|S3_species_|S3_replicates_|S9_)"    # ids of the figures that show single species (all of them, whatever the group)
+perSpeciesId <- "^(S1_|S4_|S7_algorithm|S2_prob_|S2_binary_|S5_gainloss_|S3_species_|S3_replicates_|S9_observed_vs_modelled_species)"    # ids of the figures that show single species (all of them, whatever the group)
 figPerSpecies <- FALSE
 figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, variant = "") {
   title <- dropLab(title); what <- dropLab(what)
@@ -822,7 +822,7 @@ if ("S9" %in% sections) {
     comb <- function(spp) do.call(rbind, lapply(yrsObs, function(y) { d <- ser[ser$year == y & ser$species %in% spp, ]
       data.frame(year = y, abundance = geo(d$abundance), occupancy = geo(d$occupancy), modelled = geo(d$modelled)) }))
     germanList <- c("Saxicola rubetra", "Alauda arvensis", "Emberiza citrinella", "Emberiza calandra", "Lullula arborea", "Vanellus vanellus", "Lanius collurio")   # species of the German indicator that are also in our roster
-    c11 <- comb(allSpecies); c7 <- comb(germanList)
+    c11 <- comb(groupSpecies); c7 <- comb(intersect(germanList, groupSpecies))   # 2026-11-14 combined series use the species of the group; the per-species figures below keep all species
     ser$english <- english[ser$species]; tableOut(ser[, c("species", "english", "year", "abundance", "occupancy", "abundanceChain", "occupancyChain", "abundanceTrim", "abundanceTrimSE", "occupancyTrim", "occupancyTrimSE", "modelled", "plotsSurveyed")], "S9_observed_vs_modelled_series")
     at <- function(y) { do.call(rbind, lapply(allSpecies, function(sp) { d <- ser[ser$species == sp & ser$year == y, ]; data.frame(species = sp, english = english[[sp]], year = y, observedAbundance = d$abundance, observedOccupancy = d$occupancy, modelled = d$modelled) })) }
     addComb <- function(tb, y) rbind(tb, data.frame(species = paste0("COMBINED (", NSP, " species)"), english = paste0("Combined (", NSP, " species)"), year = y, observedAbundance = c11$abundance[c11$year == y], observedOccupancy = c11$occupancy[c11$year == y], modelled = c11$modelled[c11$year == y]),
@@ -845,15 +845,15 @@ if ("S9" %in% sections) {
     # species index across the bootstrap replicates as its standard error. Everything on the reference year of the observed series (here 2006), computed replicate by replicate, so the band is 0 in that year.
     source(file.path("tools", "msiMonteCarlo.R")); xm <- NULL; fm <- 1
     if (!is.null(IDX[[vsK]]$rep) && !is.null(IDX[[vsK]]$main)) {
-      r <- IDX[[vsK]]$rep; r <- r[r$species %in% allSpecies, ]; yy <- as.character(yrsObs)
+      r <- IDX[[vsK]]$rep; r <- r[r$species %in% groupSpecies, ]; yy <- as.character(yrsObs)
       r$i0 <- 100 * r$areaMean / r$areaMean[match(paste(r$species, r$replicate, obsBase), paste(r$species, r$replicate, r$year))]
-      sdM <- tapply(r$i0, list(r$species, r$year), stats::sd)[allSpecies, yy, drop = FALSE]
-      mn <- IDX[[vsK]]$main; cM <- 100 * as.matrix(mn[allSpecies, yy, drop = FALSE]) / mn[allSpecies, as.character(obsBase)]
+      sdM <- tapply(r$i0, list(r$species, r$year), stats::sd)[groupSpecies, yy, drop = FALSE]
+      mn <- IDX[[vsK]]$main; cM <- 100 * as.matrix(mn[groupSpecies, yy, drop = FALSE]) / mn[groupSpecies, as.character(obsBase)]
       xm <- msiMonteCarlo(cM, sdM); nRepMSI <- length(unique(r$replicate))
     } else note("S9", "the closest-comparison figure needs the replicate area means (outputs/<run>/uncertainty_*/<Species>/area_mean_replicates_germany.csv); skipped")
     xmA <- xmO <- NULL                                                                             # 2026-11-11 TRIM: observed combined index with its 90% Monte Carlo band (species TRIM indices and standard errors, same rule as for our MSI)
-    if (useTrim) { cT <- function(col) { m <- tapply(ser[[col]], list(ser$species, ser$year), mean)[allSpecies, as.character(yrsObs), drop = FALSE]; m }
-      okSp <- function(col) allSpecies[apply(cT(col), 1, function(v) !anyNA(v))]
+    if (useTrim) { cT <- function(col) { m <- tapply(ser[[col]], list(ser$species, ser$year), mean)[groupSpecies, as.character(yrsObs), drop = FALSE]; m }
+      okSp <- function(col) groupSpecies[apply(cT(col), 1, function(v) !anyNA(v))]
       for (k in c("abundance", "occupancy")) { sp0 <- intersect(okSp(paste0(k, "Trim")), okSp(paste0(k, "TrimSE"))); if (!length(sp0)) next
         e <- msiMonteCarlo(cT(paste0(k, "Trim"))[sp0, , drop = FALSE], cT(paste0(k, "TrimSE"))[sp0, , drop = FALSE]); if (k == "abundance") xmA <- e else xmO <- e } }
     if (!is.null(xm)) {
@@ -889,7 +889,7 @@ if ("S9" %in% sections) {
       bandSp <- do.call(rbind, lapply(split(rr, list(rr$species, rr$year), drop = TRUE), function(x) data.frame(species = x$species[1], year = x$year[1], lwr = unname(quantile(x$i0, 0.05, na.rm = TRUE)), upr = unname(quantile(x$i0, 0.95, na.rm = TRUE))))); rownames(bandSp) <- NULL
       tableOut(bandSp, "S9_modelled_index_interval_per_species") }
     figure("S3_indices", "S9_observed_vs_modelled_species", sprintf("Observed abundance and occupancy against our modelled index, per species, %d-%d", min(yrsObs), last),
-           sprintf(paste0("The same three series for each of the ", NSP, " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index (coloured band: its 90%% interval from the bootstrap replicates); dashed: the same observed series from TRIM (rtrim, one effect per year, overdispersion and serial correlation), with the 90%% interval of the observed abundance (grey band). All set to 100 in %d."), obsBase),
+           sprintf(paste0("The same three series for each of the ", length(allSpecies), " species: observed abundance (DDA territories), observed occupancy (presence on the surveyed plots) and our modelled index (coloured band: its 90%% interval from the bootstrap replicates); dashed: the same observed series from TRIM (rtrim, one effect per year, overdispersion and serial correlation), with the 90%% interval of the observed abundance (grey band). All set to 100 in %d."), obsBase),
            paste(vf, df, "annual_report*_germany/species_index.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)), draw = function() {
       par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 2.4, 0.6), oma = c(1.5, 0, 3, 0), mgp = c(2.2, 0.7, 0))
       for (sp in allSpecies) { d <- ser[ser$species == sp, ]; bs <- if (is.null(bandSp)) NULL else bandSp[bandSp$species == sp, ]; bs <- if (!is.null(bs) && nrow(bs)) bs[order(bs$year), ] else NULL
@@ -922,7 +922,7 @@ if ("S9" %in% sections) {
         list(txt = if (dda) sprintf("landscape (%s): trained on these DDA data", rs) else sprintf("landscape (%s): trained on point counts, NOT these data", rs), dda = dda) }
       cScale <- c(climate = "#9e9e9e", landscape = "#ff7f00", habitat = "#a65628", meta = colR)
       figure("S3_indices", "S9_observed_vs_modelled_species_scales", sprintf("Observed abundance and occupancy against each part of our model, per species, read at the survey routes, %d-%d", min(yrsObs), last),
-             sprintf(paste0("For each of the ", NSP, " species: the observed series (DDA territories) and, read at the same survey routes and years and run through the same plot-and-year model, the climate scale (50 km), the landscape scale (1 km), the habitat scale (200 m) and the final map that combines them. The line under each title says which data the landscape scale was trained on. All set to 100 in %d."), obsBase),
+             sprintf(paste0("For each of the ", length(allSpecies), " species: the observed series (DDA territories) and, read at the same survey routes and years and run through the same plot-and-year model, the climate scale (50 km), the landscape scale (1 km), the habitat scale (200 m) and the final map that combines them. The line under each title says which data the landscape scale was trained on. All set to 100 in %d."), obsBase),
              paste(routesCsv, vf, df, "data/speciesConfig_general.csv", sep = "; "), variant = vsK, w = 14, h = 3 * gridRows(length(allSpecies)) + 1, draw = function() {
         par(mfrow = c(gridRows(length(allSpecies)), 4), mar = c(3, 3.6, 3.6, 0.6), oma = c(4.6, 0, 3, 0), mgp = c(2.2, 0.7, 0))
         for (sp in allSpecies) { d <- ser[ser$species == sp, ]; li <- lsInfo(sp)
