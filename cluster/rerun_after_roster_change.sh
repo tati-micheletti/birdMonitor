@@ -41,7 +41,11 @@ mkdir -p logs
 RUN="${BIRDMONITOR_RUNNAME:?Set BIRDMONITOR_RUNNAME (for example v3): the run whose results are combined again.}"
 TAG="${BIRDMONITOR_ENS_TAG:-ens_brt-glm-gam-rf-nn}"; MEM="${BIRDMONITOR_UNC_MEMBERS:-brt,glm,gam,rf,nn}"; REPS="${BIG5_REPS:-0:25}"; NB=48
 DRY="${DRY_RUN:-0}"; N=9000
-sb() { if [ "${DRY}" = "1" ]; then echo "  [dry run] sbatch $*" >&2; echo "$((9000 + RANDOM % 1000))"; else sbatch --parsable "$@"; fi; }
+REC="$(mktemp)"          # the run record (2026-11-14): every job with the exact sbatch command and the settings that reach it; written to outputs/<run>/RUN_INFO_rerun_<date>_<groups>.txt and logs/ at the end
+sb() {
+  if [ "${DRY}" = "1" ]; then echo "  [dry run] sbatch $*" >&2; echo "$((9000 + RANDOM % 1000))"
+  else local id; id=$(sbatch --parsable "$@"); echo "${id}  |  BIRDMONITOR_INDEX_TAG=${BIRDMONITOR_INDEX_TAG:-}  |  sbatch $*" >> "${REC}"; echo "${id}"; fi
+}
 
 [ -d "outputs/${RUN}/uncertainty_${TAG}" ] || { echo "STOP: outputs/${RUN}/uncertainty_${TAG} does not exist: there is nothing to combine." >&2; exit 1; }
 if [ "${DRY}" != "1" ] && [ "${FORCE:-0}" != "1" ] && squeue -u "${USER}" -h -o "%j" | grep -qE "^(ens-index|unc-community|unc-assembleall|unc-regionindex|unc-maskmaps|copy-databirds|connector|postrun)"; then
@@ -68,6 +72,7 @@ GRP_ALL=$(echo "${GRP_FILE}" | awk -F, 'NR > 1 && !seen[$1]++ {print $1}')
 GRP_RUN="${BIRDMONITOR_GROUPS:-$(echo ${GRP_ALL})}"
 for g in ${GRP_RUN}; do echo "${GRP_ALL}" | grep -qx "${g}" || { echo "STOP: group '${g}' is not in data/speciesGroups.csv (groups: $(echo ${GRP_ALL})). Check BIRDMONITOR_GROUPS." >&2; exit 1; }; done
 echo "Groups of this run: ${GRP_RUN}"
+export BIRDMONITOR_GROUPS="${GRP_RUN}"       # reaches the post-run job (--export=ALL); the other jobs get their single group as BIRDMONITOR_GROUP
 for g in ${GRP_RUN}; do
   n=$(echo "${GRP_FILE}" | awk -F, -v g="${g}" 'NR > 1 && $1 == g' | wc -l); echo "  ${g}: $(echo "${GRP_FILE}" | awk -F, -v g="${g}" 'NR > 1 && $1 == g {print $2; exit}') -- ${n} species"
 done
@@ -107,12 +112,34 @@ echo "=== 7-9. /data/birds, viz folder, post-run"
 cp=$(sb --export=ALL --dependency=afterok${ALL_MM}${ALL_DEP} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy-databirds:  ${cp}"
 cn=$(sb --export=ALL --dependency=afterok:${cp} --kill-on-invalid-dep=yes cluster/eve_connector.sbatch); echo "connector:       ${cn}"
 [ -n "${NOTIFY_EMAIL:-}" ] || echo "NOTE: NOTIFY_EMAIL is not set: no e-mail from the post-run job or the failure watcher."
-LAST="${cn}"; pr=""
-if echo " ${GRP_RUN} " | grep -q " all "; then
-  pr=$(sb --export=ALL --dependency=afterok:${cn} --kill-on-invalid-dep=yes cluster/eve_postrun.sbatch); echo "postrun:         ${pr}"; LAST="${pr}"
-else echo "postrun:         skipped (it checks the whole roster and the group 'all' is not part of this run)"; fi
+pr=$(sb --export=ALL --dependency=afterok:${cn} --kill-on-invalid-dep=yes cluster/eve_postrun.sbatch); echo "postrun:         ${pr}  (checks of every group of this run; figures and package A only when the group 'all' is part of it)"
 if [ -n "${NOTIFY_EMAIL:-}" ]; then
-  wd=$(WATCH_FIRST_JOB="${FIRST_IDX}" WATCH_UNTIL_JOB="${LAST}" WATCH_SINCE="${SINCE}" sb --export=ALL cluster/eve_chain_watch.sbatch); echo "failure watcher: ${wd} (e-mail to ${NOTIFY_EMAIL})"
+  wd=$(WATCH_FIRST_JOB="${FIRST_IDX}" WATCH_UNTIL_JOB="${pr}" WATCH_SINCE="${SINCE}" sb --export=ALL cluster/eve_chain_watch.sbatch); echo "failure watcher: ${wd} (e-mail to ${NOTIFY_EMAIL})"
+fi
+if [ "${DRY}" != "1" ]; then                   # the run record: what was submitted, from which code, with which settings
+  RI="outputs/${RUN}/RUN_INFO_rerun_$(date +%F_%H%M)_$(echo ${GRP_RUN} | tr ' ' '+').txt"
+  { echo "rerun of the combining steps for run ${RUN}, groups: ${GRP_RUN}; submitted $(date -Is) by ${USER}"
+    echo "script: cluster/rerun_after_roster_change.sh"
+    echo "main $(git rev-parse HEAD)"; git submodule status
+    echo "tag ${TAG} | members ${MEM} | reps ${REPS} | bands ${NB} | VIZ2=${VIZ2:-0} | viz path ${BIRDMONITOR_VIZ_PATH:-/data/birds/viz} (BIRDMONITOR_VIZ_GROUPS=${BIRDMONITOR_VIZ_GROUPS:-0}) | NOTIFY_EMAIL set: $([ -n "${NOTIFY_EMAIL:-}" ] && echo yes || echo no)"
+    echo; echo "modelled roster (data/speciesCanonical.csv, include = X): ${NSP} species"; echo "${ROSTER}" | sed 's/^/  /'
+    echo; echo "groups (data/speciesGroups.csv):"
+    for g in ${GRP_RUN}; do echo "  ${g}: $(echo "${GRP_FILE}" | awk -F, -v g="${g}" 'NR > 1 && $1 == g {print $2; exit}')"; echo "${GRP_FILE}" | awk -F, -v g="${g}" 'NR > 1 && $1 == g {print "      " $3}'; done
+    echo; echo "jobs, in the order submitted (job id | BIRDMONITOR_INDEX_TAG | sbatch arguments; every job also gets BIRDMONITOR_GROUP and the settings above through --export=ALL):"; sed 's/^/  /' "${REC}"
+    echo; echo "what each step writes (inside outputs/${RUN}; <S> = _<group>, empty for 'all'):"
+    echo "  ens-index          annual_report_${TAG}<S>/  regional_index_${TAG}<S>/"
+    echo "  ens-index germany  annual_report_${TAG}_germany<S>/  regional_index_${TAG}_germany<S>/"
+    echo "  unc-community      uncertainty_${TAG}/community<S>/pieces/"
+    echo "  unc-assembleall    uncertainty_${TAG}/community<S>/ (stitched maps), combined_index_replicates<S>.csv, annual_report_${TAG}<S>/ (species_index_uncertainty.csv, combined_index_uncertainty.csv)"
+    echo "  unc-regionindex    uncertainty_${TAG}/regional<S>/"
+    echo "  assembleall (DE)   annual_report_${TAG}_germany<S>/combined_index_uncertainty.csv"
+    echo "  unc-maskmaps       uncertainty_${TAG}/community<S>_germany/"
+    echo "  copy-databirds     /data/birds/birdMonitor/{inputs,outputs/${RUN},logs}"
+    echo "  connector          ${BIRDMONITOR_VIZ_PATH:-/data/birds/viz}: manifest _manifest.csv (every file with its source, run and time), _missing*.csv, _groups.csv (viz2)"
+    echo "  postrun            outputs/${RUN}/POSTRUN_CHECKS.txt and POSTRUN_SUMMARY.txt (+ e-mail)"
+    echo "logs of each job: logs/<jobname>_<jobid>.out / .err"
+  } > "${RI}"; cp "${RI}" "logs/$(basename "${RI}")"; rm -f "${REC}"
+  echo "Run record: ${RI} (copy in logs/)"
 fi
 echo
 echo "Submitted. CHECK AT ANY TIME (read-only):  cd ~/projects/birdMonitor && bash cluster/status.sh${LASTIDS} ${cp} ${cn} ${pr}"
