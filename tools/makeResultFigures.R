@@ -43,8 +43,10 @@ group <- local({ a <- which(commandArgs(trailingOnly = TRUE) == "--group"); if (
 if (!nzchar(group)) group <- "all"
 if (!group %in% spGroups$groups) stop("unknown species group '", group, "'; data/speciesGroups.csv has: ", paste(spGroups$groups, collapse = ", "))
 gSfx <- groupSuffix(group); groupLabel <- spGroups$labels[[group]]
-allSpecies <- spGroups$members[[group]]                    # from here on `allSpecies` = the species of the selected group
-NSP <- length(allSpecies)                                  # number of species of the group, used in titles and captions (no species number is written into the texts)
+groupSpecies <- spGroups$members[[group]]                  # the species COMBINED in this group's index. Per-species figures always show every modelled species (`allSpecies`, the whole roster).
+NSP <- length(groupSpecies)                                # number of species of the group, used in the titles and captions of the COMBINED figures
+droppedEn <- english[setdiff(allSpecies, groupSpecies)]
+groupTag <- if (length(droppedEn)) sprintf("%s: %d species, without %s", groupLabel, NSP, paste(droppedEn, collapse = ", ")) else sprintf("%s: all %d modelled species", groupLabel, NSP)   # written on every combined figure
 
 run        <- getArg("--run", Sys.getenv("BIRDMONITOR_RUNNAME", "test4"))
 brtTag     <- getArg("--brt-tag", "honest2")
@@ -92,6 +94,7 @@ for (k in names(V)) {
   V[[k]]$metaGer  <- metaFolder(v$tag, TRUE)
   V[[k]]$metaBase <- metaFolder(v$tag, FALSE)
   V[[k]]$report   <- dirOf("annual_report", v$tag)
+  V[[k]]$reportAll <- dirOf("annual_report", v$tag, TRUE, "")                         # species indices are per species: always read from the folder of the group "all" (every modelled species)
   V[[k]]$regional <- dirOf("regional_index", v$tag)
   V[[k]]$uncComm  <- firstExisting(file.path(v$unc, paste0("community", gSfx, "_germany")), file.path(v$unc, paste0("community", gSfx)))
   V[[k]]$uncReg   <- file.path(v$unc, paste0("regional", gSfx))
@@ -119,8 +122,11 @@ dropLab <- function(s) {                                                  # with
   if (length(variants) != 1) return(s); l <- V[[variants]]$label
   s <- gsub(paste0("[[:space:]]*[(]", l, "[)]"), "", s); s <- gsub(paste0(",[[:space:]]*", l, "(?=[)])"), "", s, perl = TRUE); gsub(paste0("[,:][[:space:]]*", l, "[[:space:]]*$"), "", s)
 }
+perSpeciesId <- "^(S1_|S4_|S7_algorithm|S2_prob_|S2_binary_|S5_gainloss_|S3_species_|S3_replicates_|S9_)"    # ids of the figures that show single species (all of them, whatever the group)
+figPerSpecies <- FALSE
 figure <- function(section, id, title, what, source, draw, w = 13, h = 7.2, variant = "") {
-  title <- dropLab(title); what <- dropLab(what); if (nzchar(gSfx)) title <- paste0(title, " [", groupLabel, "]")
+  title <- dropLab(title); what <- dropLab(what)
+  figPerSpecies <<- grepl(perSpeciesId, id); if (!figPerSpecies) title <- paste0(title, " [", groupTag, "]")      # combined figures name the species set they were made with; per-species figures show every modelled species
   dir.create(file.path(out, section), showWarnings = FALSE)
   f <- file.path(out, section, paste0(id, ".png"))
   ok <- tryCatch({
@@ -171,7 +177,11 @@ drawClasses <- function(r, main, labels, cols, sub = NULL, legendPos = NULL) {  
   legendBelow(r, labels, cols)
   if (!is.null(sub)) mtext(sub, side = 1, line = -0.4, cex = 0.8, col = "grey30")
 }
-bigTitle <- function(s) mtext(if (nzchar(gSfx)) paste0(dropLab(s), " | ", groupLabel) else dropLab(s), outer = TRUE, side = 3, line = 0.4, font = 2, cex = if (nzchar(gSfx)) 1.2 else 1.45)
+bigTitle <- function(s) {                                                 # combined figures: the species set is part of the title, shrunk to fit the width of the figure
+  s <- dropLab(s); if (!figPerSpecies) s <- paste0(s, " | ", groupTag)
+  cx <- 1.45; w <- strwidth(s, units = "inches", cex = cx, font = 2); avail <- 0.96 * par("din")[1]; if (w > avail) cx <- max(0.5, cx * avail / w)
+  mtext(s, outer = TRUE, side = 3, line = 0.4, font = 2, cex = cx)
+}
 footnote <- function(s) mtext(s, outer = TRUE, side = 1, line = 0.6, cex = 0.85, col = "grey30")
 # "clear" classes from a 90% replicate interval: 1 = whole interval below zero, 2 = whole interval above zero, 3 = interval includes zero
 clearClass <- function(lwr, upr) ifel(is.na(upr), NA, ifel(upr < 0, 1, ifel(lwr > 0, 2, 3)))
@@ -204,8 +214,8 @@ scaleDirOf <- function(sp, sc) {
 ## ---- the index tables (read once; used by S3, S6, S7) ------------------------------------------------------------------------------------
 loadIdx <- function(k) {
   v <- V[[k]]; o <- list()
-  o$main  <- tryCatch({ x <- readCsv(file.path(v$report, "species_index.csv")); rownames(x) <- x[[1]]; x[[1]] <- NULL; x }, error = function(e) NULL)
-  o$spUnc <- tryCatch(readCsv(file.path(v$report, "species_index_uncertainty.csv")), error = function(e) NULL)
+  o$main  <- tryCatch({ x <- readCsv(file.path(v$reportAll, "species_index.csv")); rownames(x) <- x[[1]]; x[[1]] <- NULL; x }, error = function(e) NULL)
+  o$spUnc <- tryCatch(readCsv(file.path(v$reportAll, "species_index_uncertainty.csv")), error = function(e) NULL)
   o$comb  <- tryCatch(readCsv(file.path(v$report, "combined_index_uncertainty.csv")), error = function(e) NULL)
   o$sbi   <- tryCatch({ x <- readCsv(file.path(v$report, "combined_index_sbi.csv")); names(x) <- tolower(names(x)); x }, error = function(e) NULL)
   o$chainR <- tryCatch(readCsv(file.path(v$report, "combined_index_chain_restricted.csv")), error = function(e) NULL)
@@ -224,7 +234,7 @@ loadIdx <- function(k) {
 IDX <- setNames(lapply(variants, loadIdx), variants)
 nRepOf <- function(k) if (is.null(IDX[[k]]$nRep)) NA else IDX[[k]]$nRep
 repSBI <- function(k) {                                                  # combined index (geometric mean of species indices) per replicate and year
-  r <- IDX[[k]]$rep; if (is.null(r)) stop("no replicate area means for ", k)
+  r <- IDX[[k]]$rep; if (is.null(r)) stop("no replicate area means for ", k); r <- r[r$species %in% groupSpecies, ]      # the combined index uses the species of the group only
   a <- aggregate(log(index) ~ replicate + year, data = r, FUN = mean); names(a)[3] <- "lg"; a$SBI <- exp(a$lg); a
 }
 interval <- function(a, p = c(0.05, 0.95)) do.call(rbind, lapply(split(a, a$year), function(d) data.frame(year = d$year[1], mean = mean(d$SBI), lwr = quantile(d$SBI, p[1]), upr = quantile(d$SBI, p[2]))))
@@ -487,12 +497,12 @@ Europe: PECBMS/EBCC 2025 update, smoothed, with confidence limits. Ours: probabi
     tab <- rbind(rowsLast, cmb); tab$english <- ifelse(tab$species %in% names(english), english[tab$species], tab$species); tab$declinePct <- round(100 - tab$main, 1)
     tableOut(tab, sprintf("S3_species_index_%d", curYear))
     figure("S3_indices", sprintf("S3_species_%d_summary", curYear), sprintf("Index %d for every species and the combined index, with 90%% interval", curYear),
-           "Main-model index in the last year (dot) with the 5th-95th percentile over the replicates (line). Below 100 = lower than in 2005. The combined index is the bottom row.",
+           "Main-model index in the last year (dot) with the 5th-95th percentile over the replicates (line). Below 100 = lower than in 2005. The combined index (bottom row) is that of the group's species only.",
            "species_index.csv, species_index_uncertainty.csv, combined_index_uncertainty.csv", variant = paste(variants, collapse = "+"), w = 10, h = 7, draw = function() {
       ord <- order(tab$main[tab$variant == variants[length(variants)] & tab$species != "COMBINED (SBI)"]); sps <- tab$species[tab$variant == variants[length(variants)] & tab$species != "COMBINED (SBI)"][ord]
       sps <- c(rev(sps), "COMBINED (SBI)"); sps <- rev(sps)                    # combined at the bottom
       par(mar = c(4, 11, 1, 1), oma = c(0, 0, 2.6, 0)); plot(NA, xlim = range(tab$lwr, tab$upr, 100, na.rm = TRUE), ylim = c(0.5, length(sps) + 0.5), yaxt = "n", xlab = sprintf("Index %d (2005 = 100)", curYear), ylab = "", main = "")
-      axis(2, at = seq_along(sps), labels = ifelse(sps %in% names(english), english[sps], "Combined index"), las = 1, font = 1); abline(v = 100, lty = 3, col = "grey40"); abline(h = 1.5, col = "grey70")
+      axis(2, at = seq_along(sps), labels = ifelse(sps %in% names(english), english[sps], sprintf("Combined index (%d species)", NSP)), las = 1, font = 1); abline(v = 100, lty = 3, col = "grey40"); abline(h = 1.5, col = "grey70")
       off <- if (length(variants) == 2) c(-0.15, 0.15) else 0
       for (j in seq_along(variants)) { d <- tab[tab$variant == variants[j], ]; y <- match(d$species, sps) + off[j]
         segments(d$lwr, y, d$upr, y, lwd = 3, col = adjustcolor(varCol[[variants[j]]], 0.6)); points(d$main, y, pch = 16, cex = 1.4, col = varCol[[variants[j]]]) }
@@ -705,7 +715,7 @@ if ("S7" %in% sections) {
 ## =================================================================================================================================================
 if ("S8" %in% sections) {
   say("--- S8 ---")
-  nSp <- length(allSpecies)                                              # expected richness = sum of the probabilities of ALL species; the mean change in probability times nSp is the change in richness
+  nSp <- length(groupSpecies)                                            # expected richness = sum of the probabilities of ALL species; the mean change in probability times nSp is the change in richness
   for (k in variants) {
     v <- V[[k]]; ru <- file.path(v$uncComm %||% "", sprintf("richness_expected_unc_%d.tif", curYear)); fmean <- file.path(v$uncComm %||% "", "community_meanDeltaP_unc_vsBaseline.tif")
     figure("S2_maps", sprintf("S8_richness_interval_%s", k), sprintf("Expected species richness %d with its 90%% interval (%s)", curYear, v$label),
@@ -718,7 +728,7 @@ if ("S8" %in% sections) {
     if (!is.null(IDX[[k]]$rep)) figure("S2_maps", sprintf("S8_richness_national_%s", k), sprintf("Expected richness of Germany per year with its 90%% interval (%s)", v$label),
            "Mean expected richness over German pixels (sum over the species of each species' area mean probability), main model (line) and the 5th-95th percentile over the replicates (band), for every year. Grey = hindcast years.",
            paste0(v$unc, "/<Sp>/area_mean_replicates_germany.csv"), variant = k, w = 9.5, h = 6, draw = function() {
-      r <- IDX[[k]]$rep; r0 <- IDX[[k]]$rep0; sr <- aggregate(areaMean ~ replicate + year, r, sum); sr0 <- aggregate(areaMean ~ replicate + year, r0, sum); yrs <- sort(unique(sr$year))
+      r <- IDX[[k]]$rep; r <- r[r$species %in% groupSpecies, ]; r0 <- IDX[[k]]$rep0; r0 <- r0[r0$species %in% groupSpecies, ]; sr <- aggregate(areaMean ~ replicate + year, r, sum); sr0 <- aggregate(areaMean ~ replicate + year, r0, sum); yrs <- sort(unique(sr$year))
       q <- do.call(rbind, lapply(split(sr, sr$year), function(d) data.frame(year = d$year[1], lwr = quantile(d$areaMean, 0.05), upr = quantile(d$areaMean, 0.95)))); yl <- range(q$lwr, q$upr, sr0$areaMean)
       par(mar = c(4.2, 4.6, 3, 1)); plot(NA, xlim = range(yrs), ylim = yl, xlab = "Year", ylab = "Expected richness (species per pixel)", main = if (nzchar(gSfx)) paste0(v$full, " | ", groupLabel) else v$full, bty = "l", las = 1); hindcastBox(yrs, yl)
       polygon(c(q$year, rev(q$year)), c(q$lwr, rev(q$upr)), col = adjustcolor(varCol[[k]], 0.25), border = NA); sr0 <- sr0[order(sr0$year), ]; lines(sr0$year, sr0$areaMean, lwd = 3, col = "black")
