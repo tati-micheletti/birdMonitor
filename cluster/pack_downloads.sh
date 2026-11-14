@@ -25,7 +25,7 @@ GRP="${PACK_GROUP:-all}"; SFX=""; [ "${GRP}" = all ] || SFX="_${GRP}"          #
 emit() { for p in "$@"; do [ -e "$p" ] && echo "$p"; done; return 0; }      # print the paths that exist
 
 listAgroup() {                     # a group other than "all": only what its combining steps wrote
-  emit "$O/figures_fullreport${SFX}" "$O/figures_fullreport/S10_groups"
+  emit "$O/figures_fullreport${SFX}"
   tag="_${ENS}"
   emit "$O/annual_report${tag}_germany${SFX}"/*.csv "$O/annual_report${tag}_germany${SFX}"/*.txt
   emit "$O/regional_index${tag}_germany${SFX}"/*.tif

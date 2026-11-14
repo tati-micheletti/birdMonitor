@@ -6,8 +6,7 @@
 #   cd ~/projects/birdMonitor && BIRDMONITOR_RUNNAME=v2 NOTIFY_EMAIL="a@ufz.de,b@ufz.de" sbatch --export=ALL cluster/eve_postrun.sbatch
 #   POSTRUN_SKIP_FIGURES=1 (figures already made)   FIG_ARGS="--sections S6" (options of tools/makeResultFigures.R)
 # 2026-11-14, SPECIES GROUPS: BIRDMONITOR_GROUPS (space separated; default every group of data/speciesGroups.csv) = the groups of this run. The checks cover every group of the run (tables, richness, regional
-#   parity; viz2: BIRDMONITOR_VIZ_PATH + BIRDMONITOR_VIZ_GROUPS=1). Figures and package A are made for every group of the run (makeResultFigures.R with BIRDMONITOR_GROUP, pack_downloads.sh with PACK_GROUP), plus the
-#   comparison of the groups side by side (section S10) when the file has more than one group.
+#   parity; viz2: BIRDMONITOR_VIZ_PATH + BIRDMONITOR_VIZ_GROUPS=1). Figures and package A are made for every group of the run (makeResultFigures.R with BIRDMONITOR_GROUP, pack_downloads.sh with PACK_GROUP).
 # The results page (pdf_export/5_Figure_reference.Rmd) is made on the PC afterwards, from the figures in the package: BIRDMONITOR_RUNNAME=<run> Rscript R/render_figure_reference.R
 #SBATCH --job-name=postrun
 #SBATCH --cpus-per-task=2
@@ -25,9 +24,7 @@ verdict=PASS; detail=""
 
 bash cluster/post_run_checks.sh || verdict=FAIL
 GRP_RUN="${BIRDMONITOR_GROUPS:-$(tr -d '\r' < data/speciesGroups.csv | awk -F, 'NR > 1 && !seen[$1]++ {print $1}' | tr '\n' ' ')}"
-# Figures and package A: one call per group of this run (tools/makeResultFigures.R reads BIRDMONITOR_GROUP; the group "all" also makes the per-species figures), then ONE call for the
-# comparison of the groups side by side (section S10: richness base year against current year, regional index, national index) when the file has more than one group.
-NGRP_ALL=$(tr -d '\r' < data/speciesGroups.csv | awk -F, 'NR > 1 && !seen[$1]++' | wc -l)
+# Figures and package A: one call per group of this run (tools/makeResultFigures.R reads BIRDMONITOR_GROUP; the group "all" also makes the per-species figures).
 if [ "${verdict}" = PASS ]; then
   if [ "${POSTRUN_SKIP_FIGURES:-0}" = "1" ]; then detail="${detail}Figures: not made in this job (POSTRUN_SKIP_FIGURES=1).
 "
@@ -42,13 +39,6 @@ if [ "${verdict}" = PASS ]; then
       else verdict=FAIL; detail="${detail}Figures, group ${g}: makeResultFigures.R FAILED (see logs/postrun_${SLURM_JOB_ID}.err).
 "; fi
     done
-    if [ "${verdict}" = PASS ] && [ "${NGRP_ALL}" -gt 1 ]; then
-      if BIRDMONITOR_GROUP=all unc_run Rscript tools/makeResultFigures.R --run "${RUN}" --variants big5 --sections S10; then
-        detail="${detail}Figures, groups side by side (richness, regional index, national index): ${O}/figures_fullreport/S10_groups
-"
-      else verdict=FAIL; detail="${detail}Figures, groups side by side (S10): makeResultFigures.R FAILED (see logs/postrun_${SLURM_JOB_ID}.err).
-"; fi
-    fi
   fi
 fi
 if [ "${verdict}" = PASS ]; then
