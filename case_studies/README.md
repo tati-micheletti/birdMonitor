@@ -11,6 +11,7 @@ Started 2026-11-16 for the Steering Consortium presentation; delete the folder w
 | 0 | local | `Rscript case_studies/build_areas.R` | `areas_3035.gpkg` (reserve outline, 3 x 3 cell block, state minus area as control) |
 | 1 | EVE | `BIRDMONITOR_RUNNAME=v3 CASE_ARGS="--no-response" sbatch --export=ALL case_studies/eve_case_study.sbatch` (copy `areas_3035.gpkg` to `outputs/v3/case_studies/` first) | `species_site_year.csv`, `landuse_site_year.csv` (and `model_response.csv` without `--no-response`) |
 | 2 | local | `Rscript case_studies/make_case_study_figures.R` | PNG figures (1920 x 1080) and the numbers behind them (csv) |
+| 3 | local | `python case_studies/make_case_study_slides.py` (needs `python-pptx`) | draft deck, 3 slides per case, every number read from the csv files of step 2; details and sources in the speaker notes |
 
 Inputs of step 2 (default folder `outputs_downloaded/v3_2026-11-14/regional`): `trend_all.tif`, `trend_farmland.tif`
 (`regional_index_10km_unc_trend_per_decade.tif` of the two groups, `outputs/v3/uncertainty_*/regional*`), the yearly index maps
@@ -23,7 +24,7 @@ Inputs of step 2 (default folder `outputs_downloaded/v3_2026-11-14/regional`): `
 
 ## Sources and licences
 * Reserve outline: OpenStreetMap relation 215277 (Schorfheide-Chorin, `boundary=protected_area`, `protect_class=98`), fetched 2026-11-16 through Nominatim/Overpass; (c) OpenStreetMap contributors, ODbL. The BfN service refused automated access (HTTP 403), so the BfN file was not used.
-* Base map under the zoom maps: CARTO light (light_all) tiles; (c) OpenStreetMap contributors (c) CARTO. Tiles are cached locally, not committed.
+* Base map under the zoom maps: OpenStreetMap standard tiles (tile.openstreetmap.org, a few dozen fetched once, with an identifying User-Agent, as the tile usage policy asks), turned pale grey by the script; (c) OpenStreetMap contributors. Tiles are cached locally, not committed. (CARTO tiles were tried first and now need an API key.)
 * State outlines: GADM 4.1 (the pipeline's own copy in `inputs/predictors/raw/gadm`).
 
 ## Things to keep in mind when using the results
