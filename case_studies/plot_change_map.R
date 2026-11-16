@@ -21,6 +21,6 @@ plot(ch[["deltaMean"]] * 0, col = "grey88", legend = FALSE, axes = FALSE, mar = 
 plot(clamp(shown, -lim, lim), col = pal, range = c(-lim, lim), add = TRUE, legend = TRUE, plg = list(title = "points", cex = 0.8))
 lines(ger1, col = "grey55", lwd = 0.4); lines(ger0, col = "grey20", lwd = 0.8)
 if (!is.null(area)) { p <- strsplit(area, ":", fixed = TRUE)[[1]]; lines(vect(p[1], layer = p[2]), col = "black", lwd = 3) }
-if (!allCells) legend("bottomleft", "grey: no clear change\n(90% interval includes zero)", fill = "grey88", bty = "n", cex = 0.7)
+if (!allCells) legend("topleft", "grey: no clear change\n(90% interval includes zero)", fill = "grey88", bty = "n", cex = 0.7)
 mtext(sprintf("%s. %d of %d cells inside Germany show a clear change.", basename(tif), sum(values(clear), na.rm = TRUE), sum(!is.na(values(ch[["deltaMean"]])))), side = 1, line = -1, cex = 0.55, col = "grey30")
 dev.off(); message("written: ", out)
