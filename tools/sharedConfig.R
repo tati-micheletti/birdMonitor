@@ -100,6 +100,17 @@ sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2
 # 2026-09-28 entry).
 sharedLandscapeYears <- 2005:2025
 sharedHabitatYears <- 2005:2025
+# SERIES 1 / 2 (2026-11-18): the exact prediction and fitting years of ONE run without editing this file, each "2017:2025" (unset = the defaults above, nothing changes). Unlike BIRDMONITOR_YEARS (debug: one range for all
+# three) they are independent, e.g. Series 1 (HCTM): BIRDMONITOR_PREDICTION_YEARS=2005:2023 BIRDMONITOR_LANDSCAPE_YEARS=2005:2023 BIRDMONITOR_HABITAT_YEARS=2005:2023 (the habitat rows exist only from 2022);
+# Series 2 (ThEO CTM v302): BIRDMONITOR_PREDICTION_YEARS=2017:2025 BIRDMONITOR_LANDSCAPE_YEARS=2017:2025.
+local({
+  ov <- function(v) { x <- Sys.getenv(v, ""); if (!nzchar(x)) return(NULL)
+    e <- suppressWarnings(as.integer(strsplit(x, ":", fixed = TRUE)[[1]])); if (length(e) != 2 || anyNA(e) || e[1] > e[2]) stop(v, " must look like 2017:2025 (got: ", x, ")", call. = FALSE); e[1]:e[2] }
+  p <- ov("BIRDMONITOR_PREDICTION_YEARS"); l <- ov("BIRDMONITOR_LANDSCAPE_YEARS"); h <- ov("BIRDMONITOR_HABITAT_YEARS")
+  if (!is.null(p)) { predictionYears <<- p; message("BIRDMONITOR_PREDICTION_YEARS set -- prediction years ", min(p), ":", max(p)) }
+  if (!is.null(l)) { sharedLandscapeYears <<- l; message("BIRDMONITOR_LANDSCAPE_YEARS set -- landscape fitting years ", min(l), ":", max(l)) }
+  if (!is.null(h)) { sharedHabitatYears <<- h; message("BIRDMONITOR_HABITAT_YEARS set -- habitat fitting years ", min(h), ":", max(h)) }
+})
 # DEBUG ONLY: BIRDMONITOR_YEARS="2022:2025" restricts the prediction years and the fitting years of both scales to that range (a fast local test of the real pipeline, e.g. with
 # BIRDMONITOR_SPECIES and BIRDMONITOR_STUDY_AREA). Unset = the full ranges above. Never set it for a run whose results are used.
 local({

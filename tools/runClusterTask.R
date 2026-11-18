@@ -120,7 +120,7 @@ inputsKey <- switch(opt$scale, europe = "europe", habitat = "gerHabitat",
                      landscape = "gerLandscape", meta = "gerHabitat")
 inputsScaleLabel <- if (opt$scale == "meta") scaleLabels[["habitat"]] else scaleLabels[[opt$scale]]
 
-inputsDir <- file.path(opt$repoRoot, "inputs", "model_ready", inputsScaleLabel)
+inputsDir <- file.path(Sys.getenv("BIRDMONITOR_INPUT_ROOT", file.path(opt$repoRoot, "inputs")), "model_ready", inputsScaleLabel)   # SERIES 2: BIRDMONITOR_INPUT_ROOT (default unchanged)
 dataFile <- file.path(inputsDir, paste0(spClean, "_inputs.rds"))
 predFile <- file.path(inputsDir, paste0(spClean, "_predictors.rds"))
 if (!file.exists(dataFile) || !file.exists(predFile)) {
@@ -150,7 +150,7 @@ SpaDES.core::simInitAndSpades(
   modules = "models_Monitor",
   objects = list(inputsData = inputsData),
   paths = list(modulePath = file.path(opt$repoRoot, "modules"),
-               inputPath  = file.path(opt$repoRoot, "inputs"),
+               inputPath  = Sys.getenv("BIRDMONITOR_INPUT_ROOT", file.path(opt$repoRoot, "inputs")),   # SERIES 2: BIRDMONITOR_INPUT_ROOT (default unchanged)
                outputPath = file.path(opt$repoRoot, "outputs", opt$runName)),
   params = list(models_Monitor = c(list(
     runScale = opt$scale,

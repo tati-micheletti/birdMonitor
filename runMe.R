@@ -181,7 +181,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         Restart = FALSE,
     runName = runName,
     paths = list(projectPath = "birdMonitor",
-                 inputPath = "inputs",
+                 inputPath = Sys.getenv("BIRDMONITOR_INPUT_ROOT", "inputs"),   # SERIES 2: BIRDMONITOR_INPUT_ROOT redirects the inputs folder (default unchanged)
                  outputPath = file.path("outputs", runName),
                  # Persistent, NOT timestamped like outputPath -- reproducible::Cache()
                  # calls throughout all 3 modules use this so a config change for one
@@ -251,6 +251,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateWindowLength = sharedClimateWindowLength,
         ebba2TrainingYear = sharedEbba2TrainingYear,
         landuseYears = landuseYearsNeeded,
+        landusePreferHCTM = !identical(toupper(Sys.getenv("BIRDMONITOR_LANDUSE_PREFER_HCTM", "TRUE")), "FALSE"),   # SERIES 2: FALSE = CTM first, no recode (unset/TRUE = the rule since 2026-11-03, unchanged)
         habitatYears = habitatYearsResolved,
         landscapeYears = landscapeYearsResolved,
         species = sharedSpecies,

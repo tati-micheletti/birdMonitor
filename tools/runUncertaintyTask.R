@@ -76,7 +76,7 @@ if (ensembleRun) {                      # ensemble run: its folder name is the e
   if (!nzchar(tag)) tag <- ensTag(uncMembers)
 }
 habitatYearsAll <- resolveYearsPerSpecies(sharedSpecies, "habitat", habitatYearsConfig, sharedHabitatYears)
-inputRoot <- file.path(repoRoot, "inputs")
+inputRoot <- Sys.getenv("BIRDMONITOR_INPUT_ROOT", file.path(repoRoot, "inputs"))   # SERIES 2: BIRDMONITOR_INPUT_ROOT (default unchanged)
 outputRoot <- file.path(repoRoot, "outputs", runName)
 
 modelParams <- list(
