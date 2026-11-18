@@ -41,6 +41,8 @@ if [ "${S2}" = "1" ]; then   # SERIES 2
   : "${BIRDMONITOR_PREDICTION_YEARS:?SERIES2=1 needs BIRDMONITOR_PREDICTION_YEARS (e.g. 2017:2025)}"; : "${BIRDMONITOR_LANDSCAPE_YEARS:?SERIES2=1 needs BIRDMONITOR_LANDSCAPE_YEARS (e.g. 2017:2025)}"
   [ -d "${BIRDMONITOR_INPUT_ROOT}/predictors/processed" ] || { echo "STOP: ${BIRDMONITOR_INPUT_ROOT} is not an inputs folder" >&2; exit 1; }
   [ "$(readlink -f "${BIRDMONITOR_INPUT_ROOT}")" != "$(readlink -f inputs)" ] || { echo "STOP: SERIES2=1 must NOT use inputs/ itself" >&2; exit 1; }
+  # the habitat rows exist only from 2022, so these years change no fit; they only keep the land-use years the preparation asks for inside the v302 range (otherwise 2005-2016 would be requested)
+  export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2017:2025}"
   export BIRDMONITOR_INPUT_ROOT BIRDMONITOR_PREDICTION_YEARS BIRDMONITOR_LANDSCAPE_YEARS BIRDMONITOR_LANDUSE_PREFER_HCTM=FALSE
   BRT_SCALES_DEF="habitat landscape"; ENS_SCALES_RUN="landscape habitat"
 fi
