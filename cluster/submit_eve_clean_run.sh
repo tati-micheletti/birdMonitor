@@ -27,7 +27,7 @@
 # To continue a run whose prep (and perhaps two of the BRT arrays) already finished: SKIP_PREP=1 [BRT_SCALES=habitat] RESUME=1 (prep is not sent again; BRT_SCALES lists the arrays to send, default all three).
 # SERIES2=1 (2026-11-18): the run of the land-use re-run, Series 2 (ThEO CTM v302 2017-2025, no recode). Needs BIRDMONITOR_INPUT_ROOT (cluster/make_inputs_s2.sh) and the years, e.g.
 #   SERIES2=1 BIRDMONITOR_RUNNAME=s2v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s2 BIRDMONITOR_PREDICTION_YEARS=2017:2025 BIRDMONITOR_LANDSCAPE_YEARS=2017:2025 bash --login cluster/submit_eve_clean_run.sh
-#   It skips what does not change or must not happen: the Europe/climate array and the climate ensemble (the climate pieces of the finished run are COPIED in by cluster/s2_link_climate.sh), the safety copy
+#   It skips what does not change or must not happen: the Europe BRT array (the climate models of the finished run are COPIED in by cluster/s2_link_climate.sh; the climate ensemble step still runs to recompute the out-of-fold values on this series' habitat table), the safety copy
 #   (nothing in inputs/ is written), the HCTM land-use check, the diagnostics, the pixel trend test, and steps 6-7 (NO copy to /data/birds, NO connector: Series 2 alone must never reach the Monitor).
 # SERIES1=1 (2026-11-19): the same switch for the HCTM series (HCTM classes 2005-2023, no conversion): BIRDMONITOR_INPUT_ROOT from cluster/make_inputs_s1.sh, the land-use rule HCTM-first, habitat years 2005:2023, e.g.
 #   SERIES1=1 BIRDMONITOR_RUNNAME=s1v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s1 BIRDMONITOR_PREDICTION_YEARS=2005:2023 BIRDMONITOR_LANDSCAPE_YEARS=2005:2023 bash --login cluster/submit_eve_clean_run.sh
@@ -49,7 +49,7 @@ if [ "${S2}" = "1" ]; then   # SERIES 2
   if [ "${S1}" = "1" ]; then export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2005:2023}"; else export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2017:2025}"; fi   # SERIES 1: no land use after 2023 is asked for
   export BIRDMONITOR_INPUT_ROOT BIRDMONITOR_PREDICTION_YEARS BIRDMONITOR_LANDSCAPE_YEARS
   if [ "${S1}" = "1" ]; then export BIRDMONITOR_LANDUSE_PREFER_HCTM=TRUE; else export BIRDMONITOR_LANDUSE_PREFER_HCTM=FALSE; fi   # SERIES 1: HCTM classes, SERIES 2: CTM first, no recode
-  BRT_SCALES_DEF="habitat landscape"; ENS_SCALES_RUN="landscape habitat"
+  BRT_SCALES_DEF="habitat landscape"; ENS_SCALES_RUN="climate landscape habitat"   # 2026-11-19: the climate ENSEMBLE step runs too: with the copied climate models it only recomputes the out-of-fold values at the habitat records of this series (s2_link_climate.sh removes the copied ones)
 fi
 if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login cluster/submit_eve_clean_run.sh" >&2; exit 1; fi
 export EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
