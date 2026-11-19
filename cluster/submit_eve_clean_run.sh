@@ -29,21 +29,26 @@
 #   SERIES2=1 BIRDMONITOR_RUNNAME=s2v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s2 BIRDMONITOR_PREDICTION_YEARS=2017:2025 BIRDMONITOR_LANDSCAPE_YEARS=2017:2025 bash --login cluster/submit_eve_clean_run.sh
 #   It skips what does not change or must not happen: the Europe/climate array and the climate ensemble (the climate pieces of the finished run are COPIED in by cluster/s2_link_climate.sh), the safety copy
 #   (nothing in inputs/ is written), the HCTM land-use check, the diagnostics, the pixel trend test, and steps 6-7 (NO copy to /data/birds, NO connector: Series 2 alone must never reach the Monitor).
+# SERIES1=1 (2026-11-19): the same switch for the HCTM series (HCTM classes 2005-2023, no conversion): BIRDMONITOR_INPUT_ROOT from cluster/make_inputs_s1.sh, the land-use rule HCTM-first, habitat years 2005:2023, e.g.
+#   SERIES1=1 BIRDMONITOR_RUNNAME=s1v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s1 BIRDMONITOR_PREDICTION_YEARS=2005:2023 BIRDMONITOR_LANDSCAPE_YEARS=2005:2023 bash --login cluster/submit_eve_clean_run.sh
+#   (the climate pieces are copied from v3 as in SERIES2; nothing reaches /data/birds or the Monitor.) FORCE=1 is needed while another chain of this workflow is in the queue.
 # BIRDMONITOR_SPECIES and BIRDMONITOR_YEARS must NOT be set (debug switches: the steps that combine species would see only a subset).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
 RUN="${BIRDMONITOR_RUNNAME:-v3}"; export BIRDMONITOR_RUNNAME="${RUN}"
 TAG=ens_brt-glm-gam-rf-nn; MEM=brt,glm,gam,rf,nn; REPS="${BIG5_REPS:-0:25}"
-S2="${SERIES2:-0}"; BRT_SCALES_DEF="europe habitat landscape"; ENS_SCALES_RUN="climate landscape habitat"; mr=""; ds=""; pt=""; lc=""; cp=""; cn=""; pr=""
+S1="${SERIES1:-0}"; S2="${SERIES2:-0}"; [ "${S1}" = "1" ] && S2=1   # SERIES 1 (HCTM series) uses the whole SERIES 2 switch, with the HCTM land-use rule
+BRT_SCALES_DEF="europe habitat landscape"; ENS_SCALES_RUN="climate landscape habitat"; mr=""; ds=""; pt=""; lc=""; cp=""; cn=""; pr=""
 if [ "${S2}" = "1" ]; then   # SERIES 2
   : "${BIRDMONITOR_INPUT_ROOT:?SERIES2=1 needs BIRDMONITOR_INPUT_ROOT=<inputs_s2 folder> (cluster/make_inputs_s2.sh)}"
   : "${BIRDMONITOR_PREDICTION_YEARS:?SERIES2=1 needs BIRDMONITOR_PREDICTION_YEARS (e.g. 2017:2025)}"; : "${BIRDMONITOR_LANDSCAPE_YEARS:?SERIES2=1 needs BIRDMONITOR_LANDSCAPE_YEARS (e.g. 2017:2025)}"
   [ -d "${BIRDMONITOR_INPUT_ROOT}/predictors/processed" ] || { echo "STOP: ${BIRDMONITOR_INPUT_ROOT} is not an inputs folder" >&2; exit 1; }
   [ "$(readlink -f "${BIRDMONITOR_INPUT_ROOT}")" != "$(readlink -f inputs)" ] || { echo "STOP: SERIES2=1 must NOT use inputs/ itself" >&2; exit 1; }
   # the habitat rows exist only from 2022, so these years change no fit; they only keep the land-use years the preparation asks for inside the v302 range (otherwise 2005-2016 would be requested)
-  export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2017:2025}"
-  export BIRDMONITOR_INPUT_ROOT BIRDMONITOR_PREDICTION_YEARS BIRDMONITOR_LANDSCAPE_YEARS BIRDMONITOR_LANDUSE_PREFER_HCTM=FALSE
+  if [ "${S1}" = "1" ]; then export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2005:2023}"; else export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2017:2025}"; fi   # SERIES 1: no land use after 2023 is asked for
+  export BIRDMONITOR_INPUT_ROOT BIRDMONITOR_PREDICTION_YEARS BIRDMONITOR_LANDSCAPE_YEARS
+  if [ "${S1}" = "1" ]; then export BIRDMONITOR_LANDUSE_PREFER_HCTM=TRUE; else export BIRDMONITOR_LANDUSE_PREFER_HCTM=FALSE; fi   # SERIES 1: HCTM classes, SERIES 2: CTM first, no recode
   BRT_SCALES_DEF="habitat landscape"; ENS_SCALES_RUN="landscape habitat"
 fi
 if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login cluster/submit_eve_clean_run.sh" >&2; exit 1; fi
@@ -79,7 +84,8 @@ Rscript tools/check_duplicated_functions.R | tail -1
 
 # The land-use inputs of the rule since 2026-11-03: HCTM for every year <= 2023, CTM v302 for 2024-2025 (recoded to HCTM classes with data/landuseRecodeCTMtoHCTM.csv), CTM v202 2017-2021 for the hedges.
 LUDIR="inputs/predictors/raw/landuse"; miss=""
-if [ "${S2}" = "1" ]; then   # SERIES 2: the nine ThEO v302 files
+if [ "${S1}" = "1" ]; then LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; fi   # SERIES 1: same check as the full chain, on the links of inputs_s1
+if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then   # SERIES 2: the nine ThEO v302 files
   LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; for y in $(seq 2017 2025); do [ -f "${LUDIR}/CTM_GER_${y}_rst_v302_COG.tif" ] || miss="${miss} CTM_${y}(v302)"; done
 else
 for y in $(seq 2005 2023); do [ -f "${LUDIR}/HCTM_GER_${y}_rst_v101_COG.tif" ] || miss="${miss} HCTM_${y}"; done
@@ -89,7 +95,7 @@ for y in 2017 2018 2019 2020 2021; do [ -f "${LUDIR}/CTM_GER_${y}_rst_v202_COG.t
 [ -f "data/landuseRecodeCTMtoHCTM.csv" ] || miss="${miss} data/landuseRecodeCTMtoHCTM.csv(git pull?)"
 fi
 [ -z "${miss}" ] || { echo "STOP: land-use inputs missing in ${LUDIR}:${miss}" >&2; exit 1; }
-if [ "${S2}" = "1" ]; then echo "land-use inputs (Series 2): the nine ThEO v302 files 2017-2025 are in ${LUDIR}"; else echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"; fi
+if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then echo "land-use inputs (Series 2): the nine ThEO v302 files 2017-2025 are in ${LUDIR}"; else echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"; fi
 # The water layer for the mask of the Monitor maps (sharedWaterMaskFile in tools/sharedConfig.R; "none" = no mask, on purpose). The connector is the LAST job of the chain: a missing file would only show after days, so it is checked here.
 WATER=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedWaterMaskFile)' 2>/dev/null | tail -1); WF="${BIRDMONITOR_WATER_FILE:-${WATER}}"
 if [ "${WF}" = "none" ]; then
