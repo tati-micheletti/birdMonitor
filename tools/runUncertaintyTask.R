@@ -66,7 +66,7 @@ outYears <- if (nzchar(env("BIRDMONITOR_UNC_YEARS"))) parseYears(env("BIRDMONITO
 nBands <- as.integer(env("BIRDMONITOR_UNC_BANDS", "16"))
 cores <- as.integer(env("BIRDMONITOR_UNC_CORES", Sys.getenv("SLURM_CPUS_PER_TASK", "1")))
 probs <- as.numeric(strsplit(env("BIRDMONITOR_UNC_PROBS", "0.05,0.95"), ",")[[1]])
-baselineYear <- as.integer(env("BIRDMONITOR_UNC_BASELINE", "2005"))
+baselineYear <- as.integer(env("BIRDMONITOR_UNC_BASELINE", if (2005L %in% predictionYears) "2005" else as.character(min(predictionYears))))   # SERIES 2: a series that starts after 2005 uses its first year
 currentYear <- max(sharedHabitatYears)
 uncMembers <- if (nzchar(env("BIRDMONITOR_UNC_MEMBERS"))) strsplit(env("BIRDMONITOR_UNC_MEMBERS"), ",")[[1]] else NA_character_
 tag <- env("BIRDMONITOR_UNC_TAG", "")

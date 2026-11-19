@@ -310,7 +310,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       runIndex_Monitor = list(
         species = sharedSpecies,
         studyAreaSpec = sharedStudyArea,
-        baselineYear = 2005,
+        baselineYear = if (2005L %in% predictionYears) 2005 else min(predictionYears),   # SERIES 2 (CTM v302, 2017-2025): a series that starts after 2005 uses its first year as the baseline
         allYears = predictionYears,
         currentYear = max(sharedHabitatYears),
         restrictedYears = 2022:2025,   # years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
