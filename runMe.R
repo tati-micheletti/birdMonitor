@@ -313,7 +313,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         baselineYear = if (2005L %in% predictionYears) 2005 else min(predictionYears),   # SERIES 2 (CTM v302, 2017-2025): a series that starts after 2005 uses its first year as the baseline
         allYears = predictionYears,
         currentYear = max(sharedHabitatYears),
-        restrictedYears = 2022:2025,   # years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
+        restrictedYears = intersect(2022:2025, predictionYears),   # SERIES 1 (HCTM, 2005-2023): only the real habitat years that are predicted, otherwise runIndex waits for 2024-2025 until its time-out; years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
         cellSizesM = sharedRegionalCellSizesM,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,
