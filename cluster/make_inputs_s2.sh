@@ -1,7 +1,7 @@
 #!/bin/bash
 # SERIES 2 (land use = CTM v302 from ThEO, 2017-2025, no recode): build an INPUTS folder of its own, next to inputs/, WITHOUT copying the big data.
 # Use it with  BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s2  (read by runMe.R, runClusterTask.R, runUncertaintyTask.R, runEnsembleTask.R).
-#   * raw/*                      symbolic links to inputs/predictors/raw/* (raw is never written by the pipeline); raw/landuse -> the nine ThEO v302 files
+#   * raw/*                      symbolic links to inputs/predictors/raw/* (raw is never written by the pipeline); raw/landuse -> the ThEO v302 files (2017-2025, and later years as they come)
 #   * processed/dem, and every processed layer that does NOT depend on land use (landcover, dist_to_woodland, slope, elevation, solar radiation, with their markers)
 #                                symbolic links; the ORIGINALS are made read-only (chmod a-w, reversible: chmod u+w), so an accidental write fails loudly instead of changing inputs/
 #   * processed land-use layers (landuse_*, unmapped_other_*, landscape_heterogeneity_*, with their markers) are NOT linked: Series 2 makes its own
@@ -13,7 +13,10 @@ cd "$(dirname "$0")/.."
 SRC="$PWD/inputs"; DST="${INPUTS_S2:-$PWD/inputs_s2}"; LU="${LU_DIR:-$SRC/predictors/raw/landuse_theo_v302}"
 [ -d "${SRC}/predictors/processed" ] || { echo "STOP: ${SRC}/predictors/processed not found" >&2; exit 1; }
 [ ! -e "${DST}" ] || { echo "STOP: ${DST} exists; remove it by hand if you really want to rebuild it" >&2; exit 1; }
-n=$(ls "${LU}"/CTM_GER_20{17,18,19,20,21,22,23,24,25}_rst_v302_COG.tif 2>/dev/null | wc -l); [ "${n}" = "9" ] || { echo "STOP: ${LU} does not hold the nine v302 files (found ${n})" >&2; exit 1; }
+# 2026-11-26: no fixed number of files: v302 maps 2017 ... up to the last year that has one (a finished map CTM_GER_<y>_rst_v302_COG.tif or an in-season map ..._<y>_<month>_COG.tif), without a gap, and at least up to 2025
+last=2016; for y in $(seq 2017 2040); do if compgen -G "${LU}/CTM_GER_${y}_rst_v302_COG.tif" >/dev/null || compgen -G "${LU}/CTM_GER_${y}_rst_v302_${y}_[0-9][0-9]_COG.tif" >/dev/null; then last=$y; else break; fi; done
+[ "${last}" -ge 2025 ] || { echo "STOP: ${LU} does not hold the v302 files 2017-2025 without a gap (last year found: ${last})" >&2; exit 1; }
+echo "land-use files: ThEO v302 2017-${last} in ${LU}"
 mkdir -p "${DST}/predictors/raw" "${DST}/predictors/processed" "${DST}/response" "${DST}/model_ready"
 for d in "${SRC}"/predictors/raw/*; do b=$(basename "$d"); case "$b" in landuse|landuse_theo_v302) ;; *) ln -s "$d" "${DST}/predictors/raw/$b";; esac; done
 ln -s "${LU}" "${DST}/predictors/raw/landuse"

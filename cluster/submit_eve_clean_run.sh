@@ -86,7 +86,9 @@ Rscript tools/check_duplicated_functions.R | tail -1
 LUDIR="inputs/predictors/raw/landuse"; miss=""
 if [ "${S1}" = "1" ]; then LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; fi   # SERIES 1: same check as the full chain, on the links of inputs_s1
 if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then   # SERIES 2: the nine ThEO v302 files
-  LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; for y in $(seq 2017 2025); do [ -f "${LUDIR}/CTM_GER_${y}_rst_v302_COG.tif" ] || miss="${miss} CTM_${y}(v302)"; done
+  # 2026-11-26: every year up to the last prediction year (default 2025), a finished map or an in-season map (CTM_GER_<y>_rst_v302_<y>_<month>_COG.tif; modules/dataPrep_Monitor/R/findCtmFile.R picks the best)
+  LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; LASTY="${BIRDMONITOR_PREDICTION_YEARS##*:}"; [ "${LASTY}" -ge 2025 ] 2>/dev/null || LASTY=2025
+  for y in $(seq 2017 "${LASTY}"); do compgen -G "${LUDIR}/CTM_GER_${y}_rst_v302_COG.tif" >/dev/null || compgen -G "${LUDIR}/CTM_GER_${y}_rst_v302_${y}_[0-9][0-9]_COG.tif" >/dev/null || miss="${miss} CTM_${y}(v302)"; done
 else
 for y in $(seq 2005 2023); do [ -f "${LUDIR}/HCTM_GER_${y}_rst_v101_COG.tif" ] || miss="${miss} HCTM_${y}"; done
 for y in 2017 2018 2019 2020 2021; do [ -f "${LUDIR}/CTM_GER_${y}_rst_v202_COG.tif" ] || miss="${miss} CTM_${y}(v202)"; done
@@ -95,7 +97,7 @@ for y in 2017 2018 2019 2020 2021; do [ -f "${LUDIR}/CTM_GER_${y}_rst_v202_COG.t
 [ -f "data/landuseRecodeCTMtoHCTM.csv" ] || miss="${miss} data/landuseRecodeCTMtoHCTM.csv(git pull?)"
 fi
 [ -z "${miss}" ] || { echo "STOP: land-use inputs missing in ${LUDIR}:${miss}" >&2; exit 1; }
-if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then echo "land-use inputs (Series 2): the nine ThEO v302 files 2017-2025 are in ${LUDIR}"; else echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"; fi
+if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then echo "land-use inputs (Series 2): the ThEO v302 files 2017-${LASTY} are in ${LUDIR}"; else echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"; fi
 # The water layer for the mask of the Monitor maps (sharedWaterMaskFile in tools/sharedConfig.R; "none" = no mask, on purpose). The connector is the LAST job of the chain: a missing file would only show after days, so it is checked here.
 WATER=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedWaterMaskFile)' 2>/dev/null | tail -1); WF="${BIRDMONITOR_WATER_FILE:-${WATER}}"
 if [ "${WF}" = "none" ]; then
