@@ -10,6 +10,8 @@
 #'   regional index       <run>/regional_index_<tag>_germany/regional_index_<km>km_raw.tif                      (one layer per year)
 #'   regional uncertainty <run>/uncertainty_<tag>/regional/regional_index_<km>km_unc_<year>.tif                 (5 layers)
 #'   national trend       <run>/annual_report_<tag>_germany/combined_index_uncertainty.csv                      (table: method, year, estimate, median, lwr, upr)
+#'   regional trend       <run>/uncertainty_<tag>/regional/regional_index_<km>km_unc_trend_per_decade.tif       (7 layers; 2026-11-24)
+#'   regional change      <run>/uncertainty_<tag>/regional/regional_index_<km>km_unc_change_vsBaseline.tif      (7 layers; 2026-11-24)
 #'
 #' @param runsRoot Character. Folder that contains the run folders (e.g. `outputs`, or `/data/birds/birdMonitor/outputs`).
 #' @param runs Character vector of run folder names, or NULL for every folder in `runsRoot` that is not matched by `excludeRuns`.
@@ -51,6 +53,12 @@ vizSources <- function(runsRoot, runs = NULL, excludeRuns = "^(utest|test1|test2
     if (file.exists(f)) add("msi_regional", f, run)
     fs <- Sys.glob(file.path(rd, paste0("uncertainty_", tag), paste0("regional", groupSuffix), sprintf("regional_index_%skm_unc_[0-9][0-9][0-9][0-9].tif", km)))
     if (length(fs)) add("msi_regional_unc", fs, run, year = yearOf(fs))
+    # 2026-11-24: the regional TREND per decade (slope of the index over all years, 7 layers: slopeMean, slopeSd, slopeLwr, slopeUpr, slopeWidth, shareDecrease, shareIncrease) and the regional CHANGE
+    # against the baseline year (7 layers: deltaMean, deltaSd, deltaLwr, deltaUpr, deltaWidth, shareDecrease, shareIncrease); one file each, in the same folder as the yearly uncertainty (pipeline names)
+    f <- file.path(rd, paste0("uncertainty_", tag), paste0("regional", groupSuffix), sprintf("regional_index_%skm_unc_trend_per_decade.tif", km))
+    if (file.exists(f)) add("msi_regional_trend", f, run)
+    f <- file.path(rd, paste0("uncertainty_", tag), paste0("regional", groupSuffix), sprintf("regional_index_%skm_unc_change_vsBaseline.tif", km))
+    if (file.exists(f)) add("msi_regional_change", f, run)
     # national trend: the combined multi-species index with its interval, from the reporting-area (Germany-only) area means
     f <- file.path(rd, paste0("annual_report_", tag, "_germany", groupSuffix), "combined_index_uncertainty.csv")
     if (file.exists(f)) add("msi_national", f, run)

@@ -1,3 +1,7 @@
 # connector_Monitor 0.0.0.9000
 
 * First version (2026-10-20): newest result of every species and layer from all run folders into the viz folder, one file per layer, manifest and missing list.
+
+* 2026-11-24 (later): the `_clear` map is rescaled so that 0 = 100 (`100 + slopeMean`, unclear cells = 100, as in the earlier `msi_regional_clear`); `vizWriteClearSlope()` has a `baseline` argument (default 100, 0 = plain slope); the layer files stay in slope units; tests 58 pass.
+* 2026-11-24: ONE regional index map. New products `msi_regional_trend/` and `msi_regional_change/` (one file per layer and a `_clear` map: cells whose 90% interval includes 0 are set to 0) and `figures/national_trend_farmland_bird_index.png` (national trend plot from `msi_national.csv`). The yearly regional maps are no longer written by the module (`regionalYearly = FALSE`). New parameters `regionalYearly`, `regionalTrend`, `nationalPlot`, `nationalPlotFile`, `nationalPlotMethod`, `nationalPlotTitle`, `nationalPlotNote`; new functions `vizWriteClearSlope()` and `vizWriteNationalPlot()`; tests added (55 pass).
+* 2026-11-24 (later): the change map is no longer written by default (`regionalChange = FALSE`); new parameter `nationalMethodLabel` (default `c(MSI = "Farmland Bird Index")`) renames the method in `msi_national.csv`, `nationalPlotMethod` default is now "Farmland Bird Index"; `tools/runConnector.R` takes the roster from the group in `BIRDMONITOR_VIZ_ROSTER_GROUP` (default farmland). 57 tests pass.
