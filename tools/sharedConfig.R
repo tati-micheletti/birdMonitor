@@ -162,6 +162,9 @@ local({
 sharedDbirdNameAliases <- c("Motacilla flava flava" = "Motacilla flava", "Motacilla flava thunbergi" = "Motacilla flava")
 # The EBBA2 occurrence file (relative to inputs/): presences of the roster species per 50 km atlas cell. A new extract is brought in with tools/prepareEbba2Extract.R, which writes a NEW dated file
 # (the one on disk is never overwritten); switching the pipeline to it is this one line.
+# 2026-11-26: the MhB point-count file (habitat scale; landscape scale of the species routed to point counts). Default = the old export used up to run v4. The cleaned export of 13 Nov 2026 is
+# BIRDMONITOR_MHB_FILE=response/raw/MhB/dbird/observations_cbbm_flat.csv (relative to the inputs folder); dataPrep_Monitor reads both layouts (readMhbObservations()).
+sharedMhbObsSubpath <- Sys.getenv("BIRDMONITOR_MHB_FILE", "response/raw/MhB/dbird_observations_CBBM.csv")
 sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km_2026-10-28.csv"   # 17 species: the 12 original + Curruca communis, Passer montanus, Streptopelia turtur, Motacilla flava, Falco tinnunculus (tools/prepareEbba2Extract.R from ..._kestrel.csv)
 # BirdLife names in an EBBA2 extract that differ from the roster name (latin_name in data/speciesCanonical.csv): extract name = roster name (tools/prepareEbba2Extract.R renames them when merging).
 sharedEbba2NameAliases <- c("Sylvia communis" = "Curruca communis")

@@ -11,7 +11,9 @@ suppressMessages(library(data.table)); source("tools/sharedConfig.R")
 canon <- read.csv("data/speciesCanonical.csv", stringsAsFactors = FALSE); canon$candidate <- !nzchar(trimws(canon$include))
 eb <- fread(file.path("inputs", sharedEbba2CsvSubpath), sep = ";"); ebN <- eb[, .(ebba2Cells = sum(occurrence > 0)), by = .(latin_name = birdlife_scientific_name)]
 dd <- fread("inputs/response/processed/territories_csv/dda_data.csv"); ddN <- dd[, .(ddaPlots = uniqueN(ROUTENCODE[Reviere > 0]), ddaTerritories = sum(Reviere)), by = .(euring_code = EURING)]
-d <- fread("inputs/response/raw/MhB/dbird_observations_CBBM.csv", select = c("SPECIES_NAME_SCIENTIFIC", "DATE_TIME", "TOTAL_COUNT", "ATLAS_CODE"))
+source("modules/dataPrep_Monitor/R/readMhbObservations.R")      # 2026-11-26: old or new layout (sharedMhbObsSubpath: BIRDMONITOR_MHB_FILE), old column names either way
+mhbFile <- file.path(Sys.getenv("BIRDMONITOR_INPUT_ROOT", "inputs"), sharedMhbObsSubpath); mhbCols <- c("SPECIES_NAME_SCIENTIFIC", "DATE_TIME", "TOTAL_COUNT", "ATLAS_CODE")
+d <- if (mhbCols[1] %in% names(fread(mhbFile, nrows = 0))) fread(mhbFile, select = mhbCols) else as.data.table(readMhbObservations(mhbFile))[, ..mhbCols]      # old layout: the fast column read as before
 d[, year := as.integer(substr(DATE_TIME, 1, 4))]; d[, month := substr(DATE_TIME, 6, 7)]
 al <- sharedDbirdNameAliases; d[SPECIES_NAME_SCIENTIFIC %in% names(al), SPECIES_NAME_SCIENTIFIC := al[SPECIES_NAME_SCIENTIFIC]]
 ok <- c("A1", "A2", paste0("B", 3:9), "C10", "C11a", "C11b", "C12", "C13a", "C13b", "C14a", "C14b", "C15", "C16")
