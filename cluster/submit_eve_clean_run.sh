@@ -25,12 +25,32 @@
 #   cd ~/projects/birdMonitor && bash --login cluster/submit_eve_clean_run.sh                                                                          # the real thing
 # Environment: BIRDMONITOR_RUNNAME (default v3), RESUME=1 (the run folder may exist: only what is missing is recomputed), BIG5_REPS (default 0:25), FORCE=1 (skip the queue check).
 # To continue a run whose prep (and perhaps two of the BRT arrays) already finished: SKIP_PREP=1 [BRT_SCALES=habitat] RESUME=1 (prep is not sent again; BRT_SCALES lists the arrays to send, default all three).
+# SERIES2=1 (2026-11-18): the run of the land-use re-run, Series 2 (ThEO CTM v302 2017-2025, no recode). Needs BIRDMONITOR_INPUT_ROOT (cluster/make_inputs_s2.sh) and the years, e.g.
+#   SERIES2=1 BIRDMONITOR_RUNNAME=s2v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s2 BIRDMONITOR_PREDICTION_YEARS=2017:2025 BIRDMONITOR_LANDSCAPE_YEARS=2017:2025 bash --login cluster/submit_eve_clean_run.sh
+#   It skips what does not change or must not happen: the Europe BRT array (the climate models of the finished run are COPIED in by cluster/s2_link_climate.sh; the climate ensemble step still runs to recompute the out-of-fold values on this series' habitat table), the safety copy
+#   (nothing in inputs/ is written), the HCTM land-use check, the diagnostics, the pixel trend test, and steps 6-7 (NO copy to /data/birds, NO connector: Series 2 alone must never reach the Monitor).
+# SERIES1=1 (2026-11-19): the same switch for the HCTM series (HCTM classes 2005-2023, no conversion): BIRDMONITOR_INPUT_ROOT from cluster/make_inputs_s1.sh, the land-use rule HCTM-first, habitat years 2005:2023, e.g.
+#   SERIES1=1 BIRDMONITOR_RUNNAME=s1v1 BIRDMONITOR_INPUT_ROOT=$PWD/inputs_s1 BIRDMONITOR_PREDICTION_YEARS=2005:2023 BIRDMONITOR_LANDSCAPE_YEARS=2005:2023 bash --login cluster/submit_eve_clean_run.sh
+#   (the climate pieces are copied from v3 as in SERIES2; nothing reaches /data/birds or the Monitor.) FORCE=1 is needed while another chain of this workflow is in the queue.
 # BIRDMONITOR_SPECIES and BIRDMONITOR_YEARS must NOT be set (debug switches: the steps that combine species would see only a subset).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
 RUN="${BIRDMONITOR_RUNNAME:-v3}"; export BIRDMONITOR_RUNNAME="${RUN}"
 TAG=ens_brt-glm-gam-rf-nn; MEM=brt,glm,gam,rf,nn; REPS="${BIG5_REPS:-0:25}"
+S1="${SERIES1:-0}"; S2="${SERIES2:-0}"; [ "${S1}" = "1" ] && S2=1   # SERIES 1 (HCTM series) uses the whole SERIES 2 switch, with the HCTM land-use rule
+BRT_SCALES_DEF="europe habitat landscape"; ENS_SCALES_RUN="climate landscape habitat"; mr=""; ds=""; pt=""; lc=""; cp=""; cn=""; pr=""
+if [ "${S2}" = "1" ]; then   # SERIES 2
+  : "${BIRDMONITOR_INPUT_ROOT:?SERIES2=1 needs BIRDMONITOR_INPUT_ROOT=<inputs_s2 folder> (cluster/make_inputs_s2.sh)}"
+  : "${BIRDMONITOR_PREDICTION_YEARS:?SERIES2=1 needs BIRDMONITOR_PREDICTION_YEARS (e.g. 2017:2025)}"; : "${BIRDMONITOR_LANDSCAPE_YEARS:?SERIES2=1 needs BIRDMONITOR_LANDSCAPE_YEARS (e.g. 2017:2025)}"
+  [ -d "${BIRDMONITOR_INPUT_ROOT}/predictors/processed" ] || { echo "STOP: ${BIRDMONITOR_INPUT_ROOT} is not an inputs folder" >&2; exit 1; }
+  [ "$(readlink -f "${BIRDMONITOR_INPUT_ROOT}")" != "$(readlink -f inputs)" ] || { echo "STOP: SERIES2=1 must NOT use inputs/ itself" >&2; exit 1; }
+  # the habitat rows exist only from 2022, so these years change no fit; they only keep the land-use years the preparation asks for inside the v302 range (otherwise 2005-2016 would be requested)
+  if [ "${S1}" = "1" ]; then export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2005:2023}"; else export BIRDMONITOR_HABITAT_YEARS="${BIRDMONITOR_HABITAT_YEARS:-2017:2025}"; fi   # SERIES 1: no land use after 2023 is asked for
+  export BIRDMONITOR_INPUT_ROOT BIRDMONITOR_PREDICTION_YEARS BIRDMONITOR_LANDSCAPE_YEARS
+  if [ "${S1}" = "1" ]; then export BIRDMONITOR_LANDUSE_PREFER_HCTM=TRUE; else export BIRDMONITOR_LANDUSE_PREFER_HCTM=FALSE; fi   # SERIES 1: HCTM classes, SERIES 2: CTM first, no recode
+  BRT_SCALES_DEF="habitat landscape"; ENS_SCALES_RUN="climate landscape habitat"   # 2026-11-19: the climate ENSEMBLE step runs too: with the copied climate models it only recomputes the out-of-fold values at the habitat records of this series (s2_link_climate.sh removes the copied ones)
+fi
 if ! type module >/dev/null 2>&1; then echo "Run this script as:  bash --login cluster/submit_eve_clean_run.sh" >&2; exit 1; fi
 export EVE_R_MODULE="${EVE_R_MODULE:-GCC/13.3.0 OpenMPI/5.0.5 R/4.5.1 GDAL/3.10.3 CMake ImageMagick/7.1.1-38 UDUNITS/2.2.28}"
 module load ${EVE_R_MODULE}
@@ -48,7 +68,7 @@ if git submodule status | grep -q '^[+-U]'; then echo "STOP: the modules are not
 # The preparation changes inputs/predictors/processed and inputs/response/processed IN PLACE (crop to the study area, hedges filled, heterogeneity v2, new CORINE classes, rebuilt occurrence tables); raw/ is never touched.
 # Before that, a copy of the CURRENT state must exist in /data/birds (cluster/eve_copy_data_birds.sbatch adds/updates, never deletes). The check compares the number of processed files; SKIP_BACKUP_CHECK=1 overrides.
 BK="${DATA_BIRDS_INPUTS:-/data/birds/birdMonitor/inputs}"
-if [ "${SKIP_BACKUP_CHECK:-0}" != "1" ]; then
+if [ "${SKIP_BACKUP_CHECK:-0}" != "1" ] && [ "${S2}" != "1" ]; then   # SERIES 2: nothing in inputs/ is written
   for sub in predictors/processed response/processed; do
     nSrc=$(find "inputs/${sub}" -type f | wc -l); nBk=$(find "${BK}/${sub}" -type f 2>/dev/null | wc -l || true)
     if [ "${nBk}" -lt "${nSrc}" ]; then
@@ -64,13 +84,18 @@ Rscript tools/check_duplicated_functions.R | tail -1
 
 # The land-use inputs of the rule since 2026-11-03: HCTM for every year <= 2023, CTM v302 for 2024-2025 (recoded to HCTM classes with data/landuseRecodeCTMtoHCTM.csv), CTM v202 2017-2021 for the hedges.
 LUDIR="inputs/predictors/raw/landuse"; miss=""
+if [ "${S1}" = "1" ]; then LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; fi   # SERIES 1: same check as the full chain, on the links of inputs_s1
+if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then   # SERIES 2: the nine ThEO v302 files
+  LUDIR="${BIRDMONITOR_INPUT_ROOT}/predictors/raw/landuse"; for y in $(seq 2017 2025); do [ -f "${LUDIR}/CTM_GER_${y}_rst_v302_COG.tif" ] || miss="${miss} CTM_${y}(v302)"; done
+else
 for y in $(seq 2005 2023); do [ -f "${LUDIR}/HCTM_GER_${y}_rst_v101_COG.tif" ] || miss="${miss} HCTM_${y}"; done
 for y in 2017 2018 2019 2020 2021; do [ -f "${LUDIR}/CTM_GER_${y}_rst_v202_COG.tif" ] || miss="${miss} CTM_${y}(v202)"; done
 [ -f "${LUDIR}/CTM_GER_2024_rst_v302_COG.tif" ] || miss="${miss} CTM_2024(v302)"
 [ -f "${LUDIR}/CTM_GER_2025_rst_v302_2025_08_COG.tif" ] || miss="${miss} CTM_2025(v302)"
 [ -f "data/landuseRecodeCTMtoHCTM.csv" ] || miss="${miss} data/landuseRecodeCTMtoHCTM.csv(git pull?)"
+fi
 [ -z "${miss}" ] || { echo "STOP: land-use inputs missing in ${LUDIR}:${miss}" >&2; exit 1; }
-echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"
+if [ "${S2}" = "1" ] && [ "${S1}" != "1" ]; then echo "land-use inputs (Series 2): the nine ThEO v302 files 2017-2025 are in ${LUDIR}"; else echo "land-use inputs: HCTM 2005-2023, CTM v202 2017-2021, CTM v302 2024-2025 and the recode table are there"; fi
 # The water layer for the mask of the Monitor maps (sharedWaterMaskFile in tools/sharedConfig.R; "none" = no mask, on purpose). The connector is the LAST job of the chain: a missing file would only show after days, so it is checked here.
 WATER=$(Rscript -e 'source("tools/sharedConfig.R"); cat(sharedWaterMaskFile)' 2>/dev/null | tail -1); WF="${BIRDMONITOR_WATER_FILE:-${WATER}}"
 if [ "${WF}" = "none" ]; then
@@ -99,6 +124,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then                # every sbatch (also inside th
   echo "DRY_RUN=1: nothing is submitted; the lines 'DRY sbatch ...' are what would be."
 else
   mkdir -p "outputs/${RUN}"
+  if [ "${S2}" = "1" ]; then bash cluster/s2_link_climate.sh "${RUN}" "${TAG}"; fi   # SERIES 2: the climate pieces of the finished run, copied
   { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "EBBA2 file: inputs/${EBBA2} ${EBBA2SUM}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
 fi
 
@@ -107,7 +133,7 @@ echo; echo "=== 1. prep"
 if [ "${SKIP_PREP:-0}" = "1" ]; then prep=""; echo "prep: skipped (SKIP_PREP=1: it finished earlier in this run folder)"
 else prep=$(sbatch --parsable --export=ALL cluster/eve_prep.sbatch); echo "prep: ${prep}"; fi
 LCDEP=(); if [ -n "${prep}" ]; then LCDEP=(--dependency=afterok:"${prep}" --kill-on-invalid-dep=yes); fi
-lc=$(sbatch --parsable --export=ALL "${LCDEP[@]+"${LCDEP[@]}"}" cluster/eve_landuse_check.sbatch); echo "land-use continuity check (e-mail when it is done; nothing waits for it): ${lc}"
+if [ "${S2}" != "1" ]; then lc=$(sbatch --parsable --export=ALL "${LCDEP[@]+"${LCDEP[@]}"}" cluster/eve_landuse_check.sbatch); echo "land-use continuity check (e-mail when it is done; nothing waits for it): ${lc}"; fi
 
 # The habitat array READS the 200 m covariate stacks of every year from outputs/<run>/uncertainty/covcache (written once by this job). Without them each task builds the stacks in memory
 # and is killed at 12 GB (all 14 habitat tasks of the first v2 chain, 31 Oct 2026). So the habitat array waits for this job.
@@ -115,9 +141,9 @@ echo; echo "=== 2. habitat covariate stacks (once; the habitat array waits for i
 PREPDEP=(); if [ -n "${prep}" ]; then PREPDEP=(--dependency=afterok:"${prep}" --kill-on-invalid-dep=yes); fi
 cc=$(sbatch --parsable --export=ALL "${PREPDEP[@]+"${PREPDEP[@]}"}" cluster/eve_covcache.sbatch); echo "covcache: ${cc}"
 
-echo; echo "=== 3. BRT at the scales ${BRT_SCALES:-europe habitat landscape} (${NSP} species each)"
+echo; echo "=== 3. BRT at the scales ${BRT_SCALES:-${BRT_SCALES_DEF}} (${NSP} species each)"
 ids=()
-for scale in ${BRT_SCALES:-europe habitat landscape}; do        # BRT_SCALES=habitat re-sends only the habitat array when the other two have finished
+for scale in ${BRT_SCALES:-${BRT_SCALES_DEF}}; do        # BRT_SCALES=habitat re-sends only the habitat array when the other two have finished
   dep="${prep}"; if [ "${scale}" = "habitat" ]; then dep="${dep:+${dep}:}${cc}"; fi
   DEPARG=(); if [ -n "${dep}" ]; then DEPARG=(--dependency=afterok:"${dep}" --kill-on-invalid-dep=yes); fi
   id=$(sbatch --parsable --export=ALL --array="1-${NSP}" "${DEPARG[@]+"${DEPARG[@]}"}" modules/models_Monitor/cluster/eve_array_${scale}.sbatch)
@@ -126,16 +152,16 @@ done
 brt=$(IFS=:; echo "${ids[*]}")
 
 echo; echo "=== 4. ensemble: fits -> ensemble means -> honest meta-model -> index"
-out=$(ENS_AFTER="${brt}" ENS_ALGOS="glm gam rf nn" ENS_VARIANTS="${MEM}" ENS_THROTTLE=15 bash cluster/submit_eve_ensemble.sh | tee /dev/stderr)
+out=$(ENS_SCALES="${ENS_SCALES_RUN}" ENS_AFTER="${brt}" ENS_ALGOS="glm gam rf nn" ENS_VARIANTS="${MEM}" ENS_THROTTLE=15 bash cluster/submit_eve_ensemble.sh | tee /dev/stderr)
 meta=$(echo "${out}" | awk '/^meta /{print $NF}')
 [ -n "${meta}" ] || { echo "ERROR: could not read the meta-model job id of the ensemble" >&2; exit 1; }
 # Diagnostics (read-only): the ensemble maps at the survey routes, the per-scale country means and predictors. The post-run job waits for them (afterany: a failure here does not block the figures).
-mr=$(sbatch --parsable --export=ALL --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_model_at_routes.sbatch); echo "diagnostics, model at the survey routes: ${mr}"
-ds=$(sbatch --parsable --export=ALL --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_diagnose_scales.sbatch); echo "diagnostics, per-scale country means: ${ds}"
+mr=""; [ "${S2}" = "1" ] || mr=$(sbatch --parsable --export=ALL --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_model_at_routes.sbatch); echo "diagnostics, model at the survey routes: ${mr}"
+ds=""; [ "${S2}" = "1" ] || ds=$(sbatch --parsable --export=ALL --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_diagnose_scales.sbatch); echo "diagnostics, per-scale country means: ${ds}"
 mk=$(MASK_META_TAG="${TAG}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${meta} --kill-on-invalid-dep=yes cluster/eve_mask_meta.sbatch); echo "reporting-area copies of the maps: ${mk}"
 gi=$(BIRDMONITOR_INDEX_TAG="${TAG}_germany" sbatch --parsable --export=ALL --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_index.sbatch); echo "index on the reporting-area maps: ${gi}"
 # Mann-Kendall test and Sen slope at every pixel of the main-model maps (the second opinion on the trend maps; the results page and its species list need it). One task per roster species.
-pt=$(BIRDMONITOR_RUNNAME="${RUN}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_pixel_trend_test.sbatch); echo "pixel trend test (Mann-Kendall): ${pt}"
+pt=""; [ "${S2}" = "1" ] || pt=$(BIRDMONITOR_RUNNAME="${RUN}" sbatch --parsable --export=ALL --array="1-${NSP}" --dependency=afterok:${mk} --kill-on-invalid-dep=yes cluster/eve_pixel_trend_test.sbatch); echo "pixel trend test (Mann-Kendall): ${pt}"
 
 echo; echo "=== 5. uncertainty: the ensemble inside the replicates (${REPS})"
 uout=$(ENS_MEMBERS="${MEM}" BIRDMONITOR_UNC_REPS="${REPS}" UNC_AFTER="${meta}" UNC_PREP_TIME="${BIG5_PREP_TIME:-48:00:00}" UNC_PREP_MEM="${BIG5_PREP_MEM:-16G}" bash cluster/submit_eve_ensemble_uncertainty.sh | tee /dev/stderr)
@@ -145,6 +171,7 @@ rout=$(FORCE=1 BIRDMONITOR_UNC_MEMBERS="${MEM}" BIRDMONITOR_UNC_TAG="${TAG}" BIR
 mm=$(echo "${rout}" | awk '/^maskmaps:/{print $2}'); ri=$(echo "${rout}" | awk '/^regionindex:/{print $2}')
 [ -n "${mm}" ] && [ -n "${ri}" ] || { echo "ERROR: could not read the maskmaps / regionindex job ids" >&2; exit 1; }
 
+if [ "${S2}" = "1" ]; then echo; echo "=== 6-7. skipped (SERIES2=1): NO copy to /data/birds, NO connector, NO post-run"; else   # SERIES 2
 echo; echo "=== 6. /data/birds and /data/birds/viz"
 cp=$(COPY_INPUTS=0 sbatch --parsable --export=ALL --dependency=afterok:${mm}:${gi}:${ri} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy to /data/birds: ${cp}"
 cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid-dep=yes cluster/eve_connector.sbatch); echo "connector: ${cn}"
@@ -156,6 +183,7 @@ pr=$(sbatch --parsable --export=ALL --dependency=afterok:${cn}:${pt},afterany:${
 if [ -n "${NOTIFY_EMAIL:-}" ]; then
   wd=$(WATCH_FIRST_JOB="${prep:-${cc}}" WATCH_UNTIL_JOB="${pr}" WATCH_SINCE="${SINCE}" sbatch --parsable --export=ALL cluster/eve_chain_watch.sbatch); echo "failure watcher: ${wd} (e-mail to ${NOTIFY_EMAIL})"
 fi
+fi   # end of "else" of SERIES 2 (steps 6-7)
 
 echo
 echo "================================================================================"

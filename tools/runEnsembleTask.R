@@ -19,7 +19,7 @@ repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd
 for (f in sort(list.files("modules/models_Monitor/R", pattern = "[.]R$", full.names = TRUE))) source(f)
 source("tools/sharedConfig.R"); source("tools/sharedSpeciesConfig.R")
 gen <- if (file.exists("data/speciesConfig_general.csv")) loadSpeciesGeneralConfig("data/speciesConfig_general.csv") else NULL
-cfg <- uncCfgFromParams(inputRoot = file.path(repoRoot, "inputs"), outputRoot = file.path(repoRoot, "outputs", runName), species = sharedSpecies,
+cfg <- uncCfgFromParams(inputRoot = Sys.getenv("BIRDMONITOR_INPUT_ROOT", file.path(repoRoot, "inputs")), outputRoot = file.path(repoRoot, "outputs", runName), species = sharedSpecies,
                         predictionYears = predictionYears,
                         habitatYears = resolveYearsPerSpecies(sharedSpecies, "habitat", extractYearsConfig(gen), sharedHabitatYears),
                         resolutionConfig = extractResolutionConfig(gen), climateResolutionM = sharedClimateResolutionM,

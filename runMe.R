@@ -181,7 +181,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         Restart = FALSE,
     runName = runName,
     paths = list(projectPath = "birdMonitor",
-                 inputPath = "inputs",
+                 inputPath = Sys.getenv("BIRDMONITOR_INPUT_ROOT", "inputs"),   # SERIES 2: BIRDMONITOR_INPUT_ROOT redirects the inputs folder (default unchanged)
                  outputPath = file.path("outputs", runName),
                  # Persistent, NOT timestamped like outputPath -- reproducible::Cache()
                  # calls throughout all 3 modules use this so a config change for one
@@ -251,6 +251,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         climateWindowLength = sharedClimateWindowLength,
         ebba2TrainingYear = sharedEbba2TrainingYear,
         landuseYears = landuseYearsNeeded,
+        landusePreferHCTM = !identical(toupper(Sys.getenv("BIRDMONITOR_LANDUSE_PREFER_HCTM", "TRUE")), "FALSE"),   # SERIES 2: FALSE = CTM first, no recode (unset/TRUE = the rule since 2026-11-03, unchanged)
         habitatYears = habitatYearsResolved,
         landscapeYears = landscapeYearsResolved,
         species = sharedSpecies,
@@ -309,10 +310,10 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       runIndex_Monitor = list(
         species = sharedSpecies,
         studyAreaSpec = sharedStudyArea,
-        baselineYear = 2005,
+        baselineYear = if (2005L %in% predictionYears) 2005 else min(predictionYears),   # SERIES 2 (CTM v302, 2017-2025): a series that starts after 2005 uses its first year as the baseline
         allYears = predictionYears,
         currentYear = max(sharedHabitatYears),
-        restrictedYears = 2022:2025,   # years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
+        restrictedYears = intersect(2022:2025, predictionYears),   # SERIES 1 (HCTM, 2005-2023): only the real habitat years that are predicted, otherwise runIndex waits for 2024-2025 until its time-out; years with real habitat-scale data (MhB point counts); until 2026-11-05 this was sharedHabitatYears (2005:2025), which made the restricted chain a copy of the ordinary one
         cellSizesM = sharedRegionalCellSizesM,
         climateResolutionM = sharedClimateResolutionM,
         habitatResolutionM = sharedHabitatResolutionM,

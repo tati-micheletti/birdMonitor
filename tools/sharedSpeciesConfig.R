@@ -274,8 +274,15 @@ extractYearsConfig <- function(generalConfig) {
 #' @param sharedDefault Integer vector, the scale's shared default years.
 #' @return Named list, species -> integer vector of years.
 resolveYearsPerSpecies <- function(species, scale, yearsConfig, sharedDefault) {
+  # SERIES 1 / SERIES 2 (2026-11-19): a land-use series covers only the years of its own crop map (BIRDMONITOR_PREDICTION_YEARS, set by SERIES1=1 / SERIES2=1 in cluster/submit_eve_clean_run.sh).
+  # A per-species override of data/speciesConfig_general.csv REPLACES the shared default (e.g. habitat 2022:2025 for every species), so it must be cut to the series window too; otherwise the HCTM series
+  # (2005-2023) would train its habitat model on 2024-2025 rows whose land use is not HCTM. With the variable unset (every earlier run) nothing changes.
+  cap <- Sys.getenv("BIRDMONITOR_PREDICTION_YEARS", "")
+  capYears <- if (nzchar(cap)) { p <- as.integer(strsplit(cap, ":")[[1]]); if (length(p) == 1) p else p[1]:p[2] } else NULL
   stats::setNames(lapply(species, function(sp) {
     v <- if (is.null(yearsConfig)) NULL else yearsConfig[[sp]][[scale]]
-    if (is.null(v) || length(v) == 0 || all(is.na(v))) sharedDefault else v
+    v <- if (is.null(v) || length(v) == 0 || all(is.na(v))) sharedDefault else v
+    if (!is.null(capYears)) v <- intersect(v, capYears)
+    v
   }), species)
 }
