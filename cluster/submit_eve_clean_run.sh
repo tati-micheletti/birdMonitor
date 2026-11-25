@@ -173,7 +173,8 @@ mm=$(echo "${rout}" | awk '/^maskmaps:/{print $2}'); ri=$(echo "${rout}" | awk '
 
 if [ "${S2}" = "1" ]; then echo; echo "=== 6-7. skipped (SERIES2=1): NO copy to /data/birds, NO connector, NO post-run"; else   # SERIES 2
 echo; echo "=== 6. /data/birds and /data/birds/viz"
-cp=$(COPY_INPUTS=0 sbatch --parsable --export=ALL --dependency=afterok:${mm}:${gi}:${ri} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy to /data/birds: ${cp}"
+# 2026-11-11: inputs ARE copied now (was COPY_INPUTS=0, no reason recorded): /work has no backup and files untouched for 60 days are deleted there; rsync only adds or updates.
+cp=$(sbatch --parsable --export=ALL --dependency=afterok:${mm}:${gi}:${ri} --kill-on-invalid-dep=yes cluster/eve_copy_data_birds.sbatch); echo "copy to /data/birds: ${cp}"
 cn=$(sbatch --parsable --export=ALL --dependency=afterok:${cp} --kill-on-invalid-dep=yes cluster/eve_connector.sbatch); echo "connector: ${cn}"
 
 echo; echo "=== 7. post-run: checks, then (if they pass) figures + zip, then an e-mail"
