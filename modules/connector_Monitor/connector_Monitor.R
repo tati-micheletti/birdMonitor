@@ -66,6 +66,21 @@ defineModule(sim, list(
                     "TRUE (default): also write msi_regional_clear/msi_<km>km_<year>.tif = the regional index with every cell whose 90% interval over the replicates includes clearBaseline set to clearBaseline",
                     "(little or no change); msi_regional itself is not changed. FALSE: do not write it."),
     defineParameter("clearBaseline", "numeric", 100, NA, NA, "Baseline of the regional index (the baseline year = 100) used by clearRegional."),
+    defineParameter("regionalYearly", "logical", FALSE, NA, NA,
+                    "FALSE (default from 2026-11-24): do NOT write the yearly regional index maps (msi_regional, msi_regional_unc, msi_regional_clear). The Monitor has ONE regional index map: the trend per decade",
+                    "(regionalTrend). TRUE: write them as before (viz2 layout)."),
+    defineParameter("regionalChange", "logical", FALSE, NA, NA, "FALSE (default): the change map (msi_regional_change) is NOT written to the Monitor folder. TRUE: write it with its clear version."),
+    defineParameter("nationalMethodLabel", "character", c(MSI = "Farmland Bird Index"), NA, NA,
+                    "Methods of the national table that are renamed in msi_national.csv (named vector, old = new). Default: MSI -> Farmland Bird Index (2026-11-24). NULL/empty: no renaming."),
+    defineParameter("regionalTrend", "logical", TRUE, NA, NA,
+                    "TRUE (default from 2026-11-24): write msi_regional_trend/msi_<km>km_trend_<layer>.tif (slopeMean, slopeSd, slopeLwr, slopeUpr, slopeWidth, shareDecrease, shareIncrease) and msi_regional_trend/msi_<km>km_trend_clear.tif",
+                    "(100 + the trend, i.e. 0 = 100, with every cell whose 90% interval includes 0 set to 100 = THE regional map)."),
+    defineParameter("nationalPlot", "logical", TRUE, NA, NA,
+                    "TRUE (default from 2026-11-24): draw figures/<nationalPlotFile> from msi_national.csv: index, 90% interval, preliminary years dashed, nothing else."),
+    defineParameter("nationalPlotFile", "character", "national_trend_farmland_bird_index.png", NA, NA, "File name of the national trend plot inside folders$figures."),
+    defineParameter("nationalPlotMethod", "character", "Farmland Bird Index", NA, NA, "Method of msi_national.csv (as written there, after nationalMethodLabel) that is drawn: the one the Monitor shows."),
+    defineParameter("nationalPlotTitle", "character", NA_character_, NA, NA, "Title of the national plot; NA: 'Bird Index Farmland (DDA-UFZ), Germany: Farmland Bird Index of <n> species' (n = species in meta_prob_year)."),
+    defineParameter("nationalPlotNote", "character", NA_character_, NA, NA, "Footnote of the national plot; NA: the standard sentence (model-based index, interval, land-use uncertainty not included)."),
     defineParameter("dryRun", "logical", FALSE, NA, NA, "TRUE: only report what would be written."),
     defineParameter("failIfIncomplete", "logical", FALSE, NA, NA,
                     "TRUE: stop with an error if a result the Monitor needs is missing from the viz folder (default: warning and a _missing.csv in the folder).")
@@ -98,7 +113,9 @@ doEvent.connector_Monitor = function(sim, eventTime, eventType) {
                         groupSuffix = P(sim)$groupSuffix, nationalFile = P(sim)$nationalFile, missingFile = P(sim)$missingFile, linkMode = P(sim)$linkMode,
                         allowWorkSources = P(sim)$allowWorkSources, dryRun = P(sim)$dryRun, failIfIncomplete = P(sim)$failIfIncomplete,
                         waterFile = if (is.na(P(sim)$waterFile)) NULL else P(sim)$waterFile, waterMinShare = P(sim)$waterMinShare, waterProducts = P(sim)$waterProducts,
-                        clearRegional = isTRUE(P(sim)$clearRegional), clearBaseline = P(sim)$clearBaseline)
+                        clearRegional = isTRUE(P(sim)$clearRegional), clearBaseline = P(sim)$clearBaseline,
+                        regionalYearly = isTRUE(P(sim)$regionalYearly), regionalTrend = isTRUE(P(sim)$regionalTrend), regionalChange = isTRUE(P(sim)$regionalChange), nationalMethodLabel = P(sim)$nationalMethodLabel, nationalPlot = isTRUE(P(sim)$nationalPlot),
+                        nationalPlotFile = P(sim)$nationalPlotFile, nationalPlotMethod = P(sim)$nationalPlotMethod, nationalPlotTitle = P(sim)$nationalPlotTitle, nationalPlotNote = P(sim)$nationalPlotNote)
       sim$vizManifest <- res$manifest
       # ! ----- STOP EDITING ----- ! #
     },

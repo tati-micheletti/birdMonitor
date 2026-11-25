@@ -16,6 +16,10 @@ vizLayers <- function(file, product) {
     if (length(yr) != n) stop("vizLayers(): the layers of ", file, " have no year in their names: ", paste(nm, collapse = ", "))
     return(data.frame(index = seq_len(n), label = yr, stringsAsFactors = FALSE))
   }
+  if (product %in% c("msi_regional_trend", "msi_regional_change")) {          # 2026-11-24: one file per layer, labelled with the layer name (slopeMean ... shareIncrease / deltaMean ... shareIncrease)
+    if (any(!nzchar(nm)) || anyDuplicated(nm)) stop("vizLayers(): the layers of ", file, " need distinct names, found: ", paste(nm, collapse = ", "))
+    return(data.frame(index = seq_len(n), label = nm, stringsAsFactors = FALSE))
+  }
   lab <- if (all(nm %in% fiveNames)) nm else if (n == 5L) fiveNames else stop("vizLayers(): ", file, " has ", n, " layers named ", paste(nm, collapse = ", "), "; expected mean, sd, lwr, upr, width")
   data.frame(index = seq_len(n), label = lab, stringsAsFactors = FALSE)
 }
@@ -30,7 +34,62 @@ vizDest <- function(product, species, year, label, folders, cellKm) {
          richness_year    = file.path(f, sprintf("richness_%d_%s.tif", year, label)),
          msi_regional     = file.path(f, sprintf("msi_%skm_%s.tif", km, label)),
          msi_regional_unc = file.path(f, sprintf("msi_%skm_%d_%s.tif", km, year, label)),
-         msi_regional_clear = file.path(f, sprintf("msi_%skm_%s.tif", km, label)))
+         msi_regional_clear = file.path(f, sprintf("msi_%skm_%s.tif", km, label)),
+         msi_regional_trend  = file.path(f, sprintf("msi_%skm_trend_%s.tif", km, label)),            # 2026-11-24
+         msi_regional_change = file.path(f, sprintf("msi_%skm_change_%s.tif", km, label)))
+}
+
+#' The regional trend (or change) map, rescaled so that 0 = 100, with the UNCLEAR cells set to 100 (2026-11-24)
+#'
+#' From 2026-11-24 the Monitor shows ONE regional index map: the trend per decade of the Bird Index Farmland, coloured only where the 90% interval over the replicates does NOT touch 0.
+#' The map is on the scale of the Monitor's index maps (100 = no change): a cell keeps its value, plus `baseline`, where lwr > 0 or upr < 0 (slope -3 per decade is written as 97);
+#' every other cell is set to `baseline` (100 = "no clear change", not "no change"); NA stays NA; a cell with a value but no interval is set to `baseline`. `baseline = 0` writes the plain slope.
+#' The source file is never changed. @param file Character. Multilayer file (trend: slopeMean, slopeLwr, slopeUpr; change: deltaMean, deltaLwr, deltaUpr). @param dest Character. File to write.
+#' @param meanLayer,lwrLayer,uprLayer Character. Names of the three layers. @param baseline Numeric (default 100).
+vizWriteClearSlope <- function(file, dest, meanLayer, lwrLayer, uprLayer, baseline = 100) {
+  neutral <- baseline
+  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+  r <- terra::rast(file); nm <- names(r); miss <- setdiff(c(meanLayer, lwrLayer, uprLayer), nm)
+  if (length(miss)) stop("vizWriteClearSlope(): ", file, " has no layer ", paste(miss, collapse = ", "), "; it has ", paste(nm, collapse = ", "))
+  m <- r[[meanLayer]]; lwr <- r[[lwrLayer]]; upr <- r[[uprLayer]]
+  nNoInterval <- terra::global(!is.na(m) & (is.na(lwr) | is.na(upr)), "sum", na.rm = TRUE)[1, 1]
+  if (isTRUE(nNoInterval > 0)) warning("vizWriteClearSlope(): ", nNoInterval, " cell(s) of ", basename(dest), " have a value but no interval (not expected); set to ", neutral, call. = FALSE)
+  clear <- terra::ifel(is.na(lwr) | is.na(upr), 0, terra::ifel((lwr > 0) | (upr < 0), 1, 0))
+  out <- terra::ifel(is.na(m), NA, terra::ifel(clear == 1, m + baseline, neutral)); names(out) <- meanLayer
+  part <- paste0(dest, ".part")
+  terra::writeRaster(out, part, filetype = "GTiff", overwrite = TRUE, datatype = "FLT4S", gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3"))
+  if (file.exists(dest)) file.remove(dest)
+  file.rename(part, dest)
+}
+
+#' The national trend as a picture, drawn ONLY from the national table of the viz folder (2026-11-24)
+#'
+#' What the Monitor shows and nothing else: the index of the method `method` (line), its 90% interval (band, lwr to upr), the years marked `preliminary` dashed and labelled
+#' "Preliminary trend - subject to later update". No other series is drawn. @param table Character. `msi_national.csv` in the viz folder (method, year, estimate, lwr, upr, preliminary).
+#' @param dest Character. PNG to write. @param method Character. Which method of the table is drawn (default "MSI": the one the Monitor shows). @param title,note Character. Title and footnote (NA: standard texts).
+vizWriteNationalPlot <- function(table, dest, method = "MSI", title = NA_character_, note = NA_character_) {
+  d <- utils::read.csv(table, stringsAsFactors = FALSE); m <- d[d$method == method, , drop = FALSE]; m <- m[order(m$year), , drop = FALSE]
+  if (!nrow(m)) stop("vizWriteNationalPlot(): method '", method, "' not in ", table)
+  pre <- if ("preliminary" %in% names(m)) as.logical(m$preliminary) else rep(FALSE, nrow(m)); pre[is.na(pre)] <- FALSE
+  cut <- if (any(!pre)) max(m$year[!pre]) else NA_integer_
+  yl <- range(c(m$lwr, m$upr, m$estimate, 100), na.rm = TRUE); yl <- yl + c(-1, 1) * 0.08 * diff(yl); xr <- range(m$year)
+  if (is.na(title)) title <- paste0("Bird Index Farmland (DDA-UFZ), Germany: Farmland Bird Index, ", xr[1], "-", xr[2])
+  if (is.na(note)) note <- "Model-based index of probability of occurrence. Intervals: 5th-95th percentile over the bootstrap replicates; they do not contain the uncertainty of the land-use maps."
+  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE); part <- paste0(dest, ".part")
+  grDevices::png(part, width = 1800, height = 1050, res = 150, type = if (isTRUE(capabilities("cairo"))) "cairo" else "Xlib")
+  on.exit(if (grDevices::dev.cur() > 1) grDevices::dev.off(), add = TRUE); graphics::par(mar = c(5.6, 4.6, 4.2, 1.2))
+  graphics::plot(NA, xlim = xr, ylim = yl, xlab = "Year", ylab = paste0("Index (", xr[1], " = 100)"), las = 1, main = title, cex.main = 1.1)
+  graphics::abline(h = 100, col = "grey70", lty = 3)
+  graphics::polygon(c(m$year, rev(m$year)), c(m$lwr, rev(m$upr)), col = grDevices::adjustcolor("#c8501e", 0.22), border = NA)
+  if (is.na(cut)) graphics::lines(m$year, m$estimate, lwd = 3.5, col = "#c8501e") else {
+    s <- m$year <= cut; graphics::lines(m$year[s], m$estimate[s], lwd = 3.5, col = "#c8501e"); graphics::lines(m$year[m$year >= cut], m$estimate[m$year >= cut], lwd = 3.5, col = "#c8501e", lty = 2)
+    if (any(pre)) { graphics::abline(v = cut, col = "grey40", lty = 3); graphics::text(cut - 0.2, yl[2] - 0.02 * diff(yl), "Preliminary trend -\nsubject to later update  >", adj = c(1, 1), cex = 0.95, col = "grey25") } }
+  lg <- c("Farmland Bird Index", "90% interval", if (any(pre)) "preliminary (years after the last published national indicator)")
+  graphics::legend("bottomleft", lg, lwd = c(3.5, 8, if (any(pre)) 3.5), lty = c(1, 1, if (any(pre)) 2), col = c("#c8501e", grDevices::adjustcolor("#c8501e", 0.22), if (any(pre)) "#c8501e"), bty = "n", cex = 0.9)
+  graphics::mtext(note, side = 1, line = 4.4, cex = 0.6, col = "grey30")
+  grDevices::dev.off()
+  if (file.exists(dest)) file.remove(dest)
+  file.rename(part, dest); invisible(m)
 }
 
 #' The regional index of ONE year with the unclear cells set to the baseline (2026-11-11)
@@ -61,11 +120,13 @@ vizWriteClearIndex <- function(rawFile, index, uncFile, dest, baseline = 100) {
 #' Same numbers as the source (`combined_index_uncertainty.csv`: method, year, estimate, median, lwr, upr) plus the column `preliminary`: TRUE for every year AFTER
 #' `lastPublishedYear` (the last year of the published national indicator). The Monitor draws those years dashed and labels them "Preliminary trend - subject to later update".
 #' Only this national series is split that way; nothing else in the viz folder is marked. `lastPublishedYear` NA: nothing is marked (and a message says so).
+#' @param methodLabel Named character or NULL. Methods renamed in the written table, e.g. c(MSI = "Farmland Bird Index"); the source file is not changed.
 #' @return Invisibly, the table written.
-vizWriteNational <- function(src, dest, lastPublishedYear = NA_integer_) {
+vizWriteNational <- function(src, dest, lastPublishedYear = NA_integer_, methodLabel = NULL) {
   d <- utils::read.csv(src, stringsAsFactors = FALSE)
   need <- c("method", "year", "estimate", "lwr", "upr"); if (!all(need %in% names(d))) stop("vizWriteNational(): ", src, " lacks column(s): ", paste(setdiff(need, names(d)), collapse = ", "))
   d$preliminary <- if (is.na(lastPublishedYear)) FALSE else d$year > lastPublishedYear
+  if (length(methodLabel)) { hit <- d$method %in% names(methodLabel); d$method[hit] <- unname(methodLabel[d$method[hit]]) }       # 2026-11-24: e.g. MSI -> Farmland Bird Index (the name the Monitor shows)
   if (is.na(lastPublishedYear)) message("vizWriteNational(): no last published indicator year given - no year is marked preliminary.")
   dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
   part <- paste0(dest, ".part"); utils::write.csv(d, part, row.names = FALSE)

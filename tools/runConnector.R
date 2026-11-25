@@ -39,6 +39,13 @@ params <- list(vizPath = vizPath, runsRoot = runsRoot, tag = env("BIRDMONITOR_VI
                nationalLastPublishedYear = as.integer(env("BIRDMONITOR_NATIONAL_LAST_YEAR", as.character(sharedNationalIndicatorLastYear))),
                dryRun = env("BIRDMONITOR_VIZ_DRY") == "1", failIfIncomplete = env("BIRDMONITOR_VIZ_FAIL") == "1")
 if (!is.null(runs)) params$runFolders <- runs
+# 2026-11-24: the roster the Monitor must be able to show = the species of the GROUP in BIRDMONITOR_VIZ_ROSTER_GROUP (default "farmland": the 12 species of the first version, no raptors), so that _missing.csv does not list the raptors.
+# "all" = every modelled species (the earlier behaviour). Not used in the viz2 layout (BIRDMONITOR_VIZ_GROUPS=1), which always takes the full roster.
+vizRoster <- env("BIRDMONITOR_VIZ_ROSTER_GROUP", "farmland")
+if (env("BIRDMONITOR_VIZ_GROUPS") != "1" && !identical(vizRoster, "all")) {
+  if (!vizRoster %in% names(speciesGroups$members)) stop("BIRDMONITOR_VIZ_ROSTER_GROUP '", vizRoster, "' is not a group of data/speciesGroups.csv (", paste(names(speciesGroups$members), collapse = ", "), ") and not 'all'.")
+  params$species <- speciesGroups$members[[vizRoster]]; message("=== roster of the viz folder: group '", vizRoster, "', ", length(params$species), " species ===")
+}
 # water mask (2026-11-05): ON by default for the Monitor (no probability of occurrence over lakes and big rivers). The file is sharedWaterMaskFile (tools/sharedConfig.R) or BIRDMONITOR_WATER_FILE;
 # the value "none" switches it off ON PURPOSE (a missing file stops the job, so the mask is never dropped by accident). BIRDMONITOR_WATER_MIN_SHARE overrides sharedWaterMaskMinShare.
 waterFile <- env("BIRDMONITOR_WATER_FILE", sharedWaterMaskFile)
@@ -59,6 +66,7 @@ if (env("BIRDMONITOR_VIZ_GROUPS") != "1") {
     pg$folders <- list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = paste0("richness_year_", g),
                        msi_regional = paste0("msi_regional_", g), msi_regional_unc = paste0("msi_regional_unc_", g), msi_national = "msi_national",
                        msi_regional_clear = paste0("msi_regional_clear_", g))
+    pg$regionalYearly <- TRUE; pg$regionalTrend <- FALSE; pg$nationalPlot <- FALSE        # 2026-11-24: the viz2 layout stays as it was; the trend, change and plot belong to the standard viz layout only
     pg$nationalFile <- paste0("msi_national_", g, ".csv")
     pg$missingFile <- if (identical(g, sharedGroups[1])) "_missing.csv" else paste0("_missing_", g, ".csv")
     if (!identical(g, sharedGroups[1])) pg$species <- character(0)                     # species products already handled by the first group

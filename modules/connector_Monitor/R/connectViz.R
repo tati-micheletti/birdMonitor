@@ -13,7 +13,11 @@
 #'   msi_regional/msi_<km>km_<year>.tif                                regional index (MSI), raw
 #'   msi_regional_unc/msi_<km>km_<year>_<layer>.tif                    its uncertainty
 #'   msi_national/msi_national.csv                                     national trend (method, year, estimate, median, lwr, upr, preliminary)
-#'   msi_regional_clear/msi_<km>km_<year>.tif                          regional index with the unclear cells (90% interval includes 100) set to 100 (2026-11-11; the file the Monitor map should use)
+#'   msi_regional_clear/msi_<km>km_<year>.tif                          regional index with the unclear cells (90% interval includes 100) set to 100 (2026-11-11; only with regionalYearly)
+#'   msi_regional_trend/msi_<km>km_trend_<layer>.tif                   regional TREND per decade, one file per layer (slopeMean, slopeSd, slopeLwr, slopeUpr, slopeWidth, shareDecrease, shareIncrease) (2026-11-24)
+#'   msi_regional_trend/msi_<km>km_trend_clear.tif                     the trend with the unclear cells (90% interval includes 0) set to 0: THE regional map of the Monitor from 2026-11-24 (one index map)
+#'   msi_regional_change/msi_<km>km_change_<layer>.tif, ..._clear.tif  regional CHANGE against the baseline year (deltaMean ... shareIncrease) and its clear version
+#'   figures/national_trend_farmland_bird_index.png                    the national trend as a picture, drawn only from msi_national.csv (index, 90% interval, preliminary years dashed)
 #'
 #' Richness (mean, sd, lwr, upr, width) is expected for EVERY year in `years`, like the species uncertainty.
 #'
@@ -32,6 +36,10 @@
 #' @param missingFile Character. File name of the report of missing results in `vizPath` (default "_missing.csv"; one per group in the viz2 layout).
 #' @param linkMode "symlink" (default) or "copy" for files that need no splitting.
 #' @param allowWorkSources Logical. Allow links to files under `/work` (they break when EVE cleans `/work`).
+#' @param regionalYearly Logical. TRUE (function default): write the yearly regional index maps (msi_regional, msi_regional_unc, msi_regional_clear). The module sets FALSE: from 2026-11-24 the Monitor has ONE regional map, the trend.
+#' @param regionalTrend Logical. TRUE: write msi_regional_trend (one file per layer) and its clear version. @param regionalChange Logical. TRUE: also write msi_regional_change and its clear version (default FALSE: the change map is NOT part of the Monitor folder).
+#' @param nationalMethodLabel Named character or NULL. Names of methods in the national table that are renamed in msi_national.csv, e.g. c(MSI = "Farmland Bird Index") (the pipeline's own table is not changed). @param nationalPlot Logical. TRUE: draw the national trend plot from msi_national.csv.
+#' @param nationalPlotFile,nationalPlotMethod,nationalPlotTitle,nationalPlotNote File name (in folders$figures), method of the national table that is drawn, title and footnote (NA: standard texts).
 #' @param dryRun Logical. Only report what would be done.
 #' @param failIfIncomplete Logical. Stop with an error when something expected is missing (default: warn and write `_missing.csv`).
 #' @param waterFile Character or NULL. Polygons of lakes and wider rivers (or a water raster): in the files of `waterProducts` the cells whose water share is at least `waterMinShare` are set to NA
@@ -43,7 +51,8 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
                        folders = list(meta_prob_year = "meta_prob_year", meta_unc_year = "meta_unc_year", richness_year = "richness_year",
                                       msi_regional = "msi_regional", msi_regional_unc = "msi_regional_unc", msi_national = "msi_national", msi_regional_clear = "msi_regional_clear"),
                        nationalLastPublishedYear = NA_integer_, groupSuffix = "", nationalFile = "msi_national.csv", missingFile = "_missing.csv", linkMode = "symlink", allowWorkSources = FALSE, dryRun = FALSE, failIfIncomplete = FALSE,
-                       waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year"), clearRegional = TRUE, clearBaseline = 100) {
+                       waterFile = NULL, waterMinShare = 0.5, waterProducts = c("meta_prob_year", "meta_unc_year", "richness_year"), clearRegional = TRUE, clearBaseline = 100,
+                       regionalYearly = TRUE, regionalTrend = FALSE, regionalChange = FALSE, nationalMethodLabel = NULL, nationalPlot = FALSE, nationalPlotFile = "national_trend_farmland_bird_index.png", nationalPlotMethod = "MSI", nationalPlotTitle = NA_character_, nationalPlotNote = NA_character_) {
   # water mask (2026-11-05): checked FIRST, so a missing file stops the job at once and not after the files were written
   doMask <- !is.null(waterFile) && !is.na(waterFile)
   if (doMask) {
@@ -52,6 +61,8 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
     maskTxt <- paste0("written; water mask ", basename(waterFile), " (", file.size(waterFile), " bytes), cells with a water share >= ", waterMinShare, " are NA")
     message("connectViz(): water mask ON (", waterFile, ", share >= ", waterMinShare, ") for ", paste(waterProducts, collapse = ", "), "; the source files are not changed")
   } else message("connectViz(): water mask OFF")
+  for (nmF in c("msi_regional_trend", "msi_regional_change", "figures")) if (is.null(folders[[nmF]])) folders[[nmF]] <- nmF            # 2026-11-24: folder names of the new products when the caller gives its own list
+  clearRegional <- isTRUE(clearRegional) && isTRUE(regionalYearly)
   spUnder <- gsub(" ", "_", species)
   src <- vizSources(runsRoot, runs, excludeRuns, tag, cellKm, groupSuffix)
   if (!nrow(src)) stop("connectViz(): no result files for tag '", tag, "' found in the run folders of ", runsRoot)
@@ -61,6 +72,9 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   src <- src[!perSpecies | src$species %in% spUnder, ]
   src <- src[is.na(src$year) | src$year %in% years | !src$product %in% c("meta_prob_year", "meta_unc_year"), ]
   latest <- vizLatest(src)
+  if (!regionalYearly) latest <- latest[!latest$product %in% c("msi_regional", "msi_regional_unc"), , drop = FALSE]                 # 2026-11-24: ONE regional map (the trend); the yearly index maps are not written
+  if (!regionalTrend) latest <- latest[latest$product != "msi_regional_trend", , drop = FALSE]
+  if (!regionalChange) latest <- latest[latest$product != "msi_regional_change", , drop = FALSE]                  # 2026-11-24: the change map does not go to the Monitor folder
   message("connectViz(): ", nrow(src), " source files in ", length(unique(src$run)), " run folder(s) -> ", nrow(latest), " results (newest of each)")
 
   manFile <- file.path(vizPath, "_manifest.csv")
@@ -72,12 +86,12 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   done <- 0L; plan <- 0L
   nat <- latest[latest$product == "msi_national", , drop = FALSE]; latest <- latest[latest$product != "msi_national", , drop = FALSE]   # the national trend is a table, not a raster
   for (i in seq_len(nrow(nat))) {
-    dest <- file.path(folders$msi_national, nationalFile); k <- which(man$dest == dest); modeTxt <- paste0("written; last published year ", nationalLastPublishedYear)
+    dest <- file.path(folders$msi_national, nationalFile); k <- which(man$dest == dest); modeTxt <- paste0("written; last published year ", nationalLastPublishedYear, if (length(nationalMethodLabel)) paste0("; method labels ", paste(names(nationalMethodLabel), "->", nationalMethodLabel, collapse = ", ")) else "")
     current <- length(k) == 1L && file.exists(file.path(vizPath, dest)) && file.exists(man$src[k]) && !(nat$mtime[i] > man$srcMtime[k] + 1) && identical(man$mode[k], modeTxt)
     if (current) next
     plan <- plan + 1L
     if (dryRun) { message("would write ", dest, "  <-  ", nat$run[i], "/", basename(nat$file[i])); next }
-    vizWriteNational(nat$file[i], file.path(vizPath, dest), nationalLastPublishedYear)
+    vizWriteNational(nat$file[i], file.path(vizPath, dest), nationalLastPublishedYear, nationalMethodLabel)
     entry <- data.frame(product = "msi_national", species = "", year = NA_integer_, layer = "", dest = dest, src = normalizePath(nat$file[i], winslash = "/"), srcMtime = nat$mtime[i],
                         run = nat$run[i], mode = modeTxt, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
     man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L
@@ -127,6 +141,39 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
       }
     }
   }
+  # 2026-11-24: the trend and the change map with the UNCLEAR cells (90% interval over the replicates includes 0) set to 0: THE regional map of the Monitor (one index map, decision of the project meeting of 20 November)
+  if (regionalTrend || regionalChange) for (pc in c("msi_regional_trend", "msi_regional_change")) {
+    row <- latest[latest$product == pc, , drop = FALSE]; if (nrow(row) != 1L) next
+    sp <- if (pc == "msi_regional_trend") list(m = "slopeMean", l = "slopeLwr", u = "slopeUpr", w = "trend") else list(m = "deltaMean", l = "deltaLwr", u = "deltaUpr", w = "change")
+    dest <- file.path(folders[[pc]], sprintf("msi_%skm_%s_clear.tif", format(cellKm), sp$w)); destAbs <- file.path(vizPath, dest); k <- which(man$dest == dest)
+    clearTxt0 <- "written; value + 100 (0 = 100); cells whose 90% interval includes 0 are set to 100"
+    current <- length(k) == 1L && file.exists(destAbs) && !(row$mtime > man$srcMtime[k] + 1) && identical(man$mode[k], clearTxt0)
+    if (current) next
+    plan <- plan + 1L
+    if (dryRun) { message("would write ", dest, "  <-  ", row$run, "/", basename(row$file), " (value + 100, unclear cells = 100)"); next }
+    vizWriteClearSlope(row$file, destAbs, sp$m, sp$l, sp$u, 100)
+    entry <- data.frame(product = paste0(pc, "_clear"), species = "", year = NA_integer_, layer = sp$m, dest = dest, src = normalizePath(row$file, winslash = "/"), srcMtime = row$mtime,
+                        run = row$run, mode = clearTxt0, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
+    man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L
+  }
+  # 2026-11-24: the national trend as a picture, drawn only from the national table in the viz folder (same numbers, same preliminary flag)
+  if (nationalPlot) {
+    tabAbs <- file.path(vizPath, folders$msi_national, nationalFile); dest <- file.path(folders$figures, nationalPlotFile); destAbs <- file.path(vizPath, dest); k <- which(man$dest == dest)
+    if (file.exists(tabAbs)) {
+      nSp <- length(unique(man$species[man$product == "meta_prob_year" & nzchar(man$species)])); tm <- as.numeric(file.mtime(tabAbs))
+      ttl <- if (is.na(nationalPlotTitle)) paste0("Bird Index Farmland (DDA-UFZ), Germany: Farmland Bird Index of ", nSp, " species") else nationalPlotTitle
+      plotTxt <- paste0("written; method ", nationalPlotMethod, ", ", nSp, " species, last published year ", nationalLastPublishedYear)
+      current <- length(k) == 1L && file.exists(destAbs) && !(tm > man$srcMtime[k] + 1) && identical(man$mode[k], plotTxt)
+      if (!current) {
+        plan <- plan + 1L
+        if (dryRun) message("would write ", dest, "  <-  ", file.path(folders$msi_national, nationalFile)) else {
+          vizWriteNationalPlot(tabAbs, destAbs, nationalPlotMethod, ttl, nationalPlotNote)
+          entry <- data.frame(product = "figures", species = "", year = NA_integer_, layer = "", dest = dest, src = normalizePath(tabAbs, winslash = "/"), srcMtime = tm,
+                              run = "", mode = plotTxt, written = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), stringsAsFactors = FALSE)
+          man <- rbind(man[man$dest != dest, , drop = FALSE], entry[, cols]); done <- done + 1L }
+      }
+    } else if (!dryRun) message("connectViz(): no national table ", tabAbs, ": no national plot drawn")
+  }
   if (dryRun) { message("connectViz(): dry run, ", plan, " files would be written or linked"); return(invisible(list(manifest = man, missing = NULL, done = 0L))) }
   dir.create(vizPath, recursive = TRUE, showWarnings = FALSE)
   man <- man[order(man$product, man$species, man$year, man$layer), ]
@@ -140,8 +187,11 @@ connectViz <- function(runsRoot, vizPath, tag, species, years, cellKm = 10, runs
   have <- paste(manHere$product, manHere$species, manHere$year, ifelse(manHere$product %in% c("meta_unc_year", "richness_year"), manHere$layer, ""))
   need$key <- paste(need$product, need$species, need$year, ifelse(need$product %in% c("meta_unc_year", "richness_year"), need$label, ""))
   miss <- need[!need$key %in% have, c("product", "species", "year", "label"), drop = FALSE]
-  noOther <- vapply(c("msi_regional", "msi_regional_unc", "msi_national", if (clearRegional) "msi_regional_clear"),
-                    function(p) if (p == "msi_national") any(man$dest == file.path(folders$msi_national, nationalFile)) else any(man$product == p & startsWith(man$dest, paste0(folders[[p]], "/"))), logical(1))
+  expect <- c(if (regionalYearly) c(msi_regional = folders$msi_regional, msi_regional_unc = folders$msi_regional_unc), msi_national = folders$msi_national, if (clearRegional) c(msi_regional_clear = folders$msi_regional_clear),
+              if (regionalTrend) c(msi_regional_trend = folders$msi_regional_trend, msi_regional_trend_clear = folders$msi_regional_trend),
+              if (regionalChange) c(msi_regional_change = folders$msi_regional_change, msi_regional_change_clear = folders$msi_regional_change),
+              if (nationalPlot) c(figures = folders$figures))                                    # 2026-11-24: the new products are expected only when they are switched on
+  noOther <- vapply(names(expect), function(p) if (p == "msi_national") any(man$dest == file.path(folders$msi_national, nationalFile)) else any(man$product == p & startsWith(man$dest, paste0(expect[[p]], "/"))), logical(1))
   extra <- if (any(!noOther)) data.frame(product = names(noOther)[!noOther], species = "", year = NA_integer_, label = "", stringsAsFactors = FALSE) else need[0, c("product", "species", "year", "label")]
   miss <- rbind(miss, extra); names(miss)[names(miss) == "label"] <- "layer"
   utils::write.csv(miss, file.path(vizPath, missingFile), row.names = FALSE)
