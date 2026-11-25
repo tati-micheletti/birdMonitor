@@ -72,3 +72,7 @@ inputs
 
 # SLURM job logs (EVE)
 /logs
+
+# Case studies (presentation figures, slides, EVE extraction): NOT part of the workflow, never pushed (project lead, 2026-11-25).
+# Files already tracked stay tracked; new files in this folder are ignored.
+/case_studies/
