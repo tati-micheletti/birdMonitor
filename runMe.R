@@ -249,6 +249,7 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
         landscapeResolutionM = sharedLandscapeResolutionM,
         climateTargetYears = predictionYears,
         climateWindowLength = sharedClimateWindowLength,
+        climateLastYear = sharedClimateLastYear,          # 2026-11-25: later years use a flagged copy of this year's climate layer (tools/sharedConfig.R)
         ebba2TrainingYear = sharedEbba2TrainingYear,
         landuseYears = landuseYearsNeeded,
         landusePreferHCTM = !identical(toupper(Sys.getenv("BIRDMONITOR_LANDUSE_PREFER_HCTM", "TRUE")), "FALSE"),   # SERIES 2: FALSE = CTM first, no recode (unset/TRUE = the rule since 2026-11-03, unchanged)

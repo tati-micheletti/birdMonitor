@@ -82,6 +82,9 @@ sharedLandscapeResolutionM <- 1000
 predictionYears <- 2005:2025
 
 sharedClimateWindowLength <- 6
+# 2026-11-25: last year with CHELSA data (the daily data end on 30 Sep 2025; nothing newer on the server). A prediction year AFTER it uses an explicit, flagged copy of this
+# year's climate layer (dataPrep_Monitor carryForwardBioclim(); note file next to the layer). Raise this value when CHELSA resumes: the copies are then recomputed from data.
+sharedClimateLastYear <- 2025L
 sharedEbba2TrainingYear <- 2017          # -> bioclim_2012-2017.tif is the EBBA2 training climatology
 
 # Landscape-scale FITTING years only (DDA territory data's real
