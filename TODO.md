@@ -328,6 +328,20 @@ resolution derivation logic already used for `resolutionConfig`. A
 same-session, code-level fix is documented here as commissioned but not
 yet built.
 
+
+## 10. Update to 2026 — follow-ups for the handover (Lisa) (set 26 November 2026)
+
+Context: the 2026 update (A: add 2026 with the stored models; B: refit Series 2 with the new bird data) is described in `DECISIONS.md` (entries of 2026-11-25/26). A is done in the copy `outputs/s2v2_2026`; B is prepared (`cluster/submit_s2v3_refit.sh`, `inputs_s2b`) and was on hold for the answers of the MhB team.
+
+1. **Two versions of B, then compare.** After everything has been delivered: one landscape model trained WITHOUT the preliminary 2025–2026 territories (validated 2005–2024 only) and one WITH them, then compare maps, indices and accuracy. Two full runs (about four days each). The independent check of 26 Nov (existing models vs the preliminary territories, AUC 0.78–0.95) says the two should be close.
+2. **Replace the stand-in for the surveyed plots of 2025–2026.** Plots with at least one CBBM visit in dbird (Lukas's query; our `visits.csv` reproduces his file). Minimum number of visits per plot still open (asked to the MhB team: do plots need all four visits?). Evidence: 99% of the plots with 4 visits have territories, only 71% / 45% / 26% of those with 3 / 2 / 1 visits.
+3. **Validated 2025 territories** expected at the start of 2027 (Lukas); after the MhB Access DB migration all years (2005–today) can come in the dbird format. Then retire the Excel path and the preliminary flag.
+4. **Horizon test (candidate explanation of "2026 weaker than 2025").** Fit the landscape models on data up to 2022 and test them on the validated 2023 and 2024 data: does the accuracy fall with every year ahead, as in PreVal? That separates the forecast horizon from the in-season land use, the carried-forward climate and the preliminary territories.
+5. **Parallel land use by default.** The preparation computes the 14 crop classes of every scale one after the other (about 2 h per scale and year); `cluster/eve_landuse_year.sbatch` does one year with the scales in parallel. Make this part of the chain.
+6. **Native updates (design goal).** New data and years should flow into the pipeline by default, without per-update code edits: today's switches (`BIRDMONITOR_MHB_FILE`, `BIRDMONITOR_DDA_NEW`, `BIRDMONITOR_YEARS_OVERLAY`, `BIRDMONITOR_REUSE_MODELS`, `sharedClimateLastYear`) are the prototype. Open design questions: a year registry (source, cut-off month, climate rule, preliminary flag), reuse of stored models vs refit chosen explicitly per run, the cache of a cluster task lives in the job's temporary folder (so every job refits; the landscape/habitat BRT is not reproducible on a refit).
+7. **Plot coordinates**: `sampleareas.csv` first, the old shapefile as fallback (it lacks 509 of the 2,141 old plots); not yet built into the preparation (waits for B).
+8. **Joined series 2005–2026.** The join of series 1 (HCTM, 2005–2016) and series 2 (CTM, 2017–2026) with the per-cell scale factors still has to be redone with the 2026 results of `s2v2_2026` (tools/joinSeries.R, tools/joinRegional.R), then the connector and the README of the delivery.
+
 ---
 
 *Not yet started on any of these — this file is a starting point, not a
