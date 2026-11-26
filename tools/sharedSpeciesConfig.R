@@ -67,6 +67,20 @@
 loadSpeciesGeneralConfig <- function(path) {
   df <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
 
+  # 2026-11-26: optional YEARS OVERLAY for ONE run (env BIRDMONITOR_YEARS_OVERLAY = a CSV with the columns species, scale, years_override): replaces `years_override` of exactly those species+scale rows,
+  # nothing else. Unset (default) = this file as it is, so every existing run is unchanged. Used by the 2026 refit (data/yearsOverlay_update2026.csv: MhB years to 2026, no 2025-2026 for species without new
+  # territories). Every overlay row must match a row of the config (a typo is an error, not a silent no-op).
+  overlayFile <- Sys.getenv("BIRDMONITOR_YEARS_OVERLAY", "")
+  if (nzchar(overlayFile)) {
+    if (!file.exists(overlayFile)) stop("BIRDMONITOR_YEARS_OVERLAY file not found: ", overlayFile)
+    ov <- utils::read.csv(overlayFile, stringsAsFactors = FALSE, colClasses = "character")
+    if (!all(c("species", "scale", "years_override") %in% names(ov))) stop("BIRDMONITOR_YEARS_OVERLAY ", overlayFile, " needs the columns species, scale, years_override")
+    hit <- match(paste(ov$species, ov$scale), paste(df$species, df$scale))
+    if (anyNA(hit)) stop("BIRDMONITOR_YEARS_OVERLAY ", overlayFile, ": no such species+scale in ", path, ": ", paste(paste(ov$species, ov$scale)[is.na(hit)], collapse = "; "))
+    df$years_override[hit] <- ov$years_override
+    message("BIRDMONITOR_YEARS_OVERLAY (", overlayFile, "): years_override replaced for ", length(hit), " species+scale rows")
+  }
+
   requiredCols <- c("species", "scale", "resolution_m", "data_source",
                      "thinning_dist_m", "brutzeitcode_filter", "spatial_term",
                      "years_override")

@@ -237,7 +237,8 @@ spatialTermConfig <- extractSpatialTermSpecies(perSpeciesGeneralConfig)
       dataPrep_Monitor = list(
         rastersOnly = identical(Sys.getenv("BIRDMONITOR_STAGE"), "rasters"),
         studyAreaSpec = sharedStudyArea,                  # THE study area (tools/sharedConfig.R); layers and records are cropped/filtered by it
-        mhbObsSubpath = sharedMhbObsSubpath,              # 2026-11-26: the MhB point-count file (default = the old export; BIRDMONITOR_MHB_FILE switches, see tools/sharedConfig.R)
+        ddaTerritoriesNewSubpath = sharedDdaTerritoriesNewSubpath,   # 2026-11-26: NA = not used; BIRDMONITOR_DDA_NEW switches (tools/sharedConfig.R)
+        mhbObsSubpath = sharedMhbObsSubpath,             # 2026-11-26: the MhB point-count file (default = the old export; BIRDMONITOR_MHB_FILE switches, see tools/sharedConfig.R)
         ebba2CSVSubpath = sharedEbba2CsvSubpath,          # the EBBA2 occurrence file (tools/sharedConfig.R; a new extract is merged with tools/prepareEbba2Extract.R)
         recordsBufferM = sharedRecordsBufferM,
         climatePredictBufferM = sharedClimatePredictBufferM,

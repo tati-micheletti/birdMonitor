@@ -1,0 +1,18 @@
+# Test of the years overlay in loadSpeciesGeneralConfig() (2026-11-26; from the repo root: Rscript tests/test_yearsOverlay.R)
+suppressMessages(source("tools/sharedSpeciesConfig.R"))
+chk <- function(label, ok) { cat(if (isTRUE(ok)) "ok   " else "FAIL ", label, "\n"); if (!isTRUE(ok)) quit(status = 1) }
+cfgFile <- "data/speciesConfig_general.csv"
+Sys.unsetenv("BIRDMONITOR_YEARS_OVERLAY"); base <- loadSpeciesGeneralConfig(cfgFile)
+chk("without the overlay the config is as before (Alauda habitat 2022:2025, landscape no override)", identical(base[["Alauda arvensis"]]$habitat$years_override, 2022:2025) && is.na(base[["Alauda arvensis"]]$landscape$years_override))
+Sys.setenv(BIRDMONITOR_YEARS_OVERLAY = "data/yearsOverlay_update2026.csv"); ov <- suppressMessages(loadSpeciesGeneralConfig(cfgFile))
+chk("overlay: habitat years of every roster species to 2026", all(vapply(names(ov), function(s) if (!is.null(ov[[s]]$habitat) && !is.na(ov[[s]]$habitat$years_override[1]) && s %in% c("Alauda arvensis", "Vanellus vanellus", "Falco tinnunculus")) identical(ov[[s]]$habitat$years_override, 2022:2026) else TRUE, logical(1))))
+chk("overlay: Buteo and Sturnus (point counts at the landscape scale) to 2026", identical(ov[["Buteo buteo"]]$landscape$years_override, 2022:2026) && identical(ov[["Sturnus vulgaris"]]$landscape$years_override, 2022:2026))
+chk("overlay: species without new territories end at 2024 at the landscape scale", all(vapply(c("Vanellus vanellus", "Motacilla flava", "Falco tinnunculus"), function(s) identical(ov[[s]]$landscape$years_override, 2005:2024), logical(1))))
+chk("overlay: a species WITH new territories keeps its default (no override: the series years apply)", is.na(ov[["Alauda arvensis"]]$landscape$years_override))
+chk("overlay touches nothing else (resolution, data source, thinning of Alauda unchanged)", identical(ov[["Alauda arvensis"]]$landscape[c("resolution_m", "data_source", "thinning_dist_m")], base[["Alauda arvensis"]]$landscape[c("resolution_m", "data_source", "thinning_dist_m")]))
+chk("species the overlay does not list are identical to the base config", identical(ov[["Lanius collurio"]]$landscape, base[["Lanius collurio"]]$landscape) && identical(ov[["Alauda arvensis"]]$climate, base[["Alauda arvensis"]]$climate))
+tmp <- tempfile(fileext = ".csv"); write.csv(data.frame(species = "Alauda arvensiss", scale = "habitat", years_override = "2022:2026"), tmp, row.names = FALSE)
+Sys.setenv(BIRDMONITOR_YEARS_OVERLAY = tmp); r <- tryCatch(suppressMessages(loadSpeciesGeneralConfig(cfgFile)), error = function(e) "error"); chk("a typo in the overlay is an error, not a silent no-op", identical(r, "error"))
+Sys.setenv(BIRDMONITOR_YEARS_OVERLAY = "no/such/file.csv"); r <- tryCatch(suppressMessages(loadSpeciesGeneralConfig(cfgFile)), error = function(e) "error"); chk("a missing overlay file is an error", identical(r, "error"))
+Sys.unsetenv("BIRDMONITOR_YEARS_OVERLAY"); chk("unsetting the variable returns to the base config", identical(loadSpeciesGeneralConfig(cfgFile), base))
+cat("all passed\n")
