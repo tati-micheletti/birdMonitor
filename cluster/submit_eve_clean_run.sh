@@ -126,7 +126,8 @@ if [ "${DRY_RUN:-0}" = "1" ]; then                # every sbatch (also inside th
   echo "DRY_RUN=1: nothing is submitted; the lines 'DRY sbatch ...' are what would be."
 else
   mkdir -p "outputs/${RUN}"
-  if [ "${S2}" = "1" ]; then bash cluster/s2_link_climate.sh "${RUN}" "${TAG}"; fi   # SERIES 2: the climate pieces of the finished run, copied
+  # SERIES 2: the climate pieces of the finished run, copied. 2026-11-26: not when the run folder already has them (RESUME=1 on a copy of a finished run, cluster/submit_s2v2_add2026.sh)
+  if [ "${S2}" = "1" ]; then if [ -e "outputs/${RUN}/scale_50" ] && [ "${RESUME:-0}" = "1" ]; then echo "climate pieces: outputs/${RUN}/scale_50 exists (RESUME=1), not copied again"; else bash cluster/s2_link_climate.sh "${RUN}" "${TAG}"; fi; fi
   { echo "run ${RUN} submitted $(date -Is) by ${USER}"; echo "main $(git rev-parse HEAD)"; git submodule status; echo "species ${NSP}"; echo "EBBA2 file: inputs/${EBBA2} ${EBBA2SUM}"; echo "study area: $(grep -m1 -o 'study area:.*' "logs/species_check_${RUN}.txt" || true)"; } > "outputs/${RUN}/RUN_INFO.txt"
 fi
 
