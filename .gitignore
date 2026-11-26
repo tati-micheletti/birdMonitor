@@ -64,6 +64,7 @@ inputs
 !/data/speciesConfig_general.csv
 !/data/speciesConfig_predictors.csv
 !/data/landuseRecodeCTMtoHCTM.csv
+!/data/yearsOverlay_update2026.csv
 !/data/landuseRecodeCTMtoHCTM_validation.csv
 !/data/reference/
 
