@@ -29,6 +29,14 @@ for d in "${SRC}"/predictors/processed/*; do b=$(basename "$d")
   done
 done
 mkdir -p "${DST}/response"; ln -s "${SRC}/response/raw" "${DST}/response/raw"
+# 2026-11-26: S2_COPY_LANDUSE_FROM=<another inputs_s2 folder> COPIES its land-use-derived processed layers (landuse_*, unmapped_other_*, landscape_heterogeneity_*, with their sidecars) instead of leaving them to be made again
+# (used for inputs_s2b, the inputs of the 2026 refit: the layers of 2017-2026 are valid there, the preparation finds them as cache hits). Copies, not links: the preparation may rewrite them in place.
+if [ -n "${S2_COPY_LANDUSE_FROM:-}" ]; then
+  [ -d "${S2_COPY_LANDUSE_FROM}/predictors/processed" ] || { echo "STOP: ${S2_COPY_LANDUSE_FROM} is not an inputs folder" >&2; exit 1; }
+  nc=0; for d in "${S2_COPY_LANDUSE_FROM}"/predictors/processed/*/; do b=$(basename "$d"); [ -d "${DST}/predictors/processed/$b" ] || continue
+    for f in "$d"landuse_* "$d"unmapped_other_* "$d"landscape_heterogeneity_*; do [ -e "$f" ] || continue; cp -p "$f" "${DST}/predictors/processed/$b/"; nc=$((nc+1)); done; done
+  echo "  land-use-derived files COPIED from ${S2_COPY_LANDUSE_FROM}: ${nc}"
+fi
 echo "copying response/processed ($(du -sh "${SRC}/response/processed" | cut -f1)) ..."; cp -r "${SRC}/response/processed" "${DST}/response/processed"
 echo "inputs_s2 ready: ${DST}"; echo "  processed layers linked (read-only originals): ${nl}; land-use-derived files left out (Series 2 makes them): ${nf}"
 echo "  use:  export BIRDMONITOR_INPUT_ROOT=${DST}"
