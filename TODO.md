@@ -342,6 +342,8 @@ Context: the 2026 update (A: add 2026 with the stored models; B: refit Series 2 
 7. **Plot coordinates**: `sampleareas.csv` first, the old shapefile as fallback (it lacks 509 of the 2,141 old plots); not yet built into the preparation (waits for B).
 8. **Joined series 2005–2026.** The join of series 1 (HCTM, 2005–2016) and series 2 (CTM, 2017–2026) with the per-cell scale factors still has to be redone with the 2026 results of `s2v2_2026` (tools/joinSeries.R, tools/joinRegional.R), then the connector and the README of the delivery.
 
+11. **Regional index at 1 km and 5 km (Tati, 26 Nov 2026).** Code is ready (uncommitted-to-remote, local commit): `BIRDMONITOR_REGIONAL_KM="1,5,10"` runs those grids, default stays 10/20/50 km; finished band pieces get only the missing sizes added. NOT run yet, on purpose: wait until option B for 2026 is implemented and checked. If B is good: 1, 5 and 10 km on B; if not: the same on the current v4 run. Check the memory of the assemble/index jobs first (1 km is about 360,000 German cells x years x 26 replicates per species); the 1 km map shows landscape-scale detail, the climate information behind it is still 50 km.
+
 ---
 
 *Not yet started on any of these — this file is a starting point, not a
