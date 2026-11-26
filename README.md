@@ -177,7 +177,7 @@ Produces, under `outputs/<runName>/annual_report/`:
   prevalence-change/gain-loss maps
 
 And under `outputs/<runName>/regional_index/`: `regional_index_<N>km_{raw,smoothed}.tif`
-for each of `sharedRegionalCellSizesM`'s grid sizes (10/20/50km by default).
+for each of `sharedRegionalCellSizesM`'s grid sizes (10 km by default; 1 and 5 km on request with `BIRDMONITOR_REGIONAL_KM`).
 
 ## 3. Running on the EVE cluster
 

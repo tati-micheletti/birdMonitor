@@ -1,5 +1,5 @@
 #!/bin/bash -l
-# Regional index uncertainty, step "regionband". Per species x band: sums of the replicate predictions of the German 200 m pixels per 10/20/50 km cell.
+# Regional index uncertainty, step "regionband". Per species x band: sums of the replicate predictions of the German 200 m pixels per regional-grid cell (10 km default).
 # Submitted by cluster/submit_eve_regional.sh -- do not submit by hand unless you know the dependencies.
 #SBATCH --job-name=unc-regionband
 #SBATCH --array=1-176

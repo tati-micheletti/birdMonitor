@@ -133,11 +133,9 @@ sharedLocaleCtype <- "de_DE.UTF-8"
 # single source of truth for which coarse grid sizes get computed. Nothing
 # downstream (scripts, computeRegionalIndex()'s own signature) should
 # hardcode 10km/20km/50km or any other cell size; they should all read
-# this. Currently 10/20/50km: 10km added as a middle ground between the
-# original 20/50km (whose smoothing looked "mild" at that coarseness);
-# held off on 5km since it starts to approach identifying individual
-# localities, which cuts against the reason these grids exist in the
-# first place (a regional picture without pointing at specific areas).
+# this. Currently 10 km (since 26 Nov 2026; before: 10/20/50 km). 1 and 5 km can be asked for
+# (Tati, 26 Nov 2026); NB the earlier reason to hold off on 5 km: it starts to approach identifying individual localities, which cuts against the reason these grids
+# exist (a regional picture without pointing at specific areas) -- check before a 1/5 km map is published.
 # THE STUDY AREA of the whole pipeline (DECISIONS.md 2026-10-21): one definition, everything else follows. Predictor layers are cropped and masked to it when they are made,
 # response records are filtered by it, models are fitted and predicted on it. Change it and the pipeline runs for another area (a state, several countries, Europe, a shapefile).
 #   list(label, countries = ISO3 codes (GADM level 0), regions = names of GADM level-1 regions or NULL (= the whole country), shapefile = path or NULL)
@@ -185,17 +183,17 @@ options(birdMonitor.studyAreaSpec = sharedStudyArea)   # read by models_Monitor'
 sharedRecordsBufferM <- 1000
 sharedClimatePredictBufferM <- 50000
 
-# BIRDMONITOR_REGIONAL_KM="10" restricts a run to the grid sizes (km, comma-separated) given: the Bird Monitor shows only the 10 km map, so an update of what the
-# Monitor shows can skip the 20 and 50 km grids (the regional steps then take about a third of the time). Unset = all three, as before.
-# 2026-11-26 (Tati): 1 and 5 km are also allowed, but only by asking for them: BIRDMONITOR_REGIONAL_KM="1,5" (or "1,5,10") runs those grids; the DEFAULT stays 10/20/50 km (it may change later).
-# The regional band pieces keep the sizes already in them and only get the missing ones added (uncRegionalBand), so asking for 1,5 does not touch the verified 10/20/50 km results.
-sharedRegionalCellSizesM <- c(10000, 20000, 50000)
-sharedRegionalCellSizesAllowedM <- c(1000, 5000, 10000, 20000, 50000)
+# BIRDMONITOR_REGIONAL_KM="1,5,10" sets the grid sizes (km, comma-separated) of a run; unset = the default below (10 km, the only map the Bird Monitor shows).
+# 2026-11-26 (Tati): the DEFAULT is the 10 km grid only; 20 and 50 km are no longer wanted (not allowed any more; the files of earlier runs stay where they are). 1 and 5 km are allowed, but only by
+# asking for them: BIRDMONITOR_REGIONAL_KM="1,5,10" (or "1,5") runs those grids. The regional band pieces keep the sizes already in them and only get the missing ones added (uncRegionalBand),
+# so asking for 1,5 does not touch the verified 10 km results. The default may change again.
+sharedRegionalCellSizesM <- c(10000)
+sharedRegionalCellSizesAllowedM <- c(1000, 5000, 10000)
 local({
   km <- Sys.getenv("BIRDMONITOR_REGIONAL_KM", "")
   if (nzchar(km)) {
     want <- as.numeric(strsplit(km, ",")[[1]]) * 1000
-    if (anyNA(want) || !all(want %in% sharedRegionalCellSizesAllowedM)) stop("BIRDMONITOR_REGIONAL_KM must be a comma-separated subset of 1,5,10,20,50 (got: ", km, ")", call. = FALSE)
+    if (anyNA(want) || !all(want %in% sharedRegionalCellSizesAllowedM)) stop("BIRDMONITOR_REGIONAL_KM must be a comma-separated subset of 1,5,10 (got: ", km, ")", call. = FALSE)
     sharedRegionalCellSizesM <<- sharedRegionalCellSizesAllowedM[sharedRegionalCellSizesAllowedM %in% want]
   }
 })

@@ -24,7 +24,7 @@ Without this you change an old version. On the PC use the same command in the re
 | change years | `tools/sharedConfig.R` (`predictionYears`, `sharedHabitatYears`, `sharedLandscapeYears`); one species only: `years_override` in `data/speciesConfig_general.csv` |
 | change predictors or models of a species | `data/speciesConfig_predictors.csv`, `data/speciesConfig_general.csv` |
 | change code | in the module: `modules/<module>/R/...` |
-| run only the 10 km map of the regional index (all the Monitor shows) | `export BIRDMONITOR_REGIONAL_KM=10` before submitting (default: 10, 20, 50 km) |
+| also run the 1 km and 5 km maps of the regional index | `export BIRDMONITOR_REGIONAL_KM=1,5,10` before submitting (default: 10 km only; 20 and 50 km were removed) |
 | use another run folder | `export BIRDMONITOR_RUNNAME=<name>` before every step (default `test4`; the clean-run script `submit_eve_clean_run.sh` defaults to `v3`) |
 
 Commit and push **the module first, then the main repo** (a module is its own repository):

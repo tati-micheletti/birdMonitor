@@ -49,7 +49,7 @@ for f in "${O}/uncertainty_${TAG}"/*/parity_check.txt; do
 done
 if [ "${np}" -eq "${NSP}" ] && [ "${nok}" -eq "${np}" ]; then ok "${nok} of ${NSP} species: RESULT: OK"; else bad "${nok} species OK, ${np} parity files, ${NSP} species expected"; fi
 
-echo "3. regional index (10/20/50 km): replicate 0 against the baseline, per group"
+echo "3. regional index (10 km, and 1/5 km if asked for): replicate 0 against the baseline, per group"
 for g in ${GRP_RUN}; do
   S=""; [ "${g}" = "all" ] || S="_${g}"
   nr=0

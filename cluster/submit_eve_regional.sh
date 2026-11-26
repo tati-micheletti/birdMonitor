@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit the regional-index uncertainty chain (10/20/50 km grids) to EVE.
+# Submit the regional-index uncertainty chain (10 km grid; 1/5 km on request) to EVE.
 #
 #   regionband [species x band]  -> regionassemble [species]  -> regionindex (once)
 #                                                             -> assembleAll again, with the GERMAN-only area means (annual_report_germany/)
