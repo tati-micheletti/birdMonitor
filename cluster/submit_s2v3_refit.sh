@@ -14,6 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d inputs_s2b/predictors/processed ] || { echo "STOP: inputs_s2b not found: INPUTS_S2=\$PWD/inputs_s2b S2_COPY_LANDUSE_FROM=\$PWD/inputs_s2 bash cluster/make_inputs_s2.sh" >&2; exit 1; }
 for f in response/raw/MhB/dbird/observations_cbbm_flat.csv response/raw/MhB/dbird/territories_cbbm.csv; do [ -f "inputs/${f}" ] || { echo "STOP: inputs/${f} not found (DDA export of 13 Nov 2026)" >&2; exit 1; }; done
+# 2026-11-27: the 4-visit rule (surveyed 2025-2026 = sample areas with >= 4 CBBM visits) reads these three tables next to the territory file, in the folder the run reads from (inputs_s2b)
+for f in visits.csv survey_units.csv sampleareas.csv territories_cbbm.csv observations_cbbm_flat.csv; do [ -f "inputs_s2b/response/raw/MhB/dbird/${f}" ] || { echo "STOP: inputs_s2b/response/raw/MhB/dbird/${f} not found (copy or hard-link it from inputs/response/raw/MhB/dbird/)" >&2; exit 1; }; done
 export SERIES2=1 FORCE="${FORCE:-1}" BRT_SCALES="europe habitat landscape" BIRDMONITOR_RUNNAME="${BIRDMONITOR_RUNNAME:-s2v3}" BIRDMONITOR_INPUT_ROOT="$PWD/inputs_s2b"
 export BIRDMONITOR_PREDICTION_YEARS=2017:2026 BIRDMONITOR_LANDSCAPE_YEARS=2017:2026 BIRDMONITOR_HABITAT_YEARS=2017:2026
 export BIRDMONITOR_MHB_FILE=response/raw/MhB/dbird/observations_cbbm_flat.csv BIRDMONITOR_DDA_NEW=response/raw/MhB/dbird/territories_cbbm.csv BIRDMONITOR_YEARS_OVERLAY=data/yearsOverlay_update2026.csv
