@@ -6,7 +6,7 @@
 #   inputs_s2b            own inputs folder (the preparation rewrites the training tables in place; A relies on the unchanged ones of inputs_s2)  [cluster/make_inputs_s2.sh with S2_COPY_LANDUSE_FROM=inputs_s2]
 #   years                 prediction, landscape and habitat fitting years 2017:2026
 #   BIRDMONITOR_MHB_FILE  the cleaned MhB export of 13 Nov 2026 (habitat scale, and Buteo/Sturnus at the landscape scale)
-#   BIRDMONITOR_DDA_NEW   the validated 2025-2026 DDA territories of 10 species, appended to the two xlsx tables (the surveyed route-years of 2025-2026 are a proxy, see DECISIONS.md 2026-11-26)
+#   BIRDMONITOR_DDA_NEW   the validated 2025-2026 DDA territories of 10 species, appended to the two xlsx tables (surveyed 2025-2026 = sample areas with >= 4 CBBM visits, MhB team 2026-11-27: needs visits.csv, survey_units.csv, sampleareas.csv next to the territory file; BIRDMONITOR_MIN_VISITS changes it, see DECISIONS.md)
 #   BIRDMONITOR_YEARS_OVERLAY  data/yearsOverlay_update2026.csv: MhB years to 2026, species without new territories end at 2024 at the landscape scale
 #   BRT_SCALES            europe habitat landscape: the climate-scale BRT is in the chain (the Series 2 default skips it, but the 2026 climate map must be made)
 # 2026 climate = the flagged copy of the 2025 layer (sharedClimateLastYear); 2026 land use = the in-season map to September 2026 (findCtmFile).
