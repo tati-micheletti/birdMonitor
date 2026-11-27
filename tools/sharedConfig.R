@@ -168,6 +168,9 @@ sharedMhbObsSubpath <- Sys.getenv("BIRDMONITOR_MHB_FILE", "response/raw/MhB/dbir
 sharedDdaTerritoriesNewSubpath <- local({ v <- Sys.getenv("BIRDMONITOR_DDA_NEW", ""); if (nzchar(v)) v else NA_character_ })
 # 2026-11-27 (MhB team via Lukas Seemann): of the PRELIMINARY 2025-2026 seasons ONLY sample areas with the full 4 CBBM visits count as surveyed (Autoterri only generates territories for those). Read from
 # visits.csv/survey_units.csv/sampleareas.csv in the folder of the territory file. BIRDMONITOR_MIN_VISITS=<n> changes the minimum, "proxy" (or 0) = the old proxy (route-years with a territory of any of the 10 species).
+# 2026-11-27: dbird's sampleareas.csv as the FIRST source of plot locations (landscape and habitat scale), the old Probeflaechen shapefile only as fallback for plots not in it (Tati; Lukas Seemann: use sampleareas.csv,
+# ignore the older shapefiles). NA (default) = the shapefile only, as before. BIRDMONITOR_SAMPLEAREAS=response/raw/MhB/dbird/sampleareas.csv (relative to the inputs folder).
+sharedSampleAreasSubpath <- local({ v <- Sys.getenv("BIRDMONITOR_SAMPLEAREAS", ""); if (nzchar(v)) v else NA_character_ })
 sharedDdaMinVisits <- local({ v <- tolower(trimws(Sys.getenv("BIRDMONITOR_MIN_VISITS", "4"))); if (v %in% c("proxy", "0", "")) NA_integer_ else { n <- suppressWarnings(as.integer(v)); if (is.na(n) || n < 1L) stop("BIRDMONITOR_MIN_VISITS must be a whole number >= 1 or 'proxy' (got: ", v, ")", call. = FALSE); n } })
 sharedEbba2CsvSubpath <- "response/raw/ornitho/ebba2_data_occurrence_50km_2026-10-28.csv"   # 17 species: the 12 original + Curruca communis, Passer montanus, Streptopelia turtur, Motacilla flava, Falco tinnunculus (tools/prepareEbba2Extract.R from ..._kestrel.csv)
 # BirdLife names in an EBBA2 extract that differ from the roster name (latin_name in data/speciesCanonical.csv): extract name = roster name (tools/prepareEbba2Extract.R renames them when merging).
