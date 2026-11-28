@@ -17,6 +17,9 @@ suppressMessages({ library(terra); library(gbm); library(glmnet); library(ranger
 runName <- if (nzchar(Sys.getenv("BIRDMONITOR_RUNNAME"))) Sys.getenv("BIRDMONITOR_RUNNAME") else "test4"
 repoRoot <- normalizePath(getArg("--repo-root", getwd()), winslash = "/"); setwd(repoRoot)
 for (f in sort(list.files("modules/models_Monitor/R", pattern = "[.]R$", full.names = TRUE))) source(f)
+# 2026-11-28: BIRDMONITOR_GAM_CAP_SECS (unset = no cap, as before) caps each mgcv::gam call (algoGamCapped()); a fit over the cap counts as non-converged and the ladder moves on.
+# Why: s2v3 landscape GAM of Vanellus vanellus (task 1) did not finish a block-CV fold refit in 6 h, twice (the same rare land-use predictors as in uncOof.R's cap).
+if (nzchar(Sys.getenv("BIRDMONITOR_GAM_CAP_SECS"))) options(birdmonitor.gamCapSecs = as.numeric(Sys.getenv("BIRDMONITOR_GAM_CAP_SECS")))
 source("tools/sharedConfig.R"); source("tools/sharedSpeciesConfig.R")
 gen <- if (file.exists("data/speciesConfig_general.csv")) loadSpeciesGeneralConfig("data/speciesConfig_general.csv") else NULL
 cfg <- uncCfgFromParams(inputRoot = Sys.getenv("BIRDMONITOR_INPUT_ROOT", file.path(repoRoot, "inputs")), outputRoot = file.path(repoRoot, "outputs", runName), species = sharedSpecies,
