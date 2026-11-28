@@ -142,20 +142,22 @@ if [ "${S2}" != "1" ]; then lc=$(sbatch --parsable --export=ALL "${LCDEP[@]+"${L
 # and is killed at 12 GB (all 14 habitat tasks of the first v2 chain, 31 Oct 2026). So the habitat array waits for this job.
 echo; echo "=== 2. habitat covariate stacks (once; the habitat array waits for it)"
 PREPDEP=(); if [ -n "${prep}" ]; then PREPDEP=(--dependency=afterok:"${prep}" --kill-on-invalid-dep=yes); fi
-cc=$(sbatch --parsable --export=ALL "${PREPDEP[@]+"${PREPDEP[@]}"}" cluster/eve_covcache.sbatch); echo "covcache: ${cc}"
+# 2026-11-28: SKIP_BRT=1 (resume of a run whose BRT arrays all finished; a refit is not reproducible, so steps 2-3 are not sent) [ENS_AFTER_RESUME=<job id(s) of tasks sent by hand>, ENS_ALGOS_RUN="" = no ensemble member refitted]
+if [ "${SKIP_BRT:-0}" = "1" ]; then cc=""; echo "covcache: skipped (SKIP_BRT=1)"
+else cc=$(sbatch --parsable --export=ALL "${PREPDEP[@]+"${PREPDEP[@]}"}" cluster/eve_covcache.sbatch); echo "covcache: ${cc}"; fi
 
 echo; echo "=== 3. BRT at the scales ${BRT_SCALES:-${BRT_SCALES_DEF}} (${NSP} species each)"
 ids=()
-for scale in ${BRT_SCALES:-${BRT_SCALES_DEF}}; do        # BRT_SCALES=habitat re-sends only the habitat array when the other two have finished
+for scale in $([ "${SKIP_BRT:-0}" = "1" ] || echo ${BRT_SCALES:-${BRT_SCALES_DEF}}); do        # BRT_SCALES=habitat re-sends only the habitat array when the other two have finished
   dep="${prep}"; if [ "${scale}" = "habitat" ]; then dep="${dep:+${dep}:}${cc}"; fi
   DEPARG=(); if [ -n "${dep}" ]; then DEPARG=(--dependency=afterok:"${dep}" --kill-on-invalid-dep=yes); fi
   id=$(sbatch --parsable --export=ALL --array="1-${NSP}" "${DEPARG[@]+"${DEPARG[@]}"}" modules/models_Monitor/cluster/eve_array_${scale}.sbatch)
   echo "BRT ${scale}: ${id}"; ids+=("${id}")
 done
-brt=$(IFS=:; echo "${ids[*]}")
+if [ "${SKIP_BRT:-0}" = "1" ]; then brt="${ENS_AFTER_RESUME:-}"; else brt=$(IFS=:; echo "${ids[*]}"); fi
 
 echo; echo "=== 4. ensemble: fits -> ensemble means -> honest meta-model -> index"
-out=$(ENS_SCALES="${ENS_SCALES_RUN}" ENS_AFTER="${brt}" ENS_ALGOS="glm gam rf nn" ENS_VARIANTS="${MEM}" ENS_THROTTLE=15 bash cluster/submit_eve_ensemble.sh | tee /dev/stderr)
+out=$(ENS_SCALES="${ENS_SCALES_RUN}" ENS_AFTER="${brt}" ENS_ALGOS="${ENS_ALGOS_RUN-glm gam rf nn}" ENS_VARIANTS="${MEM}" ENS_THROTTLE=15 bash cluster/submit_eve_ensemble.sh | tee /dev/stderr)
 meta=$(echo "${out}" | awk '/^meta /{print $NF}')
 [ -n "${meta}" ] || { echo "ERROR: could not read the meta-model job id of the ensemble" >&2; exit 1; }
 # Diagnostics (read-only): the ensemble maps at the survey routes, the per-scale country means and predictors. The post-run job waits for them (afterany: a failure here does not block the figures).
